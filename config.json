@@ -1,0 +1,16 @@
+{
+  "poll_interval": 0.5,
+  "notification_batch_size": 10,
+  "focus_cooldown": 1,
+  "window_refresh_interval": 30,
+  "game_keywords": ["Dofus"],
+  "character_separators": [" - ", ": ", " | "],
+  "log_level": "INFO",
+  "log_to_file": false,
+  "log_file_path": "logs/dofus_focus_bot.log",
+  "multiclick_enabled": true,
+  "multiclick_combination": "LCTRL+LALT",
+  "multiclick_delay": 0.01,
+  "multiclick_cooldown": 0.1,
+  "multiclick_restore_focus": true
+}
