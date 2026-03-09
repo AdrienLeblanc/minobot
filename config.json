@@ -10,7 +10,10 @@
   "log_file_path": "logs/dofus_focus_bot.log",
   "multiclick_enabled": true,
   "multiclick_combination": "LCTRL+LALT",
+  "multiclick_button": "left",
   "multiclick_delay": 0.01,
   "multiclick_cooldown": 0.1,
-  "multiclick_restore_focus": true
+  "multiclick_restore_focus": true,
+  "multiclick_dry_run": false,
+  "multiclick_exclude": []
 }

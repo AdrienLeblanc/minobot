@@ -17,6 +17,9 @@ class FocusManager:
         self.last_time = 0
         self.cooldown = config.get("focus_cooldown", 1)
 
+        # Désactiver le fallback souris si multiclick est actif (éviter conflit)
+        self.multiclick_enabled = config.get("multiclick_enabled", False)
+
         # Obtenir les fonctions Windows nécessaires
         self.user32 = ctypes.windll.user32
         self.kernel32 = ctypes.windll.kernel32
@@ -138,36 +141,37 @@ class FocusManager:
         except Exception as e:
             self.logger.debug(f"[FOCUS METHOD 2 FAILED] {e}")
 
-        # Fallback 2 : Simuler un clic sur la barre de titre
-        try:
-            if win32gui.IsIconic(hwnd):
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        # Fallback 2 : Simuler un clic sur la barre de titre (seulement si multiclick désactivé)
+        if not self.multiclick_enabled:
+            try:
+                if win32gui.IsIconic(hwnd):
+                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
 
-            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
-            win32gui.BringWindowToTop(hwnd)
+                win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+                win32gui.BringWindowToTop(hwnd)
 
-            # Obtenir la position de la fenêtre
-            rect = win32gui.GetWindowRect(hwnd)
-            x = rect[0] + 100  # Position dans la barre de titre
-            y = rect[1] + 10
+                # Obtenir la position de la fenêtre
+                rect = win32gui.GetWindowRect(hwnd)
+                x = rect[0] + 100  # Position dans la barre de titre
+                y = rect[1] + 10
 
-            # Sauvegarder la position actuelle de la souris
-            old_pos = win32api.GetCursorPos()
+                # Sauvegarder la position actuelle de la souris
+                old_pos = win32api.GetCursorPos()
 
-            # Cliquer sur la barre de titre (Windows permet ça)
-            win32api.SetCursorPos((x, y))
-            time.sleep(0.01)
-            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
+                # Cliquer sur la barre de titre (Windows permet ça)
+                win32api.SetCursorPos((x, y))
+                time.sleep(0.01)
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
 
-            # Restaurer la position de la souris
-            win32api.SetCursorPos(old_pos)
+                # Restaurer la position de la souris
+                win32api.SetCursorPos(old_pos)
 
-            self.logger.debug("[FOCUS] Used mouse click method")
-            return True
+                self.logger.debug("[FOCUS] Used mouse click method")
+                return True
 
-        except Exception as e:
-            self.logger.debug(f"[FOCUS METHOD 3 FAILED] {e}")
+            except Exception as e:
+                self.logger.debug(f"[FOCUS METHOD 3 FAILED] {e}")
 
         # Fallback 3 : Au moins afficher la fenêtre (succès partiel)
         try:

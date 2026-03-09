@@ -3,13 +3,13 @@ import win32api
 import win32con
 import asyncio
 import time
-from typing import Tuple
+from typing import Tuple, Optional, Dict, List
 
 
 class MultiWindowClicker:
     """
     Gère les clics synchronisés sur plusieurs fenêtres.
-    Optimisé pour la vitesse maximale.
+    Optimisé pour la vitesse maximale avec support multi-boutons.
     """
 
     def __init__(self, logger, window_manager, config):
@@ -17,8 +17,22 @@ class MultiWindowClicker:
         self.window_manager = window_manager
         self.config = config
 
-        self.click_delay = config.get("multiclick_delay", 0.01)  # Délai entre les clics (10ms par défaut)
+        self.click_delay = config.get("multiclick_delay", 0.01)
         self.restore_original_window = config.get("multiclick_restore_focus", True)
+        self.dry_run = config.get("multiclick_dry_run", False)
+        self.exclude_list = config.get("multiclick_exclude", [])
+        self.click_button = config.get("multiclick_button", "left")
+
+        # Statistiques
+        self.stats = {
+            "total_triggers": 0,
+            "total_clicks": 0,
+            "total_failures": 0,
+            "total_time_ms": 0
+        }
+
+        if self.dry_run:
+            self.logger.warning("[MULTICLICK] DRY RUN MODE - No actual clicks will be sent")
 
     async def click_all_windows(self, screen_position: Tuple[int, int]):
         """
@@ -29,6 +43,7 @@ class MultiWindowClicker:
         """
 
         start_time = time.time()
+        self.stats["total_triggers"] += 1
 
         # Sauvegarder la fenêtre active actuelle
         original_window = win32gui.GetForegroundWindow() if self.restore_original_window else None
@@ -36,71 +51,119 @@ class MultiWindowClicker:
         # Rafraîchir la liste des fenêtres si nécessaire
         await self.window_manager.ensure_fresh()
 
-        windows = list(self.window_manager.windows.values())
+        windows = list(self.window_manager.windows.items())  # (title, hwnd) pairs
 
         if not windows:
             self.logger.warning("[MULTICLICK] No game windows found")
             return
 
+        # Filtrer les fenêtres blacklistées
+        if self.exclude_list:
+            windows = [
+                (title, hwnd) for title, hwnd in windows
+                if not any(excluded.lower() in title.lower() for excluded in self.exclude_list)
+            ]
+
+        # Trier les fenêtres par nom pour ordre consistant
+        windows.sort(key=lambda x: x[0])
+
         # Obtenir la fenêtre actuelle pour calculer la position relative
         current_window = win32gui.WindowFromPoint(screen_position)
+        window_hwnds = [hwnd for _, hwnd in windows]
 
-        # Vérifier si le clic est sur une fenêtre de jeu
-        if current_window not in windows:
-            # Chercher la fenêtre parente qui pourrait être une fenêtre de jeu
+        # Chercher la fenêtre parente avec limite d'itérations
+        if current_window not in window_hwnds:
             parent = win32gui.GetParent(current_window)
-            while parent and parent not in windows:
-                parent = win32gui.GetParent(parent)
+            depth = 0
+            max_depth = 10
 
-            if parent and parent in windows:
+            while parent and parent not in window_hwnds and depth < max_depth:
+                parent = win32gui.GetParent(parent)
+                depth += 1
+
+            if parent and parent in window_hwnds:
                 current_window = parent
             else:
                 self.logger.debug("[MULTICLICK] Click not on a game window, using absolute position")
                 current_window = None
 
-        # Calculer la position relative si on a cliqué sur une fenêtre de jeu
-        relative_pos = None
+        # Calculer la position relative en coordonnées CLIENT
+        relative_client_pos = None
+
         if current_window:
             try:
-                rect = win32gui.GetWindowRect(current_window)
-                relative_pos = (
-                    screen_position[0] - rect[0],
-                    screen_position[1] - rect[1]
+                # Convertir screen position en coordonnées client de la fenêtre source
+                point = (screen_position[0], screen_position[1])
+                client_point = win32gui.ScreenToClient(current_window, point)
+
+                relative_client_pos = client_point
+
+                self.logger.debug(
+                    f"[MULTICLICK] Screen pos: {screen_position}, Client pos in source window: {relative_client_pos}"
                 )
-                self.logger.debug(f"[MULTICLICK] Relative position: {relative_pos}")
-            except:
+            except Exception as e:
+                self.logger.debug(f"[MULTICLICK] Error calculating relative pos: {e}")
                 pass
 
         clicked_count = 0
+        failed_count = 0
+
+        # Cache des informations de fenêtres
+        window_info: Dict[int, dict] = {}
 
         # Cliquer sur chaque fenêtre
-        for hwnd in windows:
+        for title, hwnd in windows:
             try:
                 # Vérifier que la fenêtre existe toujours
                 if not win32gui.IsWindow(hwnd):
                     continue
 
+                # Ne pas cliquer sur fenêtres minimisées
+                if win32gui.IsIconic(hwnd):
+                    self.logger.debug(f"[MULTICLICK] Skipping minimized window: {title}")
+                    continue
+
                 # Calculer la position de clic pour cette fenêtre
-                if relative_pos:
-                    # Utiliser la position relative
-                    rect = win32gui.GetWindowRect(hwnd)
-                    click_x = rect[0] + relative_pos[0]
-                    click_y = rect[1] + relative_pos[1]
+                if relative_client_pos:
+                    # Convertir la position client relative en position écran pour cette fenêtre
+                    try:
+                        screen_point = win32gui.ClientToScreen(hwnd, relative_client_pos)
+                        click_x, click_y = screen_point
+                    except Exception as e:
+                        self.logger.debug(f"[MULTICLICK] ClientToScreen failed for {title}: {e}")
+                        # Fallback: position absolue
+                        click_x, click_y = screen_position
                 else:
                     # Utiliser la position absolue
                     click_x, click_y = screen_position
 
-                # Effectuer le clic sans changer le focus
-                await self._click_at_position(hwnd, click_x, click_y)
+                # Effectuer le clic avec retry si échec
+                max_retries = 2
+                success = False
 
-                clicked_count += 1
+                for attempt in range(max_retries):
+                    success = await self._click_at_position(hwnd, click_x, click_y, title)
 
-                # Petit délai entre les clics pour ne pas surcharger
+                    if success:
+                        break
+
+                    if attempt < max_retries - 1:
+                        self.logger.debug(f"[MULTICLICK] Retry {attempt + 1} for {title}")
+                        await asyncio.sleep(0.005)  # 5ms avant retry
+
+                if success:
+                    clicked_count += 1
+                else:
+                    failed_count += 1
+                    self.logger.warning(f"[MULTICLICK] Failed to click {title} after {max_retries} attempts")
+
+                # Petit délai entre les clics
                 if self.click_delay > 0:
                     await asyncio.sleep(self.click_delay)
 
             except Exception as e:
-                self.logger.debug(f"[MULTICLICK] Error clicking window: {e}")
+                self.logger.debug(f"[MULTICLICK] Error clicking window {title}: {e}")
+                failed_count += 1
                 continue
 
         # Restaurer la fenêtre originale
@@ -110,37 +173,69 @@ class MultiWindowClicker:
             except:
                 pass
 
+        # Statistiques
         elapsed = (time.time() - start_time) * 1000
-        self.logger.info(f"[MULTICLICK] Clicked {clicked_count} window(s) in {elapsed:.0f}ms")
+        self.stats["total_clicks"] += clicked_count
+        self.stats["total_failures"] += failed_count
+        self.stats["total_time_ms"] += elapsed
 
-    async def _click_at_position(self, hwnd, x: int, y: int):
+        avg_time = self.stats["total_time_ms"] / self.stats["total_triggers"] if self.stats["total_triggers"] > 0 else 0
+
+        self.logger.info(
+            f"[MULTICLICK] {clicked_count} OK, {failed_count} failed in {elapsed:.0f}ms "
+            f"(avg: {avg_time:.0f}ms, total: {self.stats['total_clicks']} clicks)"
+        )
+
+    async def _click_at_position(self, hwnd: int, x: int, y: int, window_title: str = "") -> bool:
         """
         Effectue un clic à une position spécifique sans changer le focus de la fenêtre.
-        Utilise PostMessage pour envoyer les événements directement à la fenêtre.
+        Utilise SendMessage pour garantir la livraison des messages.
+
+        Args:
+            hwnd: Handle de la fenêtre
+            x: Position X en coordonnées écran
+            y: Position Y en coordonnées écran
+            window_title: Titre de la fenêtre (pour logs)
+
+        Returns:
+            True si succès, False sinon
         """
 
+        if self.dry_run:
+            self.logger.debug(f"[DRY RUN] Would click at ({x}, {y}) on {window_title}")
+            return True
+
         try:
-            # Convertir les coordonnées écran en coordonnées fenêtre
-            rect = win32gui.GetWindowRect(hwnd)
-            window_x = x - rect[0]
-            window_y = y - rect[1]
+            # Convertir les coordonnées écran en coordonnées CLIENT
+            client_point = win32gui.ScreenToClient(hwnd, (x, y))
+            client_x, client_y = client_point
 
-            # Créer le lParam (coordonnées x et y combinées)
-            lparam = win32api.MAKELONG(window_x, window_y)
+            # Créer le lParam (coordonnées client x et y combinées)
+            lparam = win32api.MAKELONG(client_x, client_y)
 
-            # Envoyer les événements de clic directement à la fenêtre
-            # Utiliser PostMessage pour ne pas bloquer et envoyer rapidement
-            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONDOWN, win32con.MK_LBUTTON, lparam)
-            win32gui.PostMessage(hwnd, win32con.WM_LBUTTONUP, 0, lparam)
+            if self.config.get("log_level") == "DEBUG":
+                self.logger.debug(f"[CLICK] {window_title}: screen ({x},{y}) -> client ({client_x},{client_y})")
+
+            # Déterminer les messages selon le type de clic
+            if self.click_button == "right":
+                msg_down = win32con.WM_RBUTTONDOWN
+                msg_up = win32con.WM_RBUTTONUP
+                wparam = win32con.MK_RBUTTON
+            elif self.click_button == "middle":
+                msg_down = win32con.WM_MBUTTONDOWN
+                msg_up = win32con.WM_MBUTTONUP
+                wparam = win32con.MK_MBUTTON
+            else:  # left (défaut)
+                msg_down = win32con.WM_LBUTTONDOWN
+                msg_up = win32con.WM_LBUTTONUP
+                wparam = win32con.MK_LBUTTON
+
+            # Utiliser SendMessage pour garantir la livraison (synchrone)
+            win32gui.SendMessage(hwnd, msg_down, wparam, lparam)
+            win32gui.SendMessage(hwnd, msg_up, 0, lparam)
+
+            return True
 
         except Exception as e:
-            self.logger.debug(f"[CLICK ERROR] {e}")
-            # Fallback : méthode alternative avec SetCursorPos + mouse_event
-            try:
-                old_pos = win32api.GetCursorPos()
-                win32api.SetCursorPos((x, y))
-                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0)
-                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, 0, 0, 0, 0)
-                win32api.SetCursorPos(old_pos)
-            except Exception as e2:
-                self.logger.debug(f"[CLICK FALLBACK ERROR] {e2}")
+            self.logger.debug(f"[CLICK ERROR] {window_title}: {e}")
+            return False

@@ -80,7 +80,7 @@ class KeyboardMonitor:
         combination_str = self.config.get("multiclick_combination", "LCTRL+LALT")
         self.logger.info(f"Keyboard monitor started - Combination: {combination_str} + Left Click")
 
-        poll_interval = 0.01  # 10ms pour une réactivité maximale
+        poll_interval = 0.05  # 50ms = 20 checks/sec, bon équilibre réactivité/CPU
 
         while self.monitoring:
             try:
