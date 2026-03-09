@@ -1,28 +1,54 @@
 import asyncio
+import sys
 
 from core.logger import setup_logger
+from core.config_loader import load_config
 from core.window_manager import WindowManager
 from core.focus_manager import FocusManager
 from core.notification_listener import NotificationListener
 
 
 async def main():
+    """Point d'entrée principal de l'application"""
 
-    logger = setup_logger()
+    # Charger la configuration
+    config = load_config("config.json")
 
-    window_manager = WindowManager(logger)
-    window_manager.refresh()
+    # Configurer le logger avec la config
+    logger = setup_logger(config)
 
-    focus_manager = FocusManager(logger)
+    logger.info("=== Dofus Focus Bot ===")
+    logger.info("Starting application...")
 
-    listener = NotificationListener(
-        logger,
-        window_manager,
-        focus_manager
-    )
+    try:
+        # Initialiser les composants avec la config
+        window_manager = WindowManager(logger, config)
+        window_manager.refresh()
 
-    await listener.start()
+        focus_manager = FocusManager(logger, config)
+
+        listener = NotificationListener(
+            logger,
+            window_manager,
+            focus_manager,
+            config
+        )
+
+        # Démarrer l'écoute des notifications
+        await listener.start()
+
+    except KeyboardInterrupt:
+        logger.info("Application interrupted by user")
+        sys.exit(0)
+
+    except Exception as e:
+        logger.error(f"Fatal error: {e}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nApplication stopped by user")
+        sys.exit(0)
