@@ -20,6 +20,7 @@ def build_exe(script_name):
         "--hidden-import=PIL",
         "--hidden-import=PIL.Image",
         "--hidden-import=PIL.ImageDraw",
+        "--hidden-import=pyautogui",  # Ajout de pyautogui ici
         "--collect-all=pystray",
         script_name
     ]

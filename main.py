@@ -1,6 +1,6 @@
 import asyncio
 import sys
-import socket # Ajout pour la gestion du singleton
+import socket
 
 from core.logger import setup_logger
 from core.config_loader import load_config
@@ -10,95 +10,97 @@ from core.notification_listener import NotificationListener
 from core.keyboard_monitor import KeyboardMonitor
 from core.multi_window_clicker import MultiWindowClicker
 from core.system_tray import SystemTrayManager
+from core.input_simulator import InputSimulator
+from core.group_manager import GroupManager
 
 # Port pour le verrouillage de l'instance unique
-LOCK_PORT = 12345 
+LOCK_PORT = 12345
 lock_socket = None
 
 async def main():
     """Point d'entrée principal de l'application"""
 
-    # Charger la configuration
+    # --- 1. Initialisation et Configuration ---
     config = load_config("config.json")
-
-    # Configurer le logger avec la config
     logger = setup_logger(config)
 
     logger.info("=== Minobot ===")
     logger.info("Starting application...")
 
-    # Initialiser le system tray
+    # --- 2. Initialisation des composants principaux ---
     system_tray = SystemTrayManager(logger)
+    window_manager = WindowManager(logger, config)
+    focus_manager = FocusManager(logger, config)
+    input_simulator = InputSimulator(logger)
+    
+    group_manager = GroupManager(logger, window_manager, input_simulator)
+    multi_clicker = MultiWindowClicker(logger, window_manager, config)
+    keyboard_monitor = KeyboardMonitor(logger)
+
+    # --- 3. Configuration des raccourcis clavier ---
+    
+    # Raccourci pour le multiclick
+    multiclick_hotkey = config.get("multiclick_hotkey", "x1")
+    if config.get("multiclick_enabled", True):
+        keyboard_monitor.register_hotkey(
+            multiclick_hotkey, 
+            multi_clicker.click_all_windows,
+            cooldown=config.get("multiclick_cooldown", 0.1),
+            pass_mouse_pos=True  # Important: on passe la position de la souris
+        )
+        logger.info(f"Multi-window click feature enabled on mouse button '{multiclick_hotkey}'.")
+
+    # Raccourci pour l'invitation de groupe
+    group_invite_hotkey = config.get("group_invite_hotkey", "F8")
+    if config.get("group_invite_enabled", True):
+        keyboard_monitor.register_hotkey(
+            group_invite_hotkey,
+            group_manager.invite_all,
+            cooldown=5.0,
+            pass_mouse_pos=False # Important: on n'a pas besoin de la souris ici
+        )
+        logger.info(f"Group invitation feature enabled on key '{group_invite_hotkey}'.")
+
+    # --- 4. Démarrage des services ---
     system_tray.start()
     logger.info("System tray icon added to taskbar")
 
     try:
-        # Initialiser les composants avec la config
-        window_manager = WindowManager(logger, config)
         window_manager.refresh()
 
-        focus_manager = FocusManager(logger, config)
+        listener = NotificationListener(logger, window_manager, focus_manager, config)
 
-        # Composants pour le multiclick
-        multi_clicker = MultiWindowClicker(logger, window_manager, config)
-
-        # Vérifier si le multiclick est activé
-        multiclick_enabled = config.get("multiclick_enabled", True)
-
-        if multiclick_enabled:
-            keyboard_monitor = KeyboardMonitor(logger, config)
-            keyboard_monitor.set_trigger_callback(multi_clicker.click_all_windows)
-            logger.info("Multi-window click feature enabled")
-        else:
-            keyboard_monitor = None
-            logger.info("Multi-window click feature disabled")
-
-        # Composant pour les notifications
-        listener = NotificationListener(
-            logger,
-            window_manager,
-            focus_manager,
-            config
-        )
-
-        # Démarrer les tâches en parallèle
         tasks = [
-            asyncio.create_task(listener.start(), name="notification_listener")
+            asyncio.create_task(listener.start(), name="notification_listener"),
+            asyncio.create_task(keyboard_monitor.start(), name="keyboard_monitor")
         ]
 
-        if keyboard_monitor:
-            tasks.append(
-                asyncio.create_task(keyboard_monitor.start(), name="keyboard_monitor")
-            )
-
-        # Attendre que toutes les tâches se terminent (ou qu'une échoue)
         await asyncio.gather(*tasks)
 
     except KeyboardInterrupt:
         logger.info("Application interrupted by user")
-        system_tray.stop()
-        sys.exit(0)
-
     except Exception as e:
-        logger.error(f"Fatal error: {e}", exc_info=True)
+        logger.error(f"Fatal error in main loop: {e}", exc_info=True)
+    finally:
+        logger.info("Stopping application...")
         system_tray.stop()
-        sys.exit(1)
+        keyboard_monitor.stop()
+        sys.exit(0)
 
 
 if __name__ == "__main__":
-    # Tenter de créer un verrou pour l'instance unique
     try:
         lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         lock_socket.bind(("127.0.0.1", LOCK_PORT))
     except socket.error:
         print(f"Une autre instance de Minobot est déjà en cours d'exécution sur le port {LOCK_PORT}. Cette instance va se fermer.")
-        sys.exit(0) # Quitter si une autre instance est déjà en cours
+        sys.exit(0)
 
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nApplication stopped by user")
-        sys.exit(0)
     finally:
         if lock_socket:
-            lock_socket.close() # Libérer le port à la fermeture de l'application
+            lock_socket.close()
+        sys.exit(0)

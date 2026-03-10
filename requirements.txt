@@ -2,3 +2,4 @@ pywin32==306
 pyinstaller
 pillow
 pystray
+pyautogui

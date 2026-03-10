@@ -2,165 +2,94 @@ import win32api
 import win32con
 import asyncio
 import time
-from typing import Callable, Set
-
+import inspect
+from typing import Callable, Dict
 
 class KeyboardMonitor:
     """
-    Surveille les combinaisons de touches en temps réel.
-    Utilise GetAsyncKeyState pour une détection rapide et non-bloquante.
+    Surveille les pressions de touches et de boutons souris et déclenche des callbacks associés.
     """
 
-    def __init__(self, logger, config):
+    def __init__(self, logger):
         self.logger = logger
-        self.config = config
-
-        # État des touches
-        self.keys_pressed: Set[int] = set()
-        self.last_trigger_time = 0
-        self.trigger_cooldown = config.get("multiclick_cooldown", 0.1)
-
-        # Callback appelé lors de la combinaison
-        self.on_trigger_callback: Callable = None
-
-        # Touches de la combinaison (par défaut CTRL gauche + ALT gauche)
-        self.required_keys = self._parse_key_combination(
-            config.get("multiclick_combination", "LCTRL+LALT")
-        )
-
-        # État du clic gauche
         self.monitoring = False
-
-    def _parse_key_combination(self, combination: str) -> Set[int]:
-        """Convertit une combinaison de touches en codes virtuels"""
-
-        key_mapping = {
-            "LCTRL": win32con.VK_LCONTROL,
-            "RCTRL": win32con.VK_RCONTROL,
-            "CTRL": win32con.VK_CONTROL,
-            "LALT": win32con.VK_LMENU,
-            "RALT": win32con.VK_RMENU,
-            "ALT": win32con.VK_MENU,
-            "LSHIFT": win32con.VK_LSHIFT,
-            "RSHIFT": win32con.VK_RSHIFT,
-            "SHIFT": win32con.VK_SHIFT,
+        self.hotkeys: Dict[int, tuple[Callable, float, float, bool]] = {}
+        self.key_mapping = self._build_key_map()
+        self.mouse_mapping = {
+            'LEFT': win32con.VK_LBUTTON, 'RIGHT': win32con.VK_RBUTTON,
+            'MIDDLE': win32con.VK_MBUTTON, 'X1': win32con.VK_XBUTTON1,
+            'X2': win32con.VK_XBUTTON2,
         }
 
-        keys = set()
-        for key_name in combination.upper().split("+"):
-            key_name = key_name.strip()
-            if key_name in key_mapping:
-                keys.add(key_mapping[key_name])
-            else:
-                self.logger.warning(f"Unknown key: {key_name}")
+    def _build_key_map(self):
+        key_map = {
+            'F1': win32con.VK_F1, 'F2': win32con.VK_F2, 'F3': win32con.VK_F3,
+            'F4': win32con.VK_F4, 'F5': win32con.VK_F5, 'F6': win32con.VK_F6,
+            'F7': win32con.VK_F7, 'F8': win32con.VK_F8, 'F9': win32con.VK_F9,
+            'F10': win32con.VK_F10, 'F11': win32con.VK_F11, 'F12': win32con.VK_F12,
+        }
+        return key_map
 
-        return keys
+    def register_hotkey(self, key_name: str, callback: Callable, cooldown: float = 0.5, pass_mouse_pos: bool = False):
+        """
+        Enregistre un raccourci.
 
-    def set_trigger_callback(self, callback: Callable):
-        """Définit la fonction à appeler lors du déclenchement"""
-        self.on_trigger_callback = callback
+        Args:
+            key_name (str): Nom de la touche ou du bouton souris.
+            callback (Callable): La fonction à appeler.
+            cooldown (float): Temps d'attente avant redéclenchement.
+            pass_mouse_pos (bool): Si True, passe la position de la souris au callback.
+        """
+        key_name_upper = key_name.upper()
+        vk_code = self.key_mapping.get(key_name_upper) or self.mouse_mapping.get(key_name_upper)
+
+        if not vk_code:
+            self.logger.error(f"Hotkey '{key_name}' is not supported.")
+            return
+
+        self.hotkeys[vk_code] = (callback, 0, cooldown, pass_mouse_pos)
+        self.logger.info(f"Registered hotkey '{key_name}' to callback '{callback.__name__ if hasattr(callback, '__name__') else 'lambda'}'.")
 
     def _is_key_pressed(self, vk_code: int) -> bool:
-        """Vérifie si une touche est actuellement pressée"""
         return win32api.GetAsyncKeyState(vk_code) & 0x8000 != 0
 
-    def _are_required_keys_pressed(self) -> bool:
-        """Vérifie si toutes les touches requises sont pressées"""
-        return all(self._is_key_pressed(key) for key in self.required_keys)
-
-    def _is_left_click_pressed(self) -> bool:
-        """Vérifie si le clic gauche est pressé"""
-        return self._is_key_pressed(win32con.VK_LBUTTON)
-
-    def _is_mouse_button_pressed(self) -> bool:
-        """Vérifie si le bouton de souris configuré est pressé"""
-        button = self.config.get("multiclick_button", "left")
-
-        if button == "x2":  # Bouton 5
-            return self._is_key_pressed(win32con.VK_XBUTTON2)
-        elif button == "x1":  # Bouton 4
-            return self._is_key_pressed(win32con.VK_XBUTTON1)
-        elif button == "right":
-            return self._is_key_pressed(win32con.VK_RBUTTON)
-        elif button == "middle":
-            return self._is_key_pressed(win32con.VK_MBUTTON)
-        else:  # left
-            return self._is_key_pressed(win32con.VK_LBUTTON)
-
     async def start(self):
-        """Démarre la surveillance du clavier"""
+        if not self.hotkeys:
+            self.logger.warning("Keyboard monitor started, but no hotkeys are registered.")
+            return
 
         self.monitoring = True
-
-        combination_str = self.config.get("multiclick_combination", "LCTRL+LALT")
-        button_str = self.config.get("multiclick_button", "left")
-
-        if not len(self.required_keys):
-            self.logger.info(f"Keyboard monitor started - Mouse button: {button_str}")
-        else:
-            self.logger.info(f"Keyboard monitor started - Combination: {combination_str} + Left Click")
-
-        poll_interval = 0.05  # 50ms = 20 checks/sec, bon équilibre réactivité/CPU
+        self.logger.info("Keyboard/Mouse monitor started.")
+        
+        poll_interval = 0.05
 
         while self.monitoring:
-            try:
-                # Si pas de combinaison requise, surveiller uniquement le bouton de souris
-                if not self.required_keys:
-                    # Vérifier si le bouton de souris configuré est pressé
-                    if self._is_mouse_button_pressed():
-                        # Cooldown pour éviter les déclenchements multiples
-                        now = time.time()
-                        if now - self.last_trigger_time >= self.trigger_cooldown:
-                            self.last_trigger_time = now
-
-                            # Récupérer la position de la souris
-                            mouse_pos = win32api.GetCursorPos()
-
-                            self.logger.debug(f"[MULTICLICK TRIGGERED] Position: {mouse_pos}")
-
-                            # Appeler le callback
-                            if self.on_trigger_callback:
-                                try:
-                                    if asyncio.iscoroutinefunction(self.on_trigger_callback):
-                                        await self.on_trigger_callback(mouse_pos)
-                                    else:
-                                        self.on_trigger_callback(mouse_pos)
-                                except Exception as e:
-                                    self.logger.error(f"Error in trigger callback: {e}")
-                else:
-                    # Vérifier si la combinaison est active
-                    if self._are_required_keys_pressed():
-
-                        # Vérifier si un clic gauche est effectué
-                        if self._is_left_click_pressed():
-
-                            # Cooldown pour éviter les déclenchements multiples
-                            now = time.time()
-                            if now - self.last_trigger_time >= self.trigger_cooldown:
-                                self.last_trigger_time = now
-
-                                # Récupérer la position de la souris
+            now = time.time()
+            for vk_code, (callback, last_trigger, cooldown, pass_pos) in list(self.hotkeys.items()):
+                if self._is_key_pressed(vk_code):
+                    if (now - last_trigger) > cooldown:
+                        self.hotkeys[vk_code] = (callback, now, cooldown, pass_pos)
+                        
+                        try:
+                            is_coro = asyncio.iscoroutinefunction(callback)
+                            
+                            if pass_pos:
                                 mouse_pos = win32api.GetCursorPos()
-
-                                self.logger.debug(f"[MULTICLICK TRIGGERED] Position: {mouse_pos}")
-
-                                # Appeler le callback
-                                if self.on_trigger_callback:
-                                    try:
-                                        if asyncio.iscoroutinefunction(self.on_trigger_callback):
-                                            await self.on_trigger_callback(mouse_pos)
-                                        else:
-                                            self.on_trigger_callback(mouse_pos)
-                                    except Exception as e:
-                                        self.logger.error(f"Error in trigger callback: {e}")
-
-                await asyncio.sleep(poll_interval)
-
-            except Exception as e:
-                self.logger.error(f"Error in keyboard monitor: {e}")
-                await asyncio.sleep(0.1)
+                                if is_coro:
+                                    asyncio.create_task(callback(mouse_pos))
+                                else:
+                                    callback(mouse_pos)
+                            else:
+                                if is_coro:
+                                    asyncio.create_task(callback())
+                                else:
+                                    callback()
+                                    
+                        except Exception as e:
+                            self.logger.error(f"Error in hotkey callback: {e}", exc_info=True)
+            
+            await asyncio.sleep(poll_interval)
 
     def stop(self):
-        """Arrête la surveillance"""
         self.monitoring = False
-        self.logger.info("Keyboard monitor stopped")
+        self.logger.info("Keyboard monitor stopped.")
