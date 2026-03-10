@@ -1,9 +1,25 @@
 import win32gui
 import win32api
 import win32con
+import ctypes
 import asyncio
 import time
 from typing import Tuple, Optional, Dict, List
+
+
+# Structure pour FlashWindowEx (arrêter le clignotement orange de la taskbar)
+class FLASHWINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", ctypes.c_uint),
+        ("hwnd", ctypes.c_void_p),
+        ("dwFlags", ctypes.c_uint),
+        ("uCount", ctypes.c_uint),
+        ("dwTimeout", ctypes.c_uint)
+    ]
+
+
+# Constantes FlashWindowEx
+FLASHW_STOP = 0  # Arrêter le clignotement
 
 
 class MultiWindowClicker:
@@ -129,6 +145,7 @@ class MultiWindowClicker:
                     try:
                         screen_point = win32gui.ClientToScreen(hwnd, relative_client_pos)
                         click_x, click_y = screen_point
+                        self.logger.debug(f"[MULTICLICK] {title}: client {relative_client_pos} -> screen ({click_x},{click_y})")
                     except Exception as e:
                         self.logger.debug(f"[MULTICLICK] ClientToScreen failed for {title}: {e}")
                         # Fallback: position absolue
@@ -137,7 +154,9 @@ class MultiWindowClicker:
                     # Utiliser la position absolue
                     click_x, click_y = screen_position
 
-                # Effectuer le clic avec retry si échec
+                # Effectuer le clic directement sans changer le focus
+                # Note: Cela causera un flash orange dans la taskbar pour les fenêtres
+                # qui n'ont pas le focus, mais tous les personnages bougeront correctement
                 max_retries = 2
                 success = False
 
@@ -186,10 +205,31 @@ class MultiWindowClicker:
             f"(avg: {avg_time:.0f}ms, total: {self.stats['total_clicks']} clicks)"
         )
 
+    def _stop_taskbar_flash(self, hwnd: int, repeat: int = 1) -> None:
+        """
+        Arrête le clignotement orange de la taskbar en appelant FlashWindowEx(FLASHW_STOP).
+
+        Args:
+            hwnd: Handle de la fenêtre
+            repeat: Nombre de fois à appeler (1 ou plus pour "spam" et rattraper le flash)
+        """
+        try:
+            flash_info = FLASHWINFO(
+                cbSize=ctypes.sizeof(FLASHWINFO),
+                hwnd=hwnd,
+                dwFlags=FLASHW_STOP,
+                uCount=0,
+                dwTimeout=0
+            )
+            for _ in range(repeat):
+                ctypes.windll.user32.FlashWindowEx(ctypes.byref(flash_info))
+        except Exception as e:
+            self.logger.debug(f"[FLASH STOP ERROR]: {e}")
+
     async def _click_at_position(self, hwnd: int, x: int, y: int, window_title: str = "") -> bool:
         """
-        Effectue un clic à une position spécifique sans changer le focus de la fenêtre.
-        Utilise SendMessage pour garantir la livraison des messages.
+        Utilise PostMessage avec coordonnées client + FlashWindowEx(FLASHW_STOP)
+        pour arrêter le flash orange immédiatement après le clic.
 
         Args:
             hwnd: Handle de la fenêtre
@@ -206,7 +246,7 @@ class MultiWindowClicker:
             return True
 
         try:
-            # Convertir les coordonnées écran en coordonnées CLIENT
+            # Convertir les coordonnées écran en coordonnées CLIENT de cette fenêtre
             client_point = win32gui.ScreenToClient(hwnd, (x, y))
             client_x, client_y = client_point
 
@@ -230,9 +270,16 @@ class MultiWindowClicker:
                 msg_up = win32con.WM_LBUTTONUP
                 wparam = win32con.MK_LBUTTON
 
-            # Utiliser SendMessage pour garantir la livraison (synchrone)
-            win32gui.SendMessage(hwnd, msg_down, wparam, lparam)
-            win32gui.SendMessage(hwnd, msg_up, 0, lparam)
+            # Désactiver le flash avant le clic (tentative préventive)
+            self._stop_taskbar_flash(hwnd, repeat=1)
+
+            # Envoyer les messages de clic
+            win32gui.PostMessage(hwnd, msg_down, wparam, lparam)
+            win32gui.PostMessage(hwnd, msg_up, 0, lparam)
+
+            # Spam FLASHW_STOP après le clic pour "rattraper" le flash
+            # PostMessage est asynchrone, donc on appelle plusieurs fois pour maximiser les chances
+            self._stop_taskbar_flash(hwnd, repeat=5)
 
             return True
 

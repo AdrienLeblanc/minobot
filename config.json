@@ -13,7 +13,7 @@
   "multiclick_button": "left",
   "multiclick_delay": 0.01,
   "multiclick_cooldown": 0.1,
-  "multiclick_restore_focus": true,
+  "multiclick_restore_focus": false,
   "multiclick_dry_run": false,
   "multiclick_exclude": []
 }
