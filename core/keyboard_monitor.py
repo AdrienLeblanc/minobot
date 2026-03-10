@@ -72,24 +72,42 @@ class KeyboardMonitor:
         """Vérifie si le clic gauche est pressé"""
         return self._is_key_pressed(win32con.VK_LBUTTON)
 
+    def _is_mouse_button_pressed(self) -> bool:
+        """Vérifie si le bouton de souris configuré est pressé"""
+        button = self.config.get("multiclick_button", "left")
+
+        if button == "x2":  # Bouton 5
+            return self._is_key_pressed(win32con.VK_XBUTTON2)
+        elif button == "x1":  # Bouton 4
+            return self._is_key_pressed(win32con.VK_XBUTTON1)
+        elif button == "right":
+            return self._is_key_pressed(win32con.VK_RBUTTON)
+        elif button == "middle":
+            return self._is_key_pressed(win32con.VK_MBUTTON)
+        else:  # left
+            return self._is_key_pressed(win32con.VK_LBUTTON)
+
     async def start(self):
         """Démarre la surveillance du clavier"""
 
         self.monitoring = True
 
         combination_str = self.config.get("multiclick_combination", "LCTRL+LALT")
-        self.logger.info(f"Keyboard monitor started - Combination: {combination_str} + Left Click")
+        button_str = self.config.get("multiclick_button", "left")
+
+        if not len(self.required_keys):
+            self.logger.info(f"Keyboard monitor started - Mouse button: {button_str}")
+        else:
+            self.logger.info(f"Keyboard monitor started - Combination: {combination_str} + Left Click")
 
         poll_interval = 0.05  # 50ms = 20 checks/sec, bon équilibre réactivité/CPU
 
         while self.monitoring:
             try:
-                # Vérifier si la combinaison est active
-                if self._are_required_keys_pressed():
-
-                    # Vérifier si un clic gauche est effectué
-                    if self._is_left_click_pressed():
-
+                # Si pas de combinaison requise, surveiller uniquement le bouton de souris
+                if not self.required_keys:
+                    # Vérifier si le bouton de souris configuré est pressé
+                    if self._is_mouse_button_pressed():
                         # Cooldown pour éviter les déclenchements multiples
                         now = time.time()
                         if now - self.last_trigger_time >= self.trigger_cooldown:
@@ -109,6 +127,32 @@ class KeyboardMonitor:
                                         self.on_trigger_callback(mouse_pos)
                                 except Exception as e:
                                     self.logger.error(f"Error in trigger callback: {e}")
+                else:
+                    # Vérifier si la combinaison est active
+                    if self._are_required_keys_pressed():
+
+                        # Vérifier si un clic gauche est effectué
+                        if self._is_left_click_pressed():
+
+                            # Cooldown pour éviter les déclenchements multiples
+                            now = time.time()
+                            if now - self.last_trigger_time >= self.trigger_cooldown:
+                                self.last_trigger_time = now
+
+                                # Récupérer la position de la souris
+                                mouse_pos = win32api.GetCursorPos()
+
+                                self.logger.debug(f"[MULTICLICK TRIGGERED] Position: {mouse_pos}")
+
+                                # Appeler le callback
+                                if self.on_trigger_callback:
+                                    try:
+                                        if asyncio.iscoroutinefunction(self.on_trigger_callback):
+                                            await self.on_trigger_callback(mouse_pos)
+                                        else:
+                                            self.on_trigger_callback(mouse_pos)
+                                    except Exception as e:
+                                        self.logger.error(f"Error in trigger callback: {e}")
 
                 await asyncio.sleep(poll_interval)
 
