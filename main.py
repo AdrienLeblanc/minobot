@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import socket # Ajout pour la gestion du singleton
 
 from core.logger import setup_logger
 from core.config_loader import load_config
@@ -10,6 +11,9 @@ from core.keyboard_monitor import KeyboardMonitor
 from core.multi_window_clicker import MultiWindowClicker
 from core.system_tray import SystemTrayManager
 
+# Port pour le verrouillage de l'instance unique
+LOCK_PORT = 12345 
+lock_socket = None
 
 async def main():
     """Point d'entrée principal de l'application"""
@@ -82,8 +86,19 @@ async def main():
 
 
 if __name__ == "__main__":
+    # Tenter de créer un verrou pour l'instance unique
+    try:
+        lock_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        lock_socket.bind(("127.0.0.1", LOCK_PORT))
+    except socket.error:
+        print(f"Une autre instance de Minobot est déjà en cours d'exécution sur le port {LOCK_PORT}. Cette instance va se fermer.")
+        sys.exit(0) # Quitter si une autre instance est déjà en cours
+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nApplication stopped by user")
         sys.exit(0)
+    finally:
+        if lock_socket:
+            lock_socket.close() # Libérer le port à la fermeture de l'application
