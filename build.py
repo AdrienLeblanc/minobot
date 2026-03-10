@@ -15,6 +15,12 @@ def build_exe(script_name):
         "--onefile",
         "--noconsole",
         "--name=minobot",
+        "--hidden-import=pystray",
+        "--hidden-import=pystray._win32",
+        "--hidden-import=PIL",
+        "--hidden-import=PIL.Image",
+        "--hidden-import=PIL.ImageDraw",
+        "--collect-all=pystray",
         script_name
     ]
     print("Running:", " ".join(cmd))

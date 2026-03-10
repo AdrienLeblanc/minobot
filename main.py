@@ -8,6 +8,7 @@ from core.focus_manager import FocusManager
 from core.notification_listener import NotificationListener
 from core.keyboard_monitor import KeyboardMonitor
 from core.multi_window_clicker import MultiWindowClicker
+from core.system_tray import SystemTrayManager
 
 
 async def main():
@@ -19,8 +20,13 @@ async def main():
     # Configurer le logger avec la config
     logger = setup_logger(config)
 
-    logger.info("=== Dofus Focus Bot ===")
+    logger.info("=== Minobot ===")
     logger.info("Starting application...")
+
+    # Initialiser le system tray
+    system_tray = SystemTrayManager(logger)
+    system_tray.start()
+    logger.info("System tray icon added to taskbar")
 
     try:
         # Initialiser les composants avec la config
@@ -66,10 +72,12 @@ async def main():
 
     except KeyboardInterrupt:
         logger.info("Application interrupted by user")
+        system_tray.stop()
         sys.exit(0)
 
     except Exception as e:
         logger.error(f"Fatal error: {e}", exc_info=True)
+        system_tray.stop()
         sys.exit(1)
 
 

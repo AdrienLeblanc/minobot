@@ -14,7 +14,7 @@ DEFAULT_CONFIG = {
     "log_to_file": False,
     "log_file_path": "logs/dofus_focus_bot.log",
     "multiclick_enabled": True,
-    "multiclick_combination": "LCTRL+LALT",
+    "multiclick_combination": "",
     "multiclick_button": "left",
     "multiclick_delay": 0.01,
     "multiclick_cooldown": 0.1,
