@@ -30,8 +30,10 @@ async def main():
     # --- 2. Initialisation des composants principaux ---
     system_tray = SystemTrayManager(logger)
     window_manager = WindowManager(logger, config)
-    focus_manager = FocusManager(logger, config)
     input_simulator = InputSimulator(logger)
+    
+    # Le FocusManager a maintenant besoin de l'InputSimulator
+    focus_manager = FocusManager(logger, config, input_simulator)
     
     group_manager = GroupManager(logger, window_manager, input_simulator)
     multi_clicker = MultiWindowClicker(logger, window_manager, config)
@@ -39,25 +41,23 @@ async def main():
 
     # --- 3. Configuration des raccourcis clavier ---
     
-    # Raccourci pour le multiclick
     multiclick_hotkey = config.get("multiclick_hotkey", "x1")
     if config.get("multiclick_enabled", True):
         keyboard_monitor.register_hotkey(
             multiclick_hotkey, 
             multi_clicker.click_all_windows,
             cooldown=config.get("multiclick_cooldown", 0.1),
-            pass_mouse_pos=True  # Important: on passe la position de la souris
+            pass_mouse_pos=True
         )
         logger.info(f"Multi-window click feature enabled on mouse button '{multiclick_hotkey}'.")
 
-    # Raccourci pour l'invitation de groupe
     group_invite_hotkey = config.get("group_invite_hotkey", "F8")
     if config.get("group_invite_enabled", True):
         keyboard_monitor.register_hotkey(
             group_invite_hotkey,
             group_manager.invite_all,
             cooldown=5.0,
-            pass_mouse_pos=False # Important: on n'a pas besoin de la souris ici
+            pass_mouse_pos=False
         )
         logger.info(f"Group invitation feature enabled on key '{group_invite_hotkey}'.")
 
