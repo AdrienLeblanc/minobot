@@ -21,7 +21,6 @@ class FocusManager:
         """
         now = time.time()
         if (now - self.last_focus_time) < self.cooldown:
-            # self.logger.debug("Focus request ignored due to cooldown.")
             return
 
         self.last_focus_time = now
@@ -30,28 +29,34 @@ class FocusManager:
             title = win32gui.GetWindowText(hwnd)
             self.logger.info(f"Attempting to focus window: '{title}' (HWND: {hwnd})")
 
-            # --- La méthode ALT ---
+            # --- Méthode améliorée ---
+
             # 1. Simuler un bref appui sur ALT pour "réveiller" Windows
-            # C'est la clé pour permettre à une application en arrière-plan de prendre le focus.
             self.input_simulator.press_key('alt')
-            await asyncio.sleep(0.05) # Très court délai pour que le système traite la touche ALT
+            await asyncio.sleep(0.05)
 
             # 2. Restaurer la fenêtre si elle est minimisée
             if win32gui.IsIconic(hwnd):
                 win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                await asyncio.sleep(0.1) # Laisser le temps à la restauration
+                await asyncio.sleep(0.1)
 
-            # 3. Mettre la fenêtre au premier plan
-            # SetForegroundWindow est la méthode la plus directe et devrait fonctionner
-            # maintenant que nous avons "préparé" le système avec ALT.
+            # 3. Forcer la fenêtre au-dessus des autres (corrige le bug "fenêtre coincée")
+            win32gui.BringWindowToTop(hwnd)
+            
+            # 4. Mettre la fenêtre au premier plan pour lui donner le focus
             win32gui.SetForegroundWindow(hwnd)
             
-            # 4. Vérification
+            # 5. Vérification
             await asyncio.sleep(0.1)
             if win32gui.GetForegroundWindow() == hwnd:
                 self.logger.info(f"[FOCUS OK] Successfully focused '{title}'.")
             else:
-                self.logger.warning(f"[FOCUS FAILED] Could not focus '{title}'. Another window may be interfering.")
+                # Si ça échoue encore, on tente une dernière fois avec une autre commande
+                win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+                if win32gui.GetForegroundWindow() == hwnd:
+                    self.logger.info(f"[FOCUS OK] Successfully focused '{title}' on second attempt.")
+                else:
+                    self.logger.warning(f"[FOCUS FAILED] Could not focus '{title}'.")
 
         except Exception as e:
             self.logger.error(f"[FOCUS ERROR] An unexpected error occurred: {e}", exc_info=True)
