@@ -1,9 +1,8 @@
 import asyncio
-import xml.etree.ElementTree as ET
-from typing import Optional
 import os
 import sqlite3
-import time
+import xml.etree.ElementTree as ET
+from typing import Optional
 
 
 class NotificationListener:
@@ -52,11 +51,8 @@ class NotificationListener:
         finally:
             # Fermer proprement la connexion
             if self.connection:
-                try:
-                    self.connection.close()
-                    self.logger.info("Database connection closed")
-                except:
-                    pass
+                self.connection.close()
+                self.logger.info("Database connection closed")
 
     async def _listen_loop(self):
         """Boucle principale qui poll la base de données pour détecter les nouvelles notifications"""
@@ -71,8 +67,7 @@ class NotificationListener:
                     """
                     SELECT Id, Payload
                     FROM Notification
-                    ORDER BY Id DESC
-                    LIMIT ?
+                    ORDER BY Id DESC LIMIT ?
                     """,
                     (batch_size,)
                 )

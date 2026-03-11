@@ -1,8 +1,8 @@
+import os
+import threading
+
 import pystray
 from PIL import Image, ImageDraw
-import threading
-import sys
-import os
 
 
 class SystemTrayManager:
@@ -21,32 +21,25 @@ class SystemTrayManager:
         # Fond marron
         color_brown = '#5D4037'
         color_gold = '#FFD700'
-        
+
         image = Image.new('RGB', (width, height), color=color_brown)
         dc = ImageDraw.Draw(image)
 
         # Dessiner un M doré
         coords = [
-            (12, 52), 
-            (12, 12), 
-            (32, 32), 
-            (52, 12), 
+            (12, 52),
+            (12, 12),
+            (32, 32),
+            (52, 12),
             (52, 52)
         ]
-        
+
         # Dessiner les lignes avec une épaisseur
         dc.line(coords, fill=color_gold, width=8)
 
         return image
 
-    def show_window(self, icon, item):
-        """Affiche la fenêtre console"""
-        self.logger.info("Showing console window (requested from system tray)")
-        # Note: La fenêtre console ne peut pas vraiment être "cachée" puis "montrée"
-        # dans une application Python standard, mais on peut gérer ça différemment
-        # selon les besoins
-
-    def quit_application(self, icon, item):
+    def quit_application(self, icon):
         """Quitte l'application"""
         self.logger.info("Quitting application from system tray")
         icon.stop()
@@ -57,6 +50,7 @@ class SystemTrayManager:
 
     def start(self):
         """Démarre l'icône système dans un thread séparé"""
+
         def run_tray():
             # Créer le menu
             menu = pystray.Menu(

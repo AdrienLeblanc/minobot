@@ -1,8 +1,9 @@
 import asyncio
-import time
 import re
+
+import win32con  # Import pour les constantes de fenêtre
 import win32gui
-import win32con # Import pour les constantes de fenêtre
+
 
 class GroupManager:
     """
@@ -51,7 +52,7 @@ class GroupManager:
 
         try:
             self.window_manager.refresh()
-            
+
             leader_hwnd = win32gui.GetForegroundWindow()
             leader_title = win32gui.GetWindowText(leader_hwnd)
 
@@ -66,7 +67,7 @@ class GroupManager:
                 self.logger.error(f"Could not extract character name from active window: '{leader_title}'")
                 self.is_running = False
                 return
-            
+
             self.logger.info(f"Leader identified: {leader_name}")
 
             member_windows = []
@@ -89,13 +90,13 @@ class GroupManager:
 
             for member_name, member_hwnd in member_windows:
                 self.logger.info(f"Inviting {member_name}...")
-                
+
                 self._focus_window_by_hwnd(leader_hwnd)
                 await asyncio.sleep(0.1)
-                
+
                 # Étape 1: Appuyer sur Entrée pour activer le chat
                 self.input_simulator.press_key('enter')
-                await asyncio.sleep(0.1) # Attendre que le chat soit prêt
+                await asyncio.sleep(0.1)  # Attendre que le chat soit prêt
 
                 # Étape 2: Coller la commande
                 self.input_simulator.paste_string(f"/invite {member_name}")
@@ -103,13 +104,13 @@ class GroupManager:
 
                 # Étape 3: Appuyer sur Entrée pour envoyer la commande
                 self.input_simulator.press_key('enter')
-                
-                await asyncio.sleep(0.5) # Pause pour que l'invitation arrive
+
+                await asyncio.sleep(0.5)  # Pause pour que l'invitation arrive
 
                 self.logger.info(f"Switching to {member_name} to accept...")
                 self._focus_window_by_hwnd(member_hwnd)
                 await asyncio.sleep(0.25)
-                
+
                 # Accepter l'invitation
                 self.input_simulator.press_key('enter')
                 await asyncio.sleep(0.25)

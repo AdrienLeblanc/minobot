@@ -5,6 +5,7 @@ import time
 import inspect
 from typing import Callable, Dict
 
+
 class KeyboardMonitor:
     """
     Surveille les pressions de touches et de boutons souris et déclenche des callbacks associés.
@@ -48,7 +49,8 @@ class KeyboardMonitor:
             return
 
         self.hotkeys[vk_code] = (callback, 0, cooldown, pass_mouse_pos)
-        self.logger.info(f"Registered hotkey '{key_name}' to callback '{callback.__name__ if hasattr(callback, '__name__') else 'lambda'}'.")
+        self.logger.info(
+            f"Registered hotkey '{key_name}' to callback '{callback.__name__ if hasattr(callback, '__name__') else 'lambda'}'.")
 
     def _is_key_pressed(self, vk_code: int) -> bool:
         return win32api.GetAsyncKeyState(vk_code) & 0x8000 != 0
@@ -60,7 +62,7 @@ class KeyboardMonitor:
 
         self.monitoring = True
         self.logger.info("Keyboard/Mouse monitor started.")
-        
+
         poll_interval = 0.05
 
         while self.monitoring:
@@ -69,10 +71,10 @@ class KeyboardMonitor:
                 if self._is_key_pressed(vk_code):
                     if (now - last_trigger) > cooldown:
                         self.hotkeys[vk_code] = (callback, now, cooldown, pass_pos)
-                        
+
                         try:
                             is_coro = asyncio.iscoroutinefunction(callback)
-                            
+
                             if pass_pos:
                                 mouse_pos = win32api.GetCursorPos()
                                 if is_coro:
@@ -84,10 +86,10 @@ class KeyboardMonitor:
                                     asyncio.create_task(callback())
                                 else:
                                     callback()
-                                    
+
                         except Exception as e:
                             self.logger.error(f"Error in hotkey callback: {e}", exc_info=True)
-            
+
             await asyncio.sleep(poll_interval)
 
     def stop(self):

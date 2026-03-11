@@ -5,7 +5,6 @@ import os
 
 
 def setup_logger(config=None):
-
     if config is None:
         config = {}
 

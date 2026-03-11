@@ -1,25 +1,26 @@
-import win32gui
+import asyncio
+import ctypes
+import time
+from ctypes import wintypes
+from typing import Tuple
+
 import win32api
 import win32con
-import ctypes
-import asyncio
-import time
-from typing import Tuple, Optional, Dict, List
+import win32gui
+
+user32 = ctypes.WinDLL('user32', use_last_error=True)
 
 
 # Structure pour FlashWindowEx (arrêter le clignotement orange de la taskbar)
 class FLASHWINFO(ctypes.Structure):
-    _fields_ = [
-        ("cbSize", ctypes.c_uint),
-        ("hwnd", ctypes.c_void_p),
-        ("dwFlags", ctypes.c_uint),
-        ("uCount", ctypes.c_uint),
-        ("dwTimeout", ctypes.c_uint)
-    ]
+    _fields_ = (('cbSize', wintypes.UINT),
+                ('hwnd', wintypes.HWND),
+                ('dwFlags', wintypes.DWORD),
+                ('uCount', wintypes.UINT),
+                ('dwTimeout', wintypes.DWORD))
 
 
-# Constantes FlashWindowEx
-FLASHW_STOP = 0  # Arrêter le clignotement
+user32.FlashWindowEx.argtypes = (ctypes.POINTER(FLASHWINFO),)
 
 
 class MultiWindowClicker:
@@ -65,7 +66,7 @@ class MultiWindowClicker:
         original_window = win32gui.GetForegroundWindow() if self.restore_original_window else None
 
         # Rafraîchir la liste des fenêtres si nécessaire
-        await self.window_manager.ensure_fresh()
+        self.window_manager.ensure_fresh()
 
         windows = list(self.window_manager.windows.items())  # (title, hwnd) pairs
 
@@ -119,13 +120,9 @@ class MultiWindowClicker:
                 )
             except Exception as e:
                 self.logger.debug(f"[MULTICLICK] Error calculating relative pos: {e}")
-                pass
 
         clicked_count = 0
         failed_count = 0
-
-        # Cache des informations de fenêtres
-        window_info: Dict[int, dict] = {}
 
         # Cliquer sur chaque fenêtre
         for title, hwnd in windows:
@@ -145,7 +142,8 @@ class MultiWindowClicker:
                     try:
                         screen_point = win32gui.ClientToScreen(hwnd, relative_client_pos)
                         click_x, click_y = screen_point
-                        self.logger.debug(f"[MULTICLICK] {title}: client {relative_client_pos} -> screen ({click_x},{click_y})")
+                        self.logger.debug(
+                            f"[MULTICLICK] {title}: client {relative_client_pos} -> screen ({click_x},{click_y})")
                     except Exception as e:
                         self.logger.debug(f"[MULTICLICK] ClientToScreen failed for {title}: {e}")
                         # Fallback: position absolue
@@ -161,7 +159,7 @@ class MultiWindowClicker:
                 success = False
 
                 for attempt in range(max_retries):
-                    success = await self._click_at_position(hwnd, click_x, click_y, title)
+                    success = self._click_at_position(hwnd, click_x, click_y, title)
 
                     if success:
                         break
@@ -187,10 +185,7 @@ class MultiWindowClicker:
 
         # Restaurer la fenêtre originale
         if original_window and self.restore_original_window:
-            try:
-                win32gui.SetForegroundWindow(original_window)
-            except:
-                pass
+            win32gui.SetForegroundWindow(original_window)
 
         # Statistiques
         elapsed = (time.time() - start_time) * 1000
@@ -217,16 +212,16 @@ class MultiWindowClicker:
             flash_info = FLASHWINFO(
                 cbSize=ctypes.sizeof(FLASHWINFO),
                 hwnd=hwnd,
-                dwFlags=FLASHW_STOP,
+                dwFlags=win32con.FLASHW_STOP,
                 uCount=0,
                 dwTimeout=0
             )
             for _ in range(repeat):
-                ctypes.windll.user32.FlashWindowEx(ctypes.byref(flash_info))
+                user32.FlashWindowEx(ctypes.byref(flash_info))
         except Exception as e:
             self.logger.debug(f"[FLASH STOP ERROR]: {e}")
 
-    async def _click_at_position(self, hwnd: int, x: int, y: int, window_title: str = "") -> bool:
+    def _click_at_position(self, hwnd: int, x: int, y: int, window_title: str = "") -> bool:
         """
         Utilise PostMessage avec coordonnées client + FlashWindowEx(FLASHW_STOP)
         pour arrêter le flash orange immédiatement après le clic.

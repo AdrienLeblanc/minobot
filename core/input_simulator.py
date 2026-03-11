@@ -1,7 +1,6 @@
 import pyautogui
 import win32clipboard
-import win32con
-import time
+
 
 class InputSimulator:
     """
@@ -11,7 +10,7 @@ class InputSimulator:
     def __init__(self, logger):
         self.logger = logger
         # Configurer une pause de sécurité après chaque action pyautogui
-        pyautogui.PAUSE = 0.01 # Réduit pour plus de réactivité
+        pyautogui.PAUSE = 0.01  # Réduit pour plus de réactivité
 
     def type_string(self, text: str, interval: float = 0.005):
         """
@@ -26,7 +25,7 @@ class InputSimulator:
         Beaucoup plus rapide que de taper caractère par caractère.
         """
         self.logger.debug(f"Pasting string: '{text}'")
-        
+
         try:
             # Mettre le texte dans le presse-papier Windows
             win32clipboard.OpenClipboard()
@@ -34,13 +33,13 @@ class InputSimulator:
             # Utiliser CF_UNICODETEXT pour supporter tous les caractères
             win32clipboard.SetClipboardData(win32clipboard.CF_UNICODETEXT, text)
             win32clipboard.CloseClipboard()
-            
+
             # Simuler Ctrl+V
             # On utilise keyUp/keyDown pour être sûr que ça passe
             pyautogui.keyDown('ctrl')
             pyautogui.press('v')
             pyautogui.keyUp('ctrl')
-            
+
         except Exception as e:
             self.logger.error(f"Failed to paste text: {e}")
             # Fallback sur la frappe normale en cas d'erreur

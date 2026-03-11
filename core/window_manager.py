@@ -40,7 +40,7 @@ class WindowManager:
         for title in self.windows:
             self.logger.info(f"  {title}")
 
-    async def ensure_fresh(self):
+    def ensure_fresh(self):
         """S'assure que la liste des fenêtres est à jour"""
 
         now = time.time()

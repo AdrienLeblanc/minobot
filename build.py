@@ -1,6 +1,7 @@
+import os
 import subprocess
 import sys
-import os
+
 
 def install_pyinstaller():
     try:
@@ -8,6 +9,7 @@ def install_pyinstaller():
     except ImportError:
         print("PyInstaller not found, installing...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
+
 
 def build_exe(script_name):
     cmd = [
@@ -26,6 +28,7 @@ def build_exe(script_name):
     ]
     print("Running:", " ".join(cmd))
     subprocess.check_call(cmd)
+
 
 if __name__ == "__main__":
     script = "main.py"

@@ -2,7 +2,6 @@ import json
 import os
 from typing import Dict, Any
 
-
 DEFAULT_CONFIG = {
     "poll_interval": 0.5,
     "notification_batch_size": 10,

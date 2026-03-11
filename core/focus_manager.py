@@ -1,7 +1,9 @@
-import win32gui
-import win32con
 import asyncio
 import time
+
+import win32con
+import win32gui
+
 
 class FocusManager:
     """
@@ -24,7 +26,7 @@ class FocusManager:
             return
 
         self.last_focus_time = now
-        
+
         try:
             title = win32gui.GetWindowText(hwnd)
             self.logger.info(f"Attempting to focus window: '{title}' (HWND: {hwnd})")
@@ -42,10 +44,10 @@ class FocusManager:
 
             # 3. Forcer la fenêtre au-dessus des autres (corrige le bug "fenêtre coincée")
             win32gui.BringWindowToTop(hwnd)
-            
+
             # 4. Mettre la fenêtre au premier plan pour lui donner le focus
             win32gui.SetForegroundWindow(hwnd)
-            
+
             # 5. Vérification
             await asyncio.sleep(0.1)
             if win32gui.GetForegroundWindow() == hwnd:
