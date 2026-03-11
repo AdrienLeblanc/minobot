@@ -11,6 +11,7 @@ from core.window_manager import WindowManager
 from features.group_manager import GroupManager
 from features.multi_window_clicker import MultiWindowClicker
 from features.notification_listener import NotificationListener
+from features.window_cycler import WindowCycler
 
 
 class MinobotApp:
@@ -32,13 +33,14 @@ class MinobotApp:
         self.keyboard_monitor = KeyboardMonitor(self.logger)
         self.notification_listener = NotificationListener(self.logger, self.window_manager, self.focus_manager,
                                                           self.config)
+        self.window_cycler = WindowCycler(self.logger, self.window_manager, self.focus_manager, self.config)
 
         self._setup_hotkeys()
 
     def _setup_hotkeys(self):
         """Configure les raccourcis clavier."""
         multiclick_hotkey = self.config.get("multiclick_hotkey", "x1")
-        if self.config.get("multiclick_enabled", True):
+        if self.config.get("multiclick_enabled", True) and multiclick_hotkey:
             self.keyboard_monitor.register_hotkey(
                 multiclick_hotkey,
                 self.multi_clicker.click_all_windows,
@@ -48,7 +50,7 @@ class MinobotApp:
             self.logger.info(f"Multi-window click feature enabled on mouse button '{multiclick_hotkey}'.")
 
         group_invite_hotkey = self.config.get("group_invite_hotkey", "F8")
-        if self.config.get("group_invite_enabled", True):
+        if self.config.get("group_invite_enabled", True) and group_invite_hotkey:
             self.keyboard_monitor.register_hotkey(
                 group_invite_hotkey,
                 self.group_manager.invite_all,
@@ -56,6 +58,27 @@ class MinobotApp:
                 pass_mouse_pos=False
             )
             self.logger.info(f"Group invitation feature enabled on key '{group_invite_hotkey}'.")
+
+        # Window Cycler Hotkeys
+        cycle_next_hotkey = self.config.get("window_cycle_next_hotkey", "x2")
+        if cycle_next_hotkey:
+            self.keyboard_monitor.register_hotkey(
+                cycle_next_hotkey,
+                self.window_cycler.cycle_next,
+                cooldown=0.1,  # Cooldown réduit pour un cyclage rapide
+                pass_mouse_pos=False
+            )
+            self.logger.info(f"Window cycler (Next) enabled on '{cycle_next_hotkey}'.")
+
+        cycle_prev_hotkey = self.config.get("window_cycle_prev_hotkey", "shift+x2")
+        if cycle_prev_hotkey:
+            self.keyboard_monitor.register_hotkey(
+                cycle_prev_hotkey,
+                self.window_cycler.cycle_prev,
+                cooldown=0.1,  # Cooldown réduit pour un cyclage rapide
+                pass_mouse_pos=False
+            )
+            self.logger.info(f"Window cycler (Prev) enabled on '{cycle_prev_hotkey}'.")
 
     async def run(self):
         """Démarre tous les services et les exécute en parallèle."""

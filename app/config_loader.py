@@ -5,13 +5,13 @@ from typing import Dict, Any
 DEFAULT_CONFIG = {
     "poll_interval": 0.5,
     "notification_batch_size": 10,
-    "focus_cooldown": 1,
+    "focus_cooldown": 0.1,
     "window_refresh_interval": 30,
     "game_keywords": ["Dofus"],
     "character_separators": [" - ", ": ", " | "],
     "log_level": "INFO",
     "log_to_file": False,
-    "log_file_path": "logs/dofus_focus_bot.log",
+    "log_file_path": "logs/minobot.log",
     "multiclick_enabled": True,
     "multiclick_combination": "",
     "multiclick_button": "x1",
@@ -19,7 +19,20 @@ DEFAULT_CONFIG = {
     "multiclick_cooldown": 0.1,
     "multiclick_restore_focus": False,
     "multiclick_dry_run": False,
-    "multiclick_exclude": []
+    "multiclick_exclude": [],
+    "window_cycle_order": [
+        "Lenore",
+        "Carmilla",
+        "Mallory",
+        "Pancake",
+        "Cookie",
+        "Chokella",
+        "Lilwenn",
+        "Praline",
+        "Gauffre"
+    ],
+    "window_cycle_next_hotkey": "x2",
+    "window_cycle_prev_hotkey": "shift+x2"
 }
 
 

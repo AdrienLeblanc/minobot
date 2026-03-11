@@ -35,7 +35,7 @@ class WindowManager:
 
         self.last_refresh = time.time()
 
-        self.logger.info(f"Detected {len(self.windows)} game window(s):")
+        self.logger.debug(f"Detected {len(self.windows)} game window(s)")
 
         for title in self.windows:
             self.logger.debug(f"  {title}")
