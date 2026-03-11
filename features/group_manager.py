@@ -3,12 +3,12 @@ import logging
 import re
 from typing import Optional, List, Tuple
 
-import win32gui
 import pywintypes
+import win32gui
 
-from core.window_manager import WindowManager
-from core.input_simulator import InputSimulator
 from core.focus_manager import FocusManager
+from core.input_simulator import InputSimulator
+from core.window_manager import WindowManager
 
 
 class GroupManager:
@@ -17,11 +17,11 @@ class GroupManager:
     """
 
     def __init__(
-        self, 
-        logger: logging.Logger, 
-        window_manager: WindowManager, 
-        input_simulator: InputSimulator,
-        focus_manager: FocusManager
+            self,
+            logger: logging.Logger,
+            window_manager: WindowManager,
+            input_simulator: InputSimulator,
+            focus_manager: FocusManager
     ):
         """
         Initializes the GroupManager.
@@ -53,12 +53,12 @@ class GroupManager:
         match = re.search(r"(.+?)\s-\sDofus Retro", window_title)
         if not match:
             return None
-            
+
         name_part = match.group(1).strip()
         # Handle cases like "(AccountName) CharacterName"
         if ')' in name_part:
             name_part = name_part.split(')')[-1].strip()
-            
+
         return name_part
 
     async def invite_all(self) -> None:
@@ -78,7 +78,7 @@ class GroupManager:
         try:
             self.window_manager.refresh()
             leader_hwnd = win32gui.GetForegroundWindow()
-            
+
             if leader_hwnd not in self.window_manager.windows.values():
                 leader_title = win32gui.GetWindowText(leader_hwnd)
                 self.logger.error(f"The active window ('{leader_title}') is not a recognized Dofus window.")

@@ -1,5 +1,4 @@
 import logging
-import os
 import sys
 import threading
 from typing import Optional, Callable
@@ -58,7 +57,7 @@ class SystemTrayManager:
         self.logger.info("Quitting application from system tray...")
         if self.icon:
             self.icon.stop()
-        
+
         if self.on_quit_callback:
             self.on_quit_callback()
         else:

@@ -5,8 +5,8 @@ import sqlite3
 import xml.etree.ElementTree as ET
 from typing import Optional, Dict, Any, List, Union
 
-from core.window_manager import WindowManager
 from core.focus_manager import FocusManager
+from core.window_manager import WindowManager
 
 
 class NotificationListener:
@@ -16,11 +16,11 @@ class NotificationListener:
     """
 
     def __init__(
-        self, 
-        logger: logging.Logger, 
-        window_manager: WindowManager, 
-        focus_manager: FocusManager, 
-        config: Dict[str, Any]
+            self,
+            logger: logging.Logger,
+            window_manager: WindowManager,
+            focus_manager: FocusManager,
+            config: Dict[str, Any]
     ):
         """
         Initializes the NotificationListener.

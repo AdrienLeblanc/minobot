@@ -1,9 +1,10 @@
 import logging
-import win32gui
 from typing import List, Tuple, Dict, Any
 
-from core.window_manager import WindowManager
+import win32gui
+
 from core.focus_manager import FocusManager
+from core.window_manager import WindowManager
 
 
 class WindowCycler:
@@ -12,11 +13,11 @@ class WindowCycler:
     """
 
     def __init__(
-        self, 
-        logger: logging.Logger, 
-        window_manager: WindowManager, 
-        focus_manager: FocusManager, 
-        config: Dict[str, Any]
+            self,
+            logger: logging.Logger,
+            window_manager: WindowManager,
+            focus_manager: FocusManager,
+            config: Dict[str, Any]
     ):
         """
         Initializes the WindowCycler.
@@ -40,7 +41,7 @@ class WindowCycler:
             A list of tuples (window_title, hwnd), sorted by priority.
         """
         self.window_manager.ensure_fresh()
-        
+
         # We only take windows managed by WindowManager (thus Dofus windows)
         raw_windows: List[Tuple[str, int]] = list(self.window_manager.windows.items())
 
@@ -65,7 +66,7 @@ class WindowCycler:
 
         # First, global alphabetical sort for stable ordering of non-configured windows
         raw_windows.sort(key=lambda x: x[0])
-        
+
         # Then apply priority sort
         raw_windows.sort(key=sort_key)
 
@@ -81,23 +82,23 @@ class WindowCycler:
             return
 
         current_hwnd = win32gui.GetForegroundWindow()
-        
+
         # Find index of current window
         current_index = -1
         for i, (_, hwnd) in enumerate(sorted_windows):
             if hwnd == current_hwnd:
                 current_index = i
                 break
-        
+
         # Calculate next index (looping)
         if current_index == -1:
             next_index = 0
         else:
             next_index = (current_index + 1) % len(sorted_windows)
-        
+
         next_title, next_hwnd = sorted_windows[next_index]
         self.logger.debug(f"Cycling to next window: {next_title}")
-        
+
         await self.focus_manager.focus(next_hwnd)
 
     async def cycle_prev(self) -> None:
@@ -109,21 +110,21 @@ class WindowCycler:
             return
 
         current_hwnd = win32gui.GetForegroundWindow()
-        
+
         # Find index of current window
         current_index = -1
         for i, (_, hwnd) in enumerate(sorted_windows):
             if hwnd == current_hwnd:
                 current_index = i
                 break
-        
+
         # Calculate prev index (looping)
         if current_index == -1:
-            prev_index = len(sorted_windows) - 1 # Start from end if out of context
+            prev_index = len(sorted_windows) - 1  # Start from end if out of context
         else:
             prev_index = (current_index - 1) % len(sorted_windows)
-        
+
         prev_title, prev_hwnd = sorted_windows[prev_index]
         self.logger.debug(f"Cycling to prev window: {prev_title}")
-        
+
         await self.focus_manager.focus(prev_hwnd)

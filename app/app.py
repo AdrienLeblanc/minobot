@@ -55,14 +55,14 @@ class MinobotApp:
         self._setup_hotkeys()
 
     def _register_feature_hotkey(
-        self,
-        config_key_enabled: str,
-        config_key_hotkey: str,
-        default_hotkey: str,
-        callback: Callable[..., Any],
-        feature_name: str,
-        cooldown: float,
-        pass_mouse_pos: bool = False
+            self,
+            config_key_enabled: str,
+            config_key_hotkey: str,
+            default_hotkey: str,
+            callback: Callable[..., Any],
+            feature_name: str,
+            cooldown: float,
+            pass_mouse_pos: bool = False
     ) -> None:
         """Helper to register a hotkey for a feature if it's enabled in the config."""
         if self.config.get(config_key_enabled, True):

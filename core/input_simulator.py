@@ -1,7 +1,8 @@
 import logging
+from typing import Optional
+
 import pyautogui
 import win32clipboard
-from typing import Optional
 
 
 class InputSimulator:

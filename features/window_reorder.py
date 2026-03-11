@@ -1,11 +1,12 @@
 import asyncio
 import logging
-import win32con
-import win32gui
 from typing import List, Tuple, Dict, Any
 
-from core.window_manager import WindowManager
+import win32con
+import win32gui
+
 from core.focus_manager import FocusManager
+from core.window_manager import WindowManager
 
 
 class WindowReorder:
@@ -15,11 +16,11 @@ class WindowReorder:
     """
 
     def __init__(
-        self, 
-        logger: logging.Logger, 
-        window_manager: WindowManager, 
-        focus_manager: FocusManager, 
-        config: Dict[str, Any]
+            self,
+            logger: logging.Logger,
+            window_manager: WindowManager,
+            focus_manager: FocusManager,
+            config: Dict[str, Any]
     ):
         """
         Initializes the WindowReorder feature.
@@ -63,7 +64,7 @@ class WindowReorder:
         raw_windows.sort(key=lambda x: x[0])
         # Secondary sort: Priority list (stable sort preserves alphabetical order for equal priority)
         raw_windows.sort(key=sort_key)
-        
+
         return raw_windows
 
     async def reorder_taskbar(self) -> None:
@@ -94,7 +95,7 @@ class WindowReorder:
             for hwnd in sorted_hwnds:
                 if win32gui.IsWindow(hwnd):
                     win32gui.ShowWindow(hwnd, win32con.SW_HIDE)
-            
+
             # Wait for Windows to update the taskbar
             await asyncio.sleep(0.5)
 
@@ -104,7 +105,7 @@ class WindowReorder:
                     win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
                     if win32gui.IsIconic(hwnd):
                         win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                    
+
                     # Small delay to ensure Windows registers the order
                     await asyncio.sleep(0.1)
 
@@ -122,7 +123,7 @@ class WindowReorder:
             # Emergency recovery: try to show all known windows
             try:
                 for hwnd in self.window_manager.windows.values():
-                     if win32gui.IsWindow(hwnd):
+                    if win32gui.IsWindow(hwnd):
                         win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
             except Exception:
                 pass

@@ -1,5 +1,4 @@
 import logging
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -56,10 +55,10 @@ def build_executable(script_path: Path) -> None:
         "--hidden-import=pyautogui",
         str(script_path)
     ]
-    
+
     logger.info("Running PyInstaller command...")
     logger.debug(f"Command: {' '.join(cmd)}")
-    
+
     try:
         subprocess.check_call(cmd)
         logger.info("Build process completed successfully.")
@@ -80,7 +79,7 @@ def main() -> None:
 
     install_pyinstaller()
     build_executable(script_to_build)
-    
+
     logger.info(f"✅ Build complete. The executable is in the '{Path('dist').resolve()}' folder.")
 
 

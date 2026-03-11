@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 # Configuration par défaut
 DEFAULT_CONFIG: Dict[str, Any] = {
@@ -57,7 +57,7 @@ def load_config(config_path: str = "config.json") -> Dict[str, Any]:
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 user_config = json.load(f)
-                
+
                 # Merge user config into default config
                 # Note: This is a shallow merge. Nested dictionaries would need deep merge if present.
                 if isinstance(user_config, dict):
@@ -65,7 +65,7 @@ def load_config(config_path: str = "config.json") -> Dict[str, Any]:
                     logger.info(f"Configuration loaded from {config_path}")
                 else:
                     logger.warning(f"Config file {config_path} is not a valid JSON object.")
-                    
+
         except json.JSONDecodeError as e:
             logger.error(f"Error parsing config file {config_path}: {e}")
             logger.info("Using default configuration.")

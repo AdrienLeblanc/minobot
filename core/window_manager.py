@@ -22,7 +22,7 @@ class WindowManager:
         self.config: Dict[str, Any] = config
         self.windows: Dict[str, int] = {}  # Maps window title to its HWND
         self.last_refresh: float = 0.0
-        
+
         # Get refresh interval, ensuring it's a number
         refresh_interval_val = config.get("window_refresh_interval", 30)
         self.refresh_interval: float = float(refresh_interval_val)
@@ -80,7 +80,7 @@ class WindowManager:
         """
         # Ensure the list is fresh before searching
         self.ensure_fresh()
-        
+
         character_lower = character_name.lower()
 
         # 1. Attempt exact match first for performance and accuracy

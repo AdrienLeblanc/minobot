@@ -5,15 +5,16 @@ import time
 from ctypes import wintypes
 from typing import Tuple, Dict, Any, List, Optional
 
+import pywintypes
 import win32api
 import win32con
 import win32gui
-import pywintypes
 
 from core.window_manager import WindowManager
 
 # Ctypes setup for FlashWindowEx
 user32 = ctypes.WinDLL('user32', use_last_error=True)
+
 
 class FLASHWINFO(ctypes.Structure):
     _fields_ = (('cbSize', wintypes.UINT),
@@ -21,6 +22,7 @@ class FLASHWINFO(ctypes.Structure):
                 ('dwFlags', wintypes.DWORD),
                 ('uCount', wintypes.UINT),
                 ('dwTimeout', wintypes.DWORD))
+
 
 user32.FlashWindowEx.argtypes = (ctypes.POINTER(FLASHWINFO),)
 
@@ -108,17 +110,18 @@ class MultiWindowClicker:
         windows.sort(key=lambda x: x[0])
         return windows
 
-    def _calculate_relative_position(self, screen_pos: Tuple[int, int], window_hwnds: List[int]) -> Optional[Tuple[int, int]]:
+    def _calculate_relative_position(self, screen_pos: Tuple[int, int], window_hwnds: List[int]) -> Optional[
+        Tuple[int, int]]:
         """Calculates the click position relative to the source window's client area."""
         source_window = win32gui.WindowFromPoint(screen_pos)
-        
+
         # Find the top-level game window if the click was on a child window
         parent = source_window
         depth = 0
         while parent and parent not in window_hwnds and depth < 10:
             parent = win32gui.GetParent(parent)
             depth += 1
-        
+
         if parent and parent in window_hwnds:
             source_window = parent
         else:
@@ -132,7 +135,7 @@ class MultiWindowClicker:
             return None
 
     async def _process_single_window_click(
-        self, hwnd: int, title: str, screen_pos: Tuple[int, int], rel_pos: Optional[Tuple[int, int]]
+            self, hwnd: int, title: str, screen_pos: Tuple[int, int], rel_pos: Optional[Tuple[int, int]]
     ) -> bool:
         """Processes the click logic for a single window."""
         try:
@@ -153,7 +156,7 @@ class MultiWindowClicker:
                     return True
                 if attempt < max_retries - 1:
                     await asyncio.sleep(0.005)
-            
+
             self.logger.warning(f"[MULTICLICK] Failed to click {title} after {max_retries} attempts.")
             return False
 
@@ -176,7 +179,7 @@ class MultiWindowClicker:
             )
             user32.FlashWindowEx(ctypes.byref(info))
         except Exception:
-            pass # Ignore errors here, it's non-critical
+            pass  # Ignore errors here, it's non-critical
 
     def _click_at_position(self, hwnd: int, x: int, y: int, title: str) -> bool:
         """Sends a click message to a window at a specific screen position."""

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Dict, List, Any
 
 import win32api
@@ -40,11 +40,11 @@ class KeyboardMonitor:
         """
         self.logger: logging.Logger = logger
         self.monitoring: bool = False
-        
+
         # Structure: vk_code -> List of registered handlers for that key
         # We use a list to support multiple combos for the same main key (e.g. F1 vs CTRL+F1)
         self.hotkeys: Dict[int, List[HotkeyHandler]] = {}
-        
+
         # Tracks the "pressed" state of each main key to prevent repeat triggering
         self.key_states: Dict[int, bool] = {}
 
@@ -70,11 +70,11 @@ class KeyboardMonitor:
         }
 
     def register_hotkey(
-        self, 
-        key_combo: str, 
-        callback: Callable[..., Any], 
-        cooldown: float = 0.5, 
-        pass_mouse_pos: bool = False
+            self,
+            key_combo: str,
+            callback: Callable[..., Any],
+            cooldown: float = 0.5,
+            pass_mouse_pos: bool = False
     ) -> None:
         """
         Registers a new hotkey with an associated callback.
@@ -87,13 +87,13 @@ class KeyboardMonitor:
         """
         if not key_combo:
             return
-        
+
         parts = [p.strip().upper() for p in key_combo.split('+')]
         main_key = parts[-1]
         modifiers_str = parts[:-1]
 
         vk_code = self.key_mapping.get(main_key) or self.mouse_mapping.get(main_key)
-        
+
         if not vk_code:
             self.logger.error(f"Hotkey main key '{main_key}' is not supported in combo '{key_combo}'.")
             return
@@ -118,11 +118,11 @@ class KeyboardMonitor:
         )
 
         self.hotkeys[vk_code].append(handler)
-        
+
         # Sort handlers by number of modifiers descending.
         # This ensures specific combos (CTRL+X2) are checked before generic ones (X2).
         self.hotkeys[vk_code].sort(key=lambda x: len(x.modifiers), reverse=True)
-        
+
         self.logger.debug(
             f"Registered hotkey '{key_combo}'. Handlers for VK {vk_code}: {len(self.hotkeys[vk_code])}"
         )
@@ -152,21 +152,21 @@ class KeyboardMonitor:
 
         while self.monitoring:
             now = time.time()
-            
+
             for vk_code, handlers in self.hotkeys.items():
                 is_pressed = self._is_key_pressed(vk_code)
                 was_pressed = self.key_states[vk_code]
 
                 # Trigger only on Rising Edge (Released -> Pressed)
                 if is_pressed and not was_pressed:
-                    matched_handler: Any = None # Typed as Any to avoid strict optional check complexity in loop
-                    
+                    matched_handler: Any = None  # Typed as Any to avoid strict optional check complexity in loop
+
                     for handler in handlers:
                         if self._are_modifiers_pressed(handler.modifiers):
                             if (now - handler.last_trigger) > handler.cooldown:
                                 matched_handler = handler
                                 break
-                    
+
                     if matched_handler:
                         matched_handler.last_trigger = now
                         self._trigger_callback(matched_handler)

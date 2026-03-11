@@ -43,7 +43,7 @@ def main() -> None:
 
     # Tenter de créer un verrou pour l'instance unique
     lock_socket = acquire_instance_lock(LOCK_PORT)
-    
+
     if not lock_socket:
         logger.error(
             f"Une autre instance de Minobot est déjà en cours d'exécution sur le port {LOCK_PORT}. "
@@ -52,21 +52,21 @@ def main() -> None:
         sys.exit(0)
 
     app: Optional[MinobotApp] = None
-    
+
     try:
         app = MinobotApp()
         asyncio.run(app.run())
-        
+
     except KeyboardInterrupt:
         logger.info("Application stopped by user (KeyboardInterrupt).")
-        
+
     except Exception as e:
         logger.critical(f"A fatal error occurred during application startup: {e}", exc_info=True)
-        
+
     finally:
         if app:
             app.stop()
-        
+
         if lock_socket:
             lock_socket.close()
             logger.debug("Instance lock released.")

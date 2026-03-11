@@ -4,6 +4,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from typing import Dict, Any, Optional
 
+
 def setup_logger(config: Optional[Dict[str, Any]] = None) -> logging.Logger:
     """
     Configures the application logger based on the provided configuration.
@@ -25,10 +26,10 @@ def setup_logger(config: Optional[Dict[str, Any]] = None) -> logging.Logger:
     log_file_path = config.get("log_file_path", "logs/minobot.log")
 
     logger = logging.getLogger("Minobot")
-    
+
     # Stop messages from being passed to the root logger
     logger.propagate = False
-    
+
     # Reset existing handlers to avoid duplication if called multiple times
     if logger.handlers:
         logger.handlers.clear()

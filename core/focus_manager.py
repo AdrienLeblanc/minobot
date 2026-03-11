@@ -3,9 +3,9 @@ import logging
 import time
 from typing import Dict, Any
 
+import pywintypes
 import win32con
 import win32gui
-import pywintypes
 
 from core.input_simulator import InputSimulator
 
