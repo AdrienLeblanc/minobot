@@ -1,82 +1,105 @@
+import logging
 import os
+import sys
 import threading
+from typing import Optional, Callable
 
 import pystray
 from PIL import Image, ImageDraw
 
 
 class SystemTrayManager:
-    """Gestionnaire de l'icône système dans la barre des tâches Windows"""
+    """
+    Manages the system tray icon for the application.
+    """
 
-    def __init__(self, logger, on_quit_callback=None):
-        self.logger = logger
-        self.on_quit_callback = on_quit_callback
-        self.icon = None
-        self.tray_thread = None
+    def __init__(self, logger: logging.Logger, on_quit_callback: Optional[Callable[[], None]] = None):
+        """
+        Initializes the SystemTrayManager.
 
-    def create_image(self):
-        """Crée une icône personnalisée : M doré sur fond marron"""
-        width = 64
-        height = 64
-        # Fond marron
+        Args:
+            logger: The application logger.
+            on_quit_callback: A function to call when the "Quit" menu item is selected.
+                              If None, os._exit(0) is used as a fallback.
+        """
+        self.logger: logging.Logger = logger
+        self.on_quit_callback: Optional[Callable[[], None]] = on_quit_callback
+        self.icon: Optional[pystray.Icon] = None
+        self.tray_thread: Optional[threading.Thread] = None
+
+    def _create_image(self) -> Image.Image:
+        """
+        Creates a custom icon image: a golden 'M' on a brown background.
+
+        Returns:
+            A PIL Image object.
+        """
+        width, height = 64, 64
         color_brown = '#5D4037'
         color_gold = '#FFD700'
 
         image = Image.new('RGB', (width, height), color=color_brown)
         dc = ImageDraw.Draw(image)
 
-        # Dessiner un M doré
+        # Draw a golden 'M'
         coords = [
-            (12, 52),
-            (12, 12),
+            (12, 52), (12, 12),
             (32, 32),
-            (52, 12),
-            (52, 52)
+            (52, 12), (52, 52)
         ]
-
-        # Dessiner les lignes avec une épaisseur
         dc.line(coords, fill=color_gold, width=8)
 
         return image
 
-    def quit_application(self, icon):
-        """Quitte l'application"""
-        self.logger.info("Quitting application from system tray")
-        icon.stop()
+    def _quit_application(self) -> None:
+        """
+        Handles the application quit logic from the system tray.
+        """
+        self.logger.info("Quitting application from system tray...")
+        if self.icon:
+            self.icon.stop()
+        
         if self.on_quit_callback:
             self.on_quit_callback()
         else:
-            os._exit(0)
+            # Fallback if no callback is provided
+            sys.exit(0)
 
-    def start(self):
-        """Démarre l'icône système dans un thread séparé"""
+    def start(self) -> None:
+        """
+        Starts the system tray icon in a separate daemon thread.
+        """
+        if self.tray_thread and self.tray_thread.is_alive():
+            self.logger.warning("System tray thread is already running.")
+            return
 
-        def run_tray():
-            # Créer le menu
+        def run_tray() -> None:
+            """The target function for the tray thread."""
             menu = pystray.Menu(
                 pystray.MenuItem("Minobot", lambda: None, enabled=False),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Quitter", self.quit_application)
+                pystray.MenuItem("Quit", self._quit_application)
             )
 
-            # Créer l'icône
             self.icon = pystray.Icon(
                 "minobot",
-                self.create_image(),
+                self._create_image(),
                 "Minobot",
                 menu
             )
 
-            self.logger.debug("System tray icon started")
+            self.logger.debug("System tray icon started.")
             self.icon.run()
+            self.logger.debug("System tray icon finished run.")
 
-        # Lancer le system tray dans un thread séparé
         self.tray_thread = threading.Thread(target=run_tray, daemon=True)
         self.tray_thread.start()
-        self.logger.info("System tray thread started")
+        self.logger.info("System tray thread started.")
 
-    def stop(self):
-        """Arrête l'icône système"""
+    def stop(self) -> None:
+        """
+        Stops the system tray icon.
+        """
         if self.icon:
             self.icon.stop()
-            self.logger.info("System tray stopped")
+            self.logger.info("System tray stopped.")

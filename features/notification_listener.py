@@ -1,33 +1,53 @@
 import asyncio
+import logging
 import os
 import sqlite3
 import xml.etree.ElementTree as ET
-from typing import Optional
+from typing import Optional, Dict, Any, List, Union
+
+from core.window_manager import WindowManager
+from core.focus_manager import FocusManager
 
 
 class NotificationListener:
     """
-    Écoute les notifications Windows en temps réel via polling de la base de données système.
-    Cette méthode est plus fiable que l'API WinRT pour détecter les nouvelles notifications.
+    Listens for Windows notifications in real-time by polling the system notification database.
+    This method is more reliable than the WinRT API for detecting new notifications from specific apps.
     """
 
-    def __init__(self, logger, window_manager, focus_manager, config):
+    def __init__(
+        self, 
+        logger: logging.Logger, 
+        window_manager: WindowManager, 
+        focus_manager: FocusManager, 
+        config: Dict[str, Any]
+    ):
+        """
+        Initializes the NotificationListener.
 
-        self.logger = logger
-        self.window_manager = window_manager
-        self.focus_manager = focus_manager
-        self.config = config
+        Args:
+            logger: The application logger.
+            window_manager: The manager for tracking game windows.
+            focus_manager: The manager for focusing windows.
+            config: The application configuration dictionary.
+        """
+        self.logger: logging.Logger = logger
+        self.window_manager: WindowManager = window_manager
+        self.focus_manager: FocusManager = focus_manager
+        self.config: Dict[str, Any] = config
 
-        # Base de données des notifications Windows
-        self.db_path = os.path.expandvars(
+        # Path to the Windows notification database
+        self.db_path: str = os.path.expandvars(
             r"%LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db"
         )
-        self.last_id = 0
-        self.connection = None
+        self.last_id: int = 0
+        self.connection: Optional[sqlite3.Connection] = None
 
-    async def start(self):
-        """Démarre l'écoute des notifications"""
-
+    async def start(self) -> None:
+        """
+        Starts the notification listening process.
+        Connects to the database and enters the polling loop.
+        """
         self.logger.info("Starting Windows notification listener...")
 
         if not os.path.exists(self.db_path):
@@ -35,34 +55,37 @@ class NotificationListener:
             return
 
         try:
-            # Ouvrir la connexion à la base de données
+            # Open database connection in read-only mode if possible, but standard connect works
+            # We use WAL mode to avoid locking issues
             self.connection = sqlite3.connect(self.db_path)
             self.connection.execute("PRAGMA journal_mode=WAL")
 
             self.logger.info("Connected to Windows notification database")
             self.logger.info("Listening for notifications...")
 
-            # Boucle principale d'écoute
             await self._listen_loop()
 
         except Exception as e:
             self.logger.error(f"Fatal error in notification listener: {e}", exc_info=True)
 
         finally:
-            # Fermer proprement la connexion
             if self.connection:
                 self.connection.close()
                 self.logger.info("Database connection closed")
 
-    async def _listen_loop(self):
-        """Boucle principale qui poll la base de données pour détecter les nouvelles notifications"""
-
-        poll_interval = self.config.get("poll_interval", 0.5)
-        batch_size = self.config.get("notification_batch_size", 10)
+    async def _listen_loop(self) -> None:
+        """
+        Main loop that polls the database for new notifications.
+        """
+        poll_interval: float = float(self.config.get("poll_interval", 0.5))
+        batch_size: int = int(self.config.get("notification_batch_size", 10))
 
         while True:
             try:
-                # Récupérer les dernières notifications
+                if not self.connection:
+                    break
+
+                # Fetch latest notifications
                 cursor = self.connection.execute(
                     """
                     SELECT Id, Payload
@@ -74,66 +97,78 @@ class NotificationListener:
 
                 rows = cursor.fetchall()
 
-                # Traiter les notifications dans l'ordre chronologique (plus anciennes en premier)
+                # Process notifications in chronological order (oldest first within the batch)
+                # But we fetched DESC, so we reverse the list
                 for notif_id, payload in reversed(rows):
-
                     if notif_id <= self.last_id:
                         continue
 
                     self.last_id = notif_id
-
                     self.logger.debug(f"[NEW NOTIF] ID {notif_id}")
-
                     await self._process_notification_payload(payload)
 
             except sqlite3.Error as e:
                 self.logger.error(f"Database error: {e}")
-                await asyncio.sleep(poll_interval * 2)  # Attendre plus longtemps en cas d'erreur
+                await asyncio.sleep(poll_interval * 2)
 
             except Exception as e:
                 self.logger.error(f"Unexpected error in listen loop: {e}")
 
             await asyncio.sleep(poll_interval)
 
-    async def _process_notification_payload(self, payload):
-        """Traite le payload XML de la base de données"""
+    async def _process_notification_payload(self, payload: Union[str, bytes]) -> None:
+        """
+        Parses the XML payload from the database.
 
+        Args:
+            payload: The raw payload (string or bytes) containing the notification XML.
+        """
         if not payload:
             return
 
-        # convertir bytes → string
+        # Convert bytes to string if necessary
         if isinstance(payload, bytes):
-            payload = payload.decode("utf-8", errors="ignore")
+            payload_str = payload.decode("utf-8", errors="ignore")
+        else:
+            payload_str = payload
 
-        if "<toast" not in payload:
+        if "<toast" not in payload_str:
             return
 
-        self.logger.debug(f"[RAW NOTIF] {payload}")
+        self.logger.debug(f"[RAW NOTIF] {payload_str}")
 
         try:
-            root = ET.fromstring(payload)
-        except Exception as e:
+            # Parse XML
+            root = ET.fromstring(payload_str)
+            texts = [elem.text for elem in root.iter("text") if elem.text]
+
+            if not texts:
+                return
+
+            title = texts[0]
+            message = texts[1] if len(texts) > 1 else ""
+
+            await self.process_notification_content(title, message)
+
+        except ET.ParseError as e:
             self.logger.debug(f"[XML PARSE ERROR] {e}")
-            return
+        except Exception as e:
+            self.logger.error(f"Error processing notification payload: {e}")
 
-        texts = [elem.text for elem in root.iter("text") if elem.text]
+    async def process_notification_content(self, title: str, message: str) -> None:
+        """
+        Processes the extracted content of a notification.
+        If it matches game keywords, it focuses the relevant window.
 
-        if not texts:
-            return
-
-        title = texts[0]
-        message = texts[1] if len(texts) > 1 else ""
-
-        await self.process_notification_content(title, message)
-
-    async def process_notification_content(self, title: str, message: str):
-        """Traite le contenu d'une notification (titre et message)"""
-
+        Args:
+            title: The title of the notification.
+            message: The body text of the notification.
+        """
         if not title:
             return
 
-        # Filtrer selon les patterns configurables
-        game_keywords = self.config.get("game_keywords", ["Dofus"])
+        # Filter by configurable keywords
+        game_keywords: List[str] = self.config.get("game_keywords", ["Dofus"])
 
         if not any(keyword in title for keyword in game_keywords):
             return
@@ -141,16 +176,13 @@ class NotificationListener:
         self.logger.debug(f"[NOTIF TITLE] {title}")
         self.logger.debug(f"[NOTIF TEXT] {message}")
 
-        # Extraction du nom de personnage avec gestion robuste
         character = self._extract_character_name(title)
 
         if not character:
             self.logger.warning(f"[CHAR EXTRACTION FAILED] {title}")
             return
 
-        # Rafraîchir les fenêtres si nécessaire
         self.window_manager.ensure_fresh()
-
         hwnd = self.window_manager.find_window(character)
 
         if hwnd:
@@ -159,14 +191,19 @@ class NotificationListener:
             self.logger.warning(f"[WINDOW NOT FOUND] {character}")
 
     def _extract_character_name(self, title: str) -> Optional[str]:
-        """Extrait le nom du personnage depuis le titre de notification"""
+        """
+        Extracts the character name from the notification title based on separators.
 
-        # Patterns configurables pour l'extraction
-        separators = self.config.get("character_separators", [" - ", ": ", " | "])
+        Args:
+            title: The notification title.
+
+        Returns:
+            The extracted name or the cleaned title.
+        """
+        separators: List[str] = self.config.get("character_separators", [" - ", ": ", " | "])
 
         for separator in separators:
             if separator in title:
                 return title.split(separator)[0].strip()
 
-        # Si aucun séparateur trouvé, retourner le titre complet nettoyé
         return title.strip()

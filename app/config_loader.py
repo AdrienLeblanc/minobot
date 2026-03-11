@@ -1,8 +1,10 @@
 import json
+import logging
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
-DEFAULT_CONFIG = {
+# Configuration par défaut
+DEFAULT_CONFIG: Dict[str, Any] = {
     "poll_interval": 0.5,
     "notification_batch_size": 10,
     "focus_cooldown": 0.1,
@@ -35,36 +37,59 @@ DEFAULT_CONFIG = {
     "window_cycle_prev_hotkey": "shift+x2"
 }
 
+logger = logging.getLogger("ConfigLoader")
+
 
 def load_config(config_path: str = "config.json") -> Dict[str, Any]:
     """
-    Charge la configuration depuis un fichier JSON.
-    Si le fichier n'existe pas, utilise la configuration par défaut.
-    """
+    Loads configuration from a JSON file.
+    Merges user configuration with default values.
 
+    Args:
+        config_path: Path to the JSON configuration file.
+
+    Returns:
+        A dictionary containing the merged configuration.
+    """
     config = DEFAULT_CONFIG.copy()
 
     if os.path.exists(config_path):
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 user_config = json.load(f)
-                config.update(user_config)
-                print(f"Configuration loaded from {config_path}")
+                
+                # Merge user config into default config
+                # Note: This is a shallow merge. Nested dictionaries would need deep merge if present.
+                if isinstance(user_config, dict):
+                    config.update(user_config)
+                    logger.info(f"Configuration loaded from {config_path}")
+                else:
+                    logger.warning(f"Config file {config_path} is not a valid JSON object.")
+                    
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing config file {config_path}: {e}")
+            logger.info("Using default configuration.")
         except Exception as e:
-            print(f"Warning: Could not load config file {config_path}: {e}")
-            print("Using default configuration")
+            logger.error(f"Could not load config file {config_path}: {e}")
+            logger.info("Using default configuration.")
     else:
-        print(f"Config file {config_path} not found, using default configuration")
+        logger.warning(f"Config file {config_path} not found. Using defaults.")
+        # Optionally save the default config if it doesn't exist
+        # save_default_config(config_path) 
 
     return config
 
 
-def save_default_config(config_path: str = "config.json"):
-    """Crée un fichier de configuration par défaut"""
+def save_default_config(config_path: str = "config.json") -> None:
+    """
+    Creates a default configuration file.
 
+    Args:
+        config_path: Path where to save the configuration.
+    """
     try:
         with open(config_path, 'w', encoding='utf-8') as f:
             json.dump(DEFAULT_CONFIG, f, indent=2, ensure_ascii=False)
-        print(f"Default configuration saved to {config_path}")
+        logger.info(f"Default configuration saved to {config_path}")
     except Exception as e:
-        print(f"Error saving default config: {e}")
+        logger.error(f"Error saving default config to {config_path}: {e}")
