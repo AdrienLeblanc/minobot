@@ -12,6 +12,7 @@ from features.group_manager import GroupManager
 from features.multi_window_clicker import MultiWindowClicker
 from features.notification_listener import NotificationListener
 from features.window_cycler import WindowCycler
+from features.window_reorder import WindowReorder
 
 
 class MinobotApp:
@@ -34,6 +35,7 @@ class MinobotApp:
         self.notification_listener = NotificationListener(self.logger, self.window_manager, self.focus_manager,
                                                           self.config)
         self.window_cycler = WindowCycler(self.logger, self.window_manager, self.focus_manager, self.config)
+        self.window_reorder = WindowReorder(self.logger, self.window_manager, self.focus_manager, self.config)
 
         self._setup_hotkeys()
 
@@ -65,7 +67,7 @@ class MinobotApp:
             self.keyboard_monitor.register_hotkey(
                 cycle_next_hotkey,
                 self.window_cycler.cycle_next,
-                cooldown=0.1,  # Cooldown réduit pour un cyclage rapide
+                cooldown=0.1,
                 pass_mouse_pos=False
             )
             self.logger.info(f"Window cycler (Next) enabled on '{cycle_next_hotkey}'.")
@@ -75,10 +77,21 @@ class MinobotApp:
             self.keyboard_monitor.register_hotkey(
                 cycle_prev_hotkey,
                 self.window_cycler.cycle_prev,
-                cooldown=0.1,  # Cooldown réduit pour un cyclage rapide
+                cooldown=0.1,
                 pass_mouse_pos=False
             )
             self.logger.info(f"Window cycler (Prev) enabled on '{cycle_prev_hotkey}'.")
+            
+        # Window Reorder Hotkey
+        reorder_hotkey = self.config.get("window_reorder_hotkey", "F9")
+        if reorder_hotkey:
+            self.keyboard_monitor.register_hotkey(
+                reorder_hotkey,
+                self.window_reorder.reorder_taskbar,
+                cooldown=5.0, # Cooldown élevé pour éviter les activations accidentelles
+                pass_mouse_pos=False
+            )
+            self.logger.info(f"Window reorder feature enabled on '{reorder_hotkey}'.")
 
     async def run(self):
         """Démarre tous les services et les exécute en parallèle."""

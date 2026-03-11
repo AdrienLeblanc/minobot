@@ -35,4 +35,18 @@ The current implementation must follow these guidelines:
 2. The focus on the main character mustn't be lost (smoothest experience)
 3. All characters are expected to move
 
-A current issue is known: notifications on a background window produces a flash on the taskbar
+A current issue is known: notifications on a background window produces a flash on the taskbar.
+
+## Window Cycler
+> window_cycler.py
+
+Allows the player to cycle through game windows in a predefined order, which is much more efficient than Alt+Tab when playing with multiple accounts.
+
+The cycle order is defined in the `config.json` file.
+
+## Window Reorder
+> window_reorder.py
+
+Allows the player to visually reorder the game windows in the Windows taskbar according to the predefined cycle order.
+
+This is useful when windows are launched in the wrong order, causing visual chaos in the taskbar. The feature works by hiding and showing all windows in the correct sequence.

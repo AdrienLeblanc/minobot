@@ -28,5 +28,6 @@
     "Gauffre"
   ],
   "window_cycle_next_hotkey": "x2",
-  "window_cycle_prev_hotkey": "shift+x2"
+  "window_cycle_prev_hotkey": "shift+x2",
+  "window_reorder_hotkey": "F9"
 }
