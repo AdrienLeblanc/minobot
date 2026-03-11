@@ -107,12 +107,13 @@ class GroupManager:
 
                 await asyncio.sleep(0.5)  # Pause pour que l'invitation arrive
 
-                self.logger.info(f"Switching to {member_name} to accept...")
+                self.logger.debug(f"Switching to {member_name} to accept...")
                 self._focus_window_by_hwnd(member_hwnd)
                 await asyncio.sleep(0.25)
 
                 # Accepter l'invitation
                 self.input_simulator.press_key('enter')
+                self.logger.debug(f"{member_name} joined the group.")
                 await asyncio.sleep(0.25)
 
             self.logger.info("All invitations processed. Switching back to leader.")

@@ -1,7 +1,7 @@
 import logging
+import os
 import sys
 from logging.handlers import RotatingFileHandler
-import os
 
 
 def setup_logger(config=None):

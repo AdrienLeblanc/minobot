@@ -29,7 +29,7 @@ class FocusManager:
 
         try:
             title = win32gui.GetWindowText(hwnd)
-            self.logger.info(f"Attempting to focus window: '{title}' (HWND: {hwnd})")
+            self.logger.debug(f"Attempting to focus window: '{title}' (HWND: {hwnd})")
 
             # --- Méthode améliorée ---
 
@@ -51,12 +51,12 @@ class FocusManager:
             # 5. Vérification
             await asyncio.sleep(0.1)
             if win32gui.GetForegroundWindow() == hwnd:
-                self.logger.info(f"[FOCUS OK] Successfully focused '{title}'.")
+                self.logger.debug(f"[FOCUS OK] Successfully focused '{title}'.")
             else:
                 # Si ça échoue encore, on tente une dernière fois avec une autre commande
                 win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
                 if win32gui.GetForegroundWindow() == hwnd:
-                    self.logger.info(f"[FOCUS OK] Successfully focused '{title}' on second attempt.")
+                    self.logger.debug(f"[FOCUS OK] Successfully focused '{title}' on second attempt.")
                 else:
                     self.logger.warning(f"[FOCUS FAILED] Could not focus '{title}'.")
 

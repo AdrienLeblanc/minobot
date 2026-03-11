@@ -67,7 +67,7 @@ class SystemTrayManager:
                 menu
             )
 
-            self.logger.info("System tray icon started")
+            self.logger.debug("System tray icon started")
             self.icon.run()
 
         # Lancer le system tray dans un thread séparé

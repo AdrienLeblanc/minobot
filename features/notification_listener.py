@@ -138,8 +138,8 @@ class NotificationListener:
         if not any(keyword in title for keyword in game_keywords):
             return
 
-        self.logger.info(f"[NOTIF TITLE] {title}")
-        self.logger.info(f"[NOTIF TEXT] {message}")
+        self.logger.debug(f"[NOTIF TITLE] {title}")
+        self.logger.debug(f"[NOTIF TEXT] {message}")
 
         # Extraction du nom de personnage avec gestion robuste
         character = self._extract_character_name(title)
@@ -148,10 +148,8 @@ class NotificationListener:
             self.logger.warning(f"[CHAR EXTRACTION FAILED] {title}")
             return
 
-        self.logger.info(f"[CHAR] {character}")
-
         # Rafraîchir les fenêtres si nécessaire
-        await self.window_manager.ensure_fresh()
+        self.window_manager.ensure_fresh()
 
         hwnd = self.window_manager.find_window(character)
 

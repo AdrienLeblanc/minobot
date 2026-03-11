@@ -195,7 +195,7 @@ class MultiWindowClicker:
 
         avg_time = self.stats["total_time_ms"] / self.stats["total_triggers"] if self.stats["total_triggers"] > 0 else 0
 
-        self.logger.info(
+        self.logger.debug(
             f"[MULTICLICK] {clicked_count} OK, {failed_count} failed in {elapsed:.0f}ms "
             f"(avg: {avg_time:.0f}ms, total: {self.stats['total_clicks']} clicks)"
         )

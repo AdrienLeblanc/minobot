@@ -2,7 +2,7 @@ import asyncio
 import socket
 import sys
 
-from core.app import MinobotApp
+from app.app import MinobotApp
 
 # Port pour le verrouillage de l'instance unique
 LOCK_PORT = 12345

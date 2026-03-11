@@ -1,6 +1,6 @@
-import win32gui
-import asyncio
 import time
+
+import win32gui
 
 
 class WindowManager:
@@ -38,7 +38,7 @@ class WindowManager:
         self.logger.info(f"Detected {len(self.windows)} game window(s):")
 
         for title in self.windows:
-            self.logger.info(f"  {title}")
+            self.logger.debug(f"  {title}")
 
     def ensure_fresh(self):
         """S'assure que la liste des fenêtres est à jour"""

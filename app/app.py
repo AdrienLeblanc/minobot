@@ -1,16 +1,16 @@
 import asyncio
 import sys
 
-from .config_loader import load_config
-from .focus_manager import FocusManager
-from .group_manager import GroupManager
-from .input_simulator import InputSimulator
-from .keyboard_monitor import KeyboardMonitor
-from .logger import setup_logger
-from .multi_window_clicker import MultiWindowClicker
-from .notification_listener import NotificationListener
-from .system_tray import SystemTrayManager
-from .window_manager import WindowManager
+from app.config_loader import load_config
+from app.logger import setup_logger
+from core.focus_manager import FocusManager
+from core.input_simulator import InputSimulator
+from core.keyboard_monitor import KeyboardMonitor
+from core.system_tray import SystemTrayManager
+from core.window_manager import WindowManager
+from features.group_manager import GroupManager
+from features.multi_window_clicker import MultiWindowClicker
+from features.notification_listener import NotificationListener
 
 
 class MinobotApp:

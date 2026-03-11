@@ -1,9 +1,9 @@
-import win32api
-import win32con
 import asyncio
 import time
-import inspect
 from typing import Callable, Dict
+
+import win32api
+import win32con
 
 
 class KeyboardMonitor:
@@ -49,7 +49,7 @@ class KeyboardMonitor:
             return
 
         self.hotkeys[vk_code] = (callback, 0, cooldown, pass_mouse_pos)
-        self.logger.info(
+        self.logger.debug(
             f"Registered hotkey '{key_name}' to callback '{callback.__name__ if hasattr(callback, '__name__') else 'lambda'}'.")
 
     def _is_key_pressed(self, vk_code: int) -> bool:
