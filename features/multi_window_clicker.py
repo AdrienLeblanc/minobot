@@ -10,6 +10,8 @@ import win32api
 import win32con
 import win32gui
 
+from core.focus_manager import FocusManager
+from core.input_simulator import InputSimulator
 from core.window_manager import WindowManager
 
 # Ctypes setup for FlashWindowEx
@@ -30,20 +32,23 @@ user32.FlashWindowEx.argtypes = (ctypes.POINTER(FLASHWINFO),)
 class MultiWindowClicker:
     """
     Manages synchronized clicks across multiple game windows.
-    Optimized for speed with multi-button support and minimal focus disruption.
     """
 
-    def __init__(self, logger: logging.Logger, window_manager: WindowManager, config: Dict[str, Any]):
+    def __init__(self, logger: logging.Logger, window_manager: WindowManager, focus_manager: FocusManager, input_simulator: InputSimulator, config: Dict[str, Any]):
         """
         Initializes the MultiWindowClicker.
 
         Args:
             logger: The application logger.
             window_manager: The manager for tracking game windows.
+            focus_manager: The manager for focusing windows.
+            input_simulator: The simulator for keyboard/mouse inputs.
             config: The application configuration dictionary.
         """
         self.logger: logging.Logger = logger
         self.window_manager: WindowManager = window_manager
+        self.focus_manager: FocusManager = focus_manager
+        self.input_simulator: InputSimulator = input_simulator
         self.config: Dict[str, Any] = config
 
         # Configuration properties
@@ -64,20 +69,41 @@ class MultiWindowClicker:
         if self.dry_run:
             self.logger.warning("[MULTICLICK] DRY RUN MODE - No actual clicks will be sent.")
 
+    def _get_sorted_windows(self, reverse_order: bool = False) -> List[Tuple[str, int]]:
+        """
+        Retrieves the list of game windows, sorted according to the configuration order.
+        """
+        self.window_manager.ensure_fresh()
+        raw_windows: List[Tuple[str, int]] = list(self.window_manager.windows.items())
+
+        if not raw_windows:
+            return []
+
+        cycle_order: List[str] = self.config.get("window_cycle_order", [])
+
+        def sort_key(item: Tuple[str, int]) -> int:
+            title, _ = item
+            title_lower = title.lower()
+            for i, name_part in enumerate(cycle_order):
+                if name_part.lower() in title_lower:
+                    return i
+            return len(cycle_order) + 1000
+
+        raw_windows.sort(key=lambda x: x[0])
+        raw_windows.sort(key=sort_key, reverse=reverse_order) # Apply reverse here
+        
+        return raw_windows
+
     async def click_all_windows(self, screen_position: Tuple[int, int]) -> None:
         """
         Clicks on all game windows at an equivalent relative position.
-
-        Args:
-            screen_position: The absolute (x, y) screen position where the initial click occurred.
         """
         start_time = time.time()
         self.stats["total_triggers"] += 1
 
         original_window: Optional[int] = win32gui.GetForegroundWindow() if self.restore_original_window else None
-        self.window_manager.ensure_fresh()
-
-        windows = self._get_filtered_windows()
+        
+        windows = self._get_sorted_windows() # Use sorted order
         if not windows:
             self.logger.warning("[MULTICLICK] No game windows found to click.")
             return
@@ -86,6 +112,17 @@ class MultiWindowClicker:
 
         clicked_count, failed_count = 0, 0
         for title, hwnd in windows:
+            # Skip minimized windows
+            if win32gui.IsIconic(hwnd):
+                self.logger.debug(f"[MULTICLICK] Skipping minimized window: {title}")
+                continue
+
+            # If it's the original window, we assume the user's click already handled it.
+            # We only process other windows.
+            if original_window and hwnd == original_window:
+                clicked_count += 1
+                continue
+
             if await self._process_single_window_click(hwnd, title, screen_position, relative_client_pos):
                 clicked_count += 1
             else:
@@ -95,20 +132,50 @@ class MultiWindowClicker:
             try:
                 win32gui.SetForegroundWindow(original_window)
             except pywintypes.error:
-                pass  # Can fail if original window is gone
+                pass
 
         self._log_stats(clicked_count, failed_count, start_time)
 
-    def _get_filtered_windows(self) -> List[Tuple[str, int]]:
-        """Returns a sorted list of windows to be clicked, excluding blacklisted ones."""
-        windows = list(self.window_manager.windows.items())
-        if self.exclude_list:
-            windows = [
-                (title, hwnd) for title, hwnd in windows
-                if not any(excluded in title.lower() for excluded in self.exclude_list)
-            ]
-        windows.sort(key=lambda x: x[0])
-        return windows
+    async def reset_windows_attention_state(self, screen_position: Tuple[int, int]) -> None:
+        """
+        Simulates a human click on each window in reverse order to reset their attention state.
+        This is a visually disruptive but reliable method.
+        """
+        self.logger.info("Starting window attention state reset sequence...")
+        original_window: Optional[int] = win32gui.GetForegroundWindow()
+        
+        windows = self._get_sorted_windows(reverse_order=True) # Process in reverse order
+        if not windows:
+            self.logger.warning("No game windows found to reset.")
+            return
+
+        # We need a valid click position, using the current mouse position as a fallback
+        click_x, click_y = screen_position
+
+        for title, hwnd in windows:
+            if win32gui.IsIconic(hwnd):
+                self.logger.debug(f"Skipping minimized window for reset: {title}")
+                continue
+
+            try:
+                self.logger.debug(f"Resetting attention for '{title}' (HWND: {hwnd})")
+                
+                # 1. Focus the window
+                await self.focus_manager.focus(hwnd)
+                await asyncio.sleep(0.05) # Give Windows a moment to settle
+
+                # 2. Simulate a click
+                self.input_simulator.click(click_x, click_y)
+                await asyncio.sleep(0.05) # Small delay after click
+
+            except Exception as e:
+                self.logger.error(f"Failed to reset attention for window '{title}': {e}")
+
+        # Restore focus to the original window
+        if original_window:
+            await self.focus_manager.focus(original_window)
+        self.logger.info("Window attention state reset sequence complete.")
+
 
     def _calculate_relative_position(self, screen_pos: Tuple[int, int], window_hwnds: List[int]) -> Optional[
         Tuple[int, int]]:

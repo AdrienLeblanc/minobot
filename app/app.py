@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import sys
 from typing import Dict, Any, Callable
 
@@ -31,7 +32,7 @@ class MinobotApp:
         self.logger: logging.Logger = setup_logger(self.config)
 
         # Core Components
-        self.system_tray: SystemTrayManager = SystemTrayManager(self.logger)
+        self.system_tray: SystemTrayManager = SystemTrayManager(self.logger, self.stop)
         self.window_manager: WindowManager = WindowManager(self.logger, self.config)
         self.input_simulator: InputSimulator = InputSimulator(self.logger)
         self.focus_manager: FocusManager = FocusManager(self.logger, self.config, self.input_simulator)
@@ -41,7 +42,9 @@ class MinobotApp:
         self.group_manager: GroupManager = GroupManager(
             self.logger, self.window_manager, self.input_simulator, self.focus_manager
         )
-        self.multi_clicker: MultiWindowClicker = MultiWindowClicker(self.logger, self.window_manager, self.config)
+        self.multi_clicker: MultiWindowClicker = MultiWindowClicker(
+            self.logger, self.window_manager, self.focus_manager, self.input_simulator, self.config
+        )
         self.notification_listener: NotificationListener = NotificationListener(
             self.logger, self.window_manager, self.focus_manager, self.config
         )
@@ -83,6 +86,13 @@ class MinobotApp:
             self.multi_clicker.click_all_windows,
             "Multi-Window Click",
             cooldown=self.config.get("multiclick_cooldown", 0.1),
+            pass_mouse_pos=True
+        )
+        self._register_feature_hotkey(
+            "multiclick_enabled", "reset_windows_hotkey", "shift+x1",
+            self.multi_clicker.reset_windows_attention_state,
+            "Reset Windows State",
+            cooldown=1.0,
             pass_mouse_pos=True
         )
         self._register_feature_hotkey(
@@ -132,4 +142,6 @@ class MinobotApp:
         self.logger.info("=== Minobot Stopping ===")
         self.system_tray.stop()
         self.keyboard_monitor.stop()
-        sys.exit(0)
+        # Use os._exit for a more forceful exit, which is often necessary
+        # in applications with multiple threads and event loops.
+        os._exit(0)
