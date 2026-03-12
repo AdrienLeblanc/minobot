@@ -3,3 +3,4 @@ pyinstaller
 pillow
 pystray
 pyautogui
+pytest

@@ -4,18 +4,18 @@ import os
 import sys
 from typing import Dict, Any, Callable
 
-from app.config_loader import load_config
-from app.logger import setup_logger
-from core.focus_manager import FocusManager
-from core.input_simulator import InputSimulator
-from core.keyboard_monitor import KeyboardMonitor
-from core.system_tray import SystemTrayManager
-from core.window_manager import WindowManager
-from features.group_manager import GroupManager
-from features.multi_window_clicker import MultiWindowClicker
-from features.notification_listener import NotificationListener
-from features.window_cycler import WindowCycler
-from features.window_reorder import WindowReorder
+from src.app.config_loader import load_config
+from src.app.logger import setup_logger
+from src.core.focus_manager import FocusManager
+from src.core.input_simulator import InputSimulator
+from src.core.keyboard_monitor import KeyboardMonitor
+from src.core.system_tray import SystemTrayManager
+from src.core.window_manager import WindowManager
+from src.features.group_manager import GroupManager
+from src.features.multi_window_clicker import MultiWindowClicker
+from src.features.notification_listener import NotificationListener
+from src.features.window_cycler import WindowCycler
+from src.features.window_reorder import WindowReorder
 
 
 class MinobotApp:

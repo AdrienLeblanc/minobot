@@ -10,9 +10,9 @@ import win32api
 import win32con
 import win32gui
 
-from core.focus_manager import FocusManager
-from core.input_simulator import InputSimulator
-from core.window_manager import WindowManager
+from src.core.focus_manager import FocusManager
+from src.core.input_simulator import InputSimulator
+from src.core.window_manager import WindowManager
 
 # Ctypes setup for FlashWindowEx
 user32 = ctypes.WinDLL('user32', use_last_error=True)

@@ -20,12 +20,15 @@ There are several `GEMINI.md` files across the application, each of them focusin
 .
 ├── build.py
 ├── main.py
-├── app
-│   ├── Entry point of the application, configuration & logger are here.
-├── core
-│   ├── Anything related to technical Windows mechanics.
-└── features
-    └── Features are placed here.
+├── src
+│   ├── app
+│   │   └── Entry point of the application, configuration & logger are here.
+│   ├── core
+│   │   └── Anything related to technical Windows mechanics.
+│   └── features
+│       └── Features are placed here.
+└── tests
+    └── Unit tests for the application features and core logic.
 ```
 
 # Agent Guidelines for Python Code Quality

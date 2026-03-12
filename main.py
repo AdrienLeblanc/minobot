@@ -4,7 +4,10 @@ import socket
 import sys
 from typing import Optional
 
-from app.app import MinobotApp
+# It's important that this is the first thing to run, so we can import from 'src'
+sys.path.insert(0, 'src')
+
+from src.app.app import MinobotApp
 
 # Port pour le verrouillage de l'instance unique
 LOCK_PORT: int = 12345

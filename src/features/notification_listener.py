@@ -5,8 +5,8 @@ import sqlite3
 import xml.etree.ElementTree as ET
 from typing import Optional, Dict, Any, List, Union
 
-from core.focus_manager import FocusManager
-from core.window_manager import WindowManager
+from src.core.focus_manager import FocusManager
+from src.core.window_manager import WindowManager
 
 
 class NotificationListener:

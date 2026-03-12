@@ -6,9 +6,9 @@ from typing import Optional, List, Tuple
 import pywintypes
 import win32gui
 
-from core.focus_manager import FocusManager
-from core.input_simulator import InputSimulator
-from core.window_manager import WindowManager
+from src.core.focus_manager import FocusManager
+from src.core.input_simulator import InputSimulator
+from src.core.window_manager import WindowManager
 
 
 class GroupManager:

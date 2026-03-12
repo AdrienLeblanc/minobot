@@ -7,7 +7,7 @@ import pywintypes
 import win32con
 import win32gui
 
-from core.input_simulator import InputSimulator
+from src.core.input_simulator import InputSimulator
 
 
 class FocusManager:
