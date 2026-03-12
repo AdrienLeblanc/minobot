@@ -10,6 +10,7 @@ from core.window_manager import WindowManager
 class WindowCycler:
     """
     Manages the cycling of game window focus based on a predefined order.
+    It only cycles through non-minimized windows.
     """
 
     def __init__(
@@ -35,17 +36,26 @@ class WindowCycler:
 
     def _get_sorted_windows(self) -> List[Tuple[str, int]]:
         """
-        Retrieves the list of game windows, sorted according to the configuration order.
+        Retrieves the list of visible (non-minimized) game windows,
+        sorted according to the configuration order.
 
         Returns:
             A list of tuples (window_title, hwnd), sorted by priority.
         """
         self.window_manager.ensure_fresh()
 
-        # We only take windows managed by WindowManager (thus Dofus windows)
         raw_windows: List[Tuple[str, int]] = list(self.window_manager.windows.items())
-
         if not raw_windows:
+            return []
+
+        # Filter out minimized windows
+        visible_windows = [
+            (title, hwnd) for title, hwnd in raw_windows
+            if not win32gui.IsIconic(hwnd)
+        ]
+        
+        if not visible_windows:
+            self.logger.debug("No visible game windows to cycle.")
             return []
 
         # Get priority order from config
@@ -55,30 +65,23 @@ class WindowCycler:
         def sort_key(item: Tuple[str, int]) -> int:
             title, _ = item
             title_lower = title.lower()
-
-            # Try to find the index in the config list
             for i, name_part in enumerate(cycle_order):
                 if name_part.lower() in title_lower:
-                    return i  # Return priority index (0, 1, 2...)
-
-            # If not in list, put at the end
+                    return i
             return len(cycle_order) + 1000
 
-        # First, global alphabetical sort for stable ordering of non-configured windows
-        raw_windows.sort(key=lambda x: x[0])
+        # Sort visible windows
+        visible_windows.sort(key=lambda x: x[0])
+        visible_windows.sort(key=sort_key)
 
-        # Then apply priority sort
-        raw_windows.sort(key=sort_key)
-
-        return raw_windows
+        return visible_windows
 
     async def cycle_next(self) -> None:
         """
-        Switches focus to the next window in the sorted list.
+        Switches focus to the next visible window in the sorted list.
         """
         sorted_windows = self._get_sorted_windows()
         if not sorted_windows:
-            self.logger.warning("No Dofus windows found to cycle.")
             return
 
         current_hwnd = win32gui.GetForegroundWindow()
@@ -103,7 +106,7 @@ class WindowCycler:
 
     async def cycle_prev(self) -> None:
         """
-        Switches focus to the previous window in the sorted list.
+        Switches focus to the previous visible window in the sorted list.
         """
         sorted_windows = self._get_sorted_windows()
         if not sorted_windows:
@@ -120,7 +123,7 @@ class WindowCycler:
 
         # Calculate prev index (looping)
         if current_index == -1:
-            prev_index = len(sorted_windows) - 1  # Start from end if out of context
+            prev_index = len(sorted_windows) - 1
         else:
             prev_index = (current_index - 1) % len(sorted_windows)
 
