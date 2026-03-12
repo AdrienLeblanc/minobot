@@ -23,15 +23,11 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "multiclick_dry_run": False,
     "multiclick_exclude": [],
     "window_cycle_order": [
-        "Lenore",
-        "Carmilla",
-        "Mallory",
-        "Pancake",
-        "Cookie",
-        "Chokella",
-        "Lilwenn",
-        "Praline",
-        "Gauffre"
+        "Panda",
+        "Cra",
+        "Eni",
+        "Panda",
+        "Iop"
     ],
     "window_cycle_next_hotkey": "x2",
     "window_cycle_prev_hotkey": "shift+x2"

@@ -16,3 +16,6 @@ build/
 dist/
 *.spec
 **/__pycache__
+
+# Custom config.json
+config.json
