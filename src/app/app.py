@@ -40,7 +40,7 @@ class MinobotApp:
 
         # Features
         self.group_manager: GroupManager = GroupManager(
-            self.logger, self.window_manager, self.input_simulator, self.focus_manager
+            self.logger, self.window_manager, self.input_simulator, self.focus_manager, self.config
         )
         self.multi_clicker: MultiWindowClicker = MultiWindowClicker(
             self.logger, self.window_manager, self.focus_manager, self.input_simulator, self.config

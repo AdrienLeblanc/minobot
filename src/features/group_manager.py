@@ -1,10 +1,9 @@
 import asyncio
 import logging
 import re
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Dict, Any
 
 import pywintypes
-import win32gui
 
 from src.core.focus_manager import FocusManager
 from src.core.input_simulator import InputSimulator
@@ -13,7 +12,7 @@ from src.core.window_manager import WindowManager
 
 class GroupManager:
     """
-    Manages the logic for chain-inviting characters to a group.
+    Manages the logic for chain-inviting characters to a group using a relay method.
     """
 
     def __init__(
@@ -21,120 +20,110 @@ class GroupManager:
             logger: logging.Logger,
             window_manager: WindowManager,
             input_simulator: InputSimulator,
-            focus_manager: FocusManager
+            focus_manager: FocusManager,
+            config: Dict[str, Any] # Added config for sorting
     ):
         """
         Initializes the GroupManager.
-
-        Args:
-            logger: The application logger.
-            window_manager: The manager for tracking game windows.
-            input_simulator: The simulator for keyboard/mouse inputs.
-            focus_manager: The manager for focusing windows.
         """
         self.logger: logging.Logger = logger
         self.window_manager: WindowManager = window_manager
         self.input_simulator: InputSimulator = input_simulator
         self.focus_manager: FocusManager = focus_manager
+        self.config: Dict[str, Any] = config
         self.is_running: bool = False
 
     def _extract_character_name(self, window_title: str) -> Optional[str]:
         """
         Extracts the character name from the window title.
-        
-        Example: "MyChar (Lvl 200) - Dofus Retro" -> "MyChar"
-
-        Args:
-            window_title: The title of the game window.
-
-        Returns:
-            The extracted character name, or None if not found.
         """
         match = re.search(r"(.+?)\s-\sDofus Retro", window_title)
         if not match:
             return None
-
         name_part = match.group(1).strip()
-        # Handle cases like "(AccountName) CharacterName"
         if ')' in name_part:
             name_part = name_part.split(')')[-1].strip()
-
         return name_part
+
+    def _get_sorted_windows(self) -> List[Tuple[str, int]]:
+        """
+        Retrieves the list of game windows, sorted according to the configuration order.
+        """
+        self.window_manager.ensure_fresh()
+        raw_windows: List[Tuple[str, int]] = list(self.window_manager.windows.items())
+        if not raw_windows:
+            return []
+        cycle_order: List[str] = self.config.get("window_cycle_order", [])
+        def sort_key(item: Tuple[str, int]) -> int:
+            title, _ = item
+            title_lower = title.lower()
+            for i, name_part in enumerate(cycle_order):
+                if name_part.lower() in title_lower:
+                    return i
+            return len(cycle_order) + 1000
+        raw_windows.sort(key=lambda x: x[0])
+        raw_windows.sort(key=sort_key)
+        return raw_windows
 
     async def invite_all(self) -> None:
         """
-        Initiates the asynchronous group invitation sequence.
-        
-        The character in the foreground window is designated as the leader.
-        The leader invites all other detected characters one by one.
+        Initiates a relay-style group invitation sequence.
+        Character 1 invites Char 2, then Char 2 invites Char 3, and so on.
         """
         if self.is_running:
             self.logger.warning("Group invitation sequence already running.")
             return
 
         self.is_running = True
-        self.logger.info("Starting async group invitation sequence...")
+        self.logger.info("Starting relay group invitation sequence...")
 
         try:
-            self.window_manager.refresh()
-            leader_hwnd = win32gui.GetForegroundWindow()
-
-            if leader_hwnd not in self.window_manager.windows.values():
-                leader_title = win32gui.GetWindowText(leader_hwnd)
-                self.logger.error(f"The active window ('{leader_title}') is not a recognized Dofus window.")
+            all_windows = self._get_sorted_windows()
+            if len(all_windows) < 2:
+                self.logger.info("Not enough characters found to start a group.")
                 return
 
-            leader_name = self._extract_character_name(win32gui.GetWindowText(leader_hwnd))
-            if not leader_name:
-                self.logger.error(f"Could not extract character name from active window.")
-                return
+            initial_leader_title, initial_leader_hwnd = all_windows[0]
+            self.logger.info(f"Initial leader identified: {self._extract_character_name(initial_leader_title)}")
+            
+            # Loop through pairs of (inviter, invitee)
+            for i in range(len(all_windows) - 1):
+                inviter_title, inviter_hwnd = all_windows[i]
+                invitee_title, invitee_hwnd = all_windows[i+1]
+                
+                inviter_name = self._extract_character_name(inviter_title)
+                invitee_name = self._extract_character_name(invitee_title)
 
-            self.logger.info(f"Leader identified: {leader_name}")
+                if not inviter_name or not invitee_name:
+                    self.logger.error(f"Could not extract names for '{inviter_title}' or '{invitee_title}'. Aborting.")
+                    return
 
-            members: List[Tuple[str, int]] = []
-            for title, hwnd in self.window_manager.windows.items():
-                if hwnd == leader_hwnd:
-                    continue
-                char_name = self._extract_character_name(title)
-                if char_name:
-                    members.append((char_name, hwnd))
+                self.logger.info(f"'{inviter_name}' is inviting '{invitee_name}'...")
 
-            if not members:
-                self.logger.info("No other characters found to invite.")
-                return
+                # 1. Focus the inviter
+                await self.focus_manager.focus(inviter_hwnd)
+                await asyncio.sleep(0.05)
 
-            self.logger.info(f"Found {len(members)} members to invite: {[name for name, _ in members]}")
-
-            await self.focus_manager.focus(leader_hwnd)
-            await asyncio.sleep(0.25)
-
-            for member_name, member_hwnd in members:
-                self.logger.info(f"Inviting {member_name}...")
-
-                # Ensure leader is focused before typing
-                await self.focus_manager.focus(leader_hwnd)
-                await asyncio.sleep(0.1)
-
-                # Type and send invite command
+                # 2. Type and send invite command
                 self.input_simulator.press_key('enter')
-                await asyncio.sleep(0.1)
-                self.input_simulator.paste_string(f"/invite {member_name}")
+                await asyncio.sleep(0.05)
+                self.input_simulator.paste_string(f"/invite {invitee_name}")
                 await asyncio.sleep(0.05)
                 self.input_simulator.press_key('enter')
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.05) # Wait for invitation to be sent and received
 
-                # Switch to member to accept
-                self.logger.debug(f"Switching to {member_name} to accept...")
-                await self.focus_manager.focus(member_hwnd)
-                await asyncio.sleep(0.25)
+                # 3. Switch to invitee to accept
+                self.logger.debug(f"Switching to '{invitee_name}' to accept...")
+                await self.focus_manager.focus(invitee_hwnd)
+                await asyncio.sleep(0.05)
 
-                # Accept invitation
+                # 4. Accept invitation
                 self.input_simulator.press_key('enter')
-                self.logger.debug(f"{member_name} joined the group.")
-                await asyncio.sleep(0.25)
+                self.logger.debug(f"'{invitee_name}' joined the group.")
+                await asyncio.sleep(0.05)
 
-            self.logger.info("All invitations processed. Switching back to leader.")
-            await self.focus_manager.focus(leader_hwnd)
+            self.logger.info("All invitations processed. Switching back to initial leader.")
+            await self.focus_manager.focus(initial_leader_hwnd)
 
         except pywintypes.error as e:
             self.logger.error(f"Win32 API error during group invitation: {e}")

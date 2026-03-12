@@ -17,7 +17,8 @@ def mock_dependencies_for_group_manager():
     window_manager = MagicMock()
     input_simulator = MagicMock()
     focus_manager = MagicMock()
-    return logger, window_manager, input_simulator, focus_manager
+    config = MagicMock()
+    return logger, window_manager, input_simulator, focus_manager, config
 
 
 @pytest.mark.parametrize("window_title, expected_name", [
@@ -33,14 +34,14 @@ def test_extract_character_name(mock_dependencies_for_group_manager, window_titl
     """
     Tests the character name extraction from various window titles.
     """
-    logger, window_manager, input_simulator, focus_manager = mock_dependencies_for_group_manager
-    
+    logger, window_manager, input_simulator, focus_manager, config = mock_dependencies_for_group_manager
+
     # --- Arrange ---
     # We don't need a config for this specific method test
-    group_manager = GroupManager(logger, window_manager, input_simulator, focus_manager)
-    
+    group_manager = GroupManager(logger, window_manager, input_simulator, focus_manager, config)
+
     # --- Act ---
     extracted_name = group_manager._extract_character_name(window_title)
-    
+
     # --- Assert ---
     assert extracted_name == expected_name
