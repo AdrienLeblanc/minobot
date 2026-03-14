@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 from typing import Dict, Any, Callable
 
 from src.app.config_loader import load_config
@@ -27,15 +28,36 @@ class MinobotApp:
         Initializes the application by loading configuration, setting up logging,
         and instantiating all necessary managers and features.
         """
-        self.config: Dict[str, Any] = load_config("config.json")
+        # --- Robust Path Resolution ---
+        if getattr(sys, 'frozen', False):
+            # Running as a PyInstaller executable
+            # For the config, we ALWAYS look in the directory of the .EXE
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            # Running as a standard script
+            base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+        # We prioritize a config.json next to the executable
+        config_path = os.path.join(base_dir, "config.json")
+        
+        # load_config will now auto-create the file if it doesn't exist
+        self.config: Dict[str, Any] = load_config(config_path)
         self.logger: logging.Logger = setup_logger(self.config)
+        
+        self.logger.info(f"=== Minobot Starting (App Dir: {base_dir}) ===")
+        self.logger.info(f"Using config: {config_path}")
 
         # Core Components
         self.system_tray: SystemTrayManager = SystemTrayManager(self.logger, self.stop)
         self.window_manager: WindowManager = WindowManager(self.logger, self.config)
         self.input_simulator: InputSimulator = InputSimulator(self.logger)
-        self.focus_manager: FocusManager = FocusManager(self.logger, self.config, self.input_simulator, self.window_manager)
         self.keyboard_monitor: KeyboardMonitor = KeyboardMonitor(self.logger)
+        self.focus_manager: FocusManager = FocusManager(
+            self.logger, 
+            self.config, 
+            self.input_simulator, 
+            self.window_manager
+        )
 
         # Features
         self.group_manager: GroupManager = GroupManager(
@@ -121,7 +143,7 @@ class MinobotApp:
 
     async def run(self) -> None:
         """Starts all services and runs the main application loop."""
-        self.logger.info("=== Minobot Starting ===")
+        self.logger.info("=== Application Services Ready ===")
         self.system_tray.start()
         self.window_manager.refresh()
 
@@ -141,6 +163,4 @@ class MinobotApp:
         self.logger.info("=== Minobot Stopping ===")
         self.system_tray.stop()
         self.keyboard_monitor.stop()
-        # Use os._exit for a more forceful exit, which is often necessary
-        # in applications with multiple threads and event loops.
         os._exit(0)
