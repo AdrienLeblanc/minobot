@@ -45,6 +45,7 @@ class GroupManager:
         self.logger.info("Starting relay group invitation sequence...")
 
         try:
+            self.window_manager.refresh()
             all_windows = self.window_manager.get_ordered_windows()
             if len(all_windows) < 2:
                 self.logger.info("Not enough characters found to start a group.")

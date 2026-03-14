@@ -53,6 +53,7 @@ class WindowReorder:
         self.logger.info("Starting taskbar reorder sequence...")
 
         try:
+            self.window_manager.refresh()
             sorted_windows = self.window_manager.get_ordered_windows()
             if not sorted_windows:
                 self.logger.warning("No Dofus windows found to reorder.")
