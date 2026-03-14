@@ -20,7 +20,8 @@ class WindowManager:
         """
         self.logger: logging.Logger = logger
         self.config: Dict[str, Any] = config
-        self.windows: Dict[str, int] = {}  # Maps window title to its HWND
+        # Maps HWND to its current Window Title
+        self.windows: Dict[int, str] = {}
         self.last_refresh: float = 0.0
 
         # Get refresh interval, ensuring it's a number
@@ -45,15 +46,17 @@ class WindowManager:
 
             # Check if the title contains any of the game keywords
             if any(keyword in title for keyword in game_keywords):
-                self.windows[self.extract_character_name(title)] = hwnd
+                # We use HWND as key to allow multiple windows with the same title
+                # (e.g., several windows named "Dofus Retro" during login)
+                self.windows[hwnd] = title
 
         win32gui.EnumWindows(enum_windows_callback, None)
         self.last_refresh = time.time()
 
         self.logger.debug(f"Detected {len(self.windows)} game window(s).")
         if self.windows:
-            for title in self.windows:
-                self.logger.debug(f"  -> Found: '{title}'")
+            for hwnd, title in self.windows.items():
+                self.logger.debug(f"  -> Found: '{title}' (HWND: {hwnd})")
 
     def ensure_fresh(self) -> None:
         """
@@ -69,30 +72,24 @@ class WindowManager:
         """
         Finds a window HWND by its character name.
 
-        It first attempts an exact match on the window title and falls back
-        to a partial match if the exact match fails.
-
         Args:
             character_name: The name of the character to find.
 
         Returns:
             The window handle (HWND) as an integer if found, otherwise None.
         """
-        # Ensure the list is fresh before searching
         self.ensure_fresh()
-
         character_lower = character_name.lower()
 
-        # 1. Attempt exact match first for performance and accuracy
-        for title, hwnd in self.windows.items():
-            # A common pattern is "CharacterName - Dofus Retro"
-            # We check if the title *starts with* the character name for robustness
-            if title.lower().startswith(character_lower):
+        # 1. Attempt exact match on extracted character name
+        for hwnd, title in self.windows.items():
+            extracted = self.extract_character_name(title)
+            if extracted and extracted.lower() == character_lower:
                 self.logger.debug(f"Found exact match for '{character_name}': '{title}'")
                 return hwnd
 
-        # 2. Fallback to partial match
-        for title, hwnd in self.windows.items():
+        # 2. Fallback to partial match in the full title
+        for hwnd, title in self.windows.items():
             if character_lower in title.lower():
                 self.logger.debug(f"Found partial match for '{character_name}': '{title}'")
                 return hwnd
@@ -123,7 +120,8 @@ class WindowManager:
         Retrieves the list of game windows, sorted according to the configuration order.
         """
         self.ensure_fresh()
-        raw_windows: List[Tuple[str, int]] = list(self.windows.items())
+        # Create a list of (title, hwnd) for compatibility with other features
+        raw_windows: List[Tuple[str, int]] = [(title, hwnd) for hwnd, title in self.windows.items()]
 
         if not raw_windows:
             return []
@@ -136,12 +134,12 @@ class WindowManager:
             for i, name_part in enumerate(cycle_order):
                 if name_part.lower() in title_lower:
                     return i
+            # Windows without character names in title go to the end
             return len(cycle_order) + 1000
 
+        # Primary sort by title, then by the configured order
         raw_windows.sort(key=lambda x: x[0])
-        raw_windows.sort(key=sort_key, reverse=reverse_order)  # Apply reverse here
-
-        self.logger.debug(raw_windows)
+        raw_windows.sort(key=sort_key, reverse=reverse_order)
 
         return raw_windows
 
