@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List, Tuple, Dict, Any
+from typing import Dict, Any
 
 import win32con
 import win32gui
@@ -37,36 +37,6 @@ class WindowReorder:
         self.config: Dict[str, Any] = config
         self.is_running: bool = False
 
-    def _get_sorted_windows(self) -> List[Tuple[str, int]]:
-        """
-        Retrieves the list of game windows, sorted according to the configuration order.
-
-        Returns:
-            A list of tuples (window_title, hwnd), sorted by priority.
-        """
-        self.window_manager.ensure_fresh()
-        raw_windows: List[Tuple[str, int]] = list(self.window_manager.windows.items())
-
-        if not raw_windows:
-            return []
-
-        cycle_order: List[str] = self.config.get("window_cycle_order", [])
-
-        def sort_key(item: Tuple[str, int]) -> int:
-            title, _ = item
-            title_lower = title.lower()
-            for i, name_part in enumerate(cycle_order):
-                if name_part.lower() in title_lower:
-                    return i
-            return len(cycle_order) + 1000
-
-        # Primary sort: Alphabetical (for stable ordering of unlisted windows)
-        raw_windows.sort(key=lambda x: x[0])
-        # Secondary sort: Priority list (stable sort preserves alphabetical order for equal priority)
-        raw_windows.sort(key=sort_key)
-
-        return raw_windows
-
     async def reorder_taskbar(self) -> None:
         """
         Executes the reordering sequence:
@@ -83,7 +53,7 @@ class WindowReorder:
         self.logger.info("Starting taskbar reorder sequence...")
 
         try:
-            sorted_windows = self._get_sorted_windows()
+            sorted_windows = self.window_manager.get_ordered_windows()
             if not sorted_windows:
                 self.logger.warning("No Dofus windows found to reorder.")
                 return

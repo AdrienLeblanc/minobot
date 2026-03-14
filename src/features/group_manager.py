@@ -1,7 +1,6 @@
 import asyncio
 import logging
-import re
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Dict, Any
 
 import pywintypes
 
@@ -21,7 +20,7 @@ class GroupManager:
             window_manager: WindowManager,
             input_simulator: InputSimulator,
             focus_manager: FocusManager,
-            config: Dict[str, Any] # Added config for sorting
+            config: Dict[str, Any]  # Added config for sorting
     ):
         """
         Initializes the GroupManager.
@@ -32,38 +31,6 @@ class GroupManager:
         self.focus_manager: FocusManager = focus_manager
         self.config: Dict[str, Any] = config
         self.is_running: bool = False
-
-    def _extract_character_name(self, window_title: str) -> Optional[str]:
-        """
-        Extracts the character name from the window title.
-        """
-        match = re.search(r"(.+?)\s-\sDofus Retro", window_title)
-        if not match:
-            return None
-        name_part = match.group(1).strip()
-        if ')' in name_part:
-            name_part = name_part.split(')')[-1].strip()
-        return name_part
-
-    def _get_sorted_windows(self) -> List[Tuple[str, int]]:
-        """
-        Retrieves the list of game windows, sorted according to the configuration order.
-        """
-        self.window_manager.ensure_fresh()
-        raw_windows: List[Tuple[str, int]] = list(self.window_manager.windows.items())
-        if not raw_windows:
-            return []
-        cycle_order: List[str] = self.config.get("window_cycle_order", [])
-        def sort_key(item: Tuple[str, int]) -> int:
-            title, _ = item
-            title_lower = title.lower()
-            for i, name_part in enumerate(cycle_order):
-                if name_part.lower() in title_lower:
-                    return i
-            return len(cycle_order) + 1000
-        raw_windows.sort(key=lambda x: x[0])
-        raw_windows.sort(key=sort_key)
-        return raw_windows
 
     async def invite_all(self) -> None:
         """
@@ -78,21 +45,21 @@ class GroupManager:
         self.logger.info("Starting relay group invitation sequence...")
 
         try:
-            all_windows = self._get_sorted_windows()
+            all_windows = self.window_manager.get_ordered_windows()
             if len(all_windows) < 2:
                 self.logger.info("Not enough characters found to start a group.")
                 return
 
             initial_leader_title, initial_leader_hwnd = all_windows[0]
-            self.logger.info(f"Initial leader identified: {self._extract_character_name(initial_leader_title)}")
-            
+            self.logger.info(f"Initial leader identified: {self.window_manager.extract_character_name(initial_leader_title)}")
+
             # Loop through pairs of (inviter, invitee)
             for i in range(len(all_windows) - 1):
                 inviter_title, inviter_hwnd = all_windows[i]
-                invitee_title, invitee_hwnd = all_windows[i+1]
-                
-                inviter_name = self._extract_character_name(inviter_title)
-                invitee_name = self._extract_character_name(invitee_title)
+                invitee_title, invitee_hwnd = all_windows[i + 1]
+
+                inviter_name = self.window_manager.extract_character_name(inviter_title)
+                invitee_name = self.window_manager.extract_character_name(invitee_title)
 
                 if not inviter_name or not invitee_name:
                     self.logger.error(f"Could not extract names for '{inviter_title}' or '{invitee_title}'. Aborting.")
@@ -110,7 +77,7 @@ class GroupManager:
                 self.input_simulator.paste_string(f"/invite {invitee_name}")
                 await asyncio.sleep(0.05)
                 self.input_simulator.press_key('enter')
-                await asyncio.sleep(0.05) # Wait for invitation to be sent and received
+                await asyncio.sleep(0.05)  # Wait for invitation to be sent and received
 
                 # 3. Switch to invitee to accept
                 self.logger.debug(f"Switching to '{invitee_name}' to accept...")

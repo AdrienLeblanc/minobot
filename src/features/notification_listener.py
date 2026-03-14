@@ -176,7 +176,7 @@ class NotificationListener:
         self.logger.debug(f"[NOTIF TITLE] {title}")
         self.logger.debug(f"[NOTIF TEXT] {message}")
 
-        character = self._extract_character_name(title)
+        character = self.window_manager.extract_character_name(title)
 
         if not character:
             self.logger.warning(f"[CHAR EXTRACTION FAILED] {title}")
@@ -189,21 +189,3 @@ class NotificationListener:
             await self.focus_manager.focus(hwnd)
         else:
             self.logger.warning(f"[WINDOW NOT FOUND] {character}")
-
-    def _extract_character_name(self, title: str) -> Optional[str]:
-        """
-        Extracts the character name from the notification title based on separators.
-
-        Args:
-            title: The notification title.
-
-        Returns:
-            The extracted name or the cleaned title.
-        """
-        separators: List[str] = self.config.get("character_separators", [" - ", ": ", " | "])
-
-        for separator in separators:
-            if separator in title:
-                return title.split(separator)[0].strip()
-
-        return title.strip()

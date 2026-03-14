@@ -7,6 +7,7 @@ import pywintypes
 import win32con
 import win32gui
 
+from core.window_manager import WindowManager
 from src.core.input_simulator import InputSimulator
 
 
@@ -15,7 +16,7 @@ class FocusManager:
     Manages bringing game windows to the foreground and setting focus.
     """
 
-    def __init__(self, logger: logging.Logger, config: Dict[str, Any], input_simulator: InputSimulator):
+    def __init__(self, logger: logging.Logger, config: Dict[str, Any], input_simulator: InputSimulator, window_manager: WindowManager):
         """
         Initializes the FocusManager.
 
@@ -27,6 +28,7 @@ class FocusManager:
         self.logger: logging.Logger = logger
         self.config: Dict[str, Any] = config
         self.input_simulator: InputSimulator = input_simulator
+        self.window_manager: WindowManager = window_manager
         self.last_focus_time: float = 0.0
         self.cooldown: float = float(config.get("focus_cooldown", 0.2))
 
@@ -48,7 +50,7 @@ class FocusManager:
         self.last_focus_time = now
 
         try:
-            title = win32gui.GetWindowText(hwnd)
+            title = self.window_manager.extract_character_name(win32gui.GetWindowText(hwnd))
             self.logger.debug(f"Attempting to focus window: '{title}' (HWND: {hwnd})")
 
             # --- Enhanced Focus Method ---

@@ -34,7 +34,8 @@ class MultiWindowClicker:
     Manages synchronized clicks across multiple game windows.
     """
 
-    def __init__(self, logger: logging.Logger, window_manager: WindowManager, focus_manager: FocusManager, input_simulator: InputSimulator, config: Dict[str, Any]):
+    def __init__(self, logger: logging.Logger, window_manager: WindowManager, focus_manager: FocusManager,
+                 input_simulator: InputSimulator, config: Dict[str, Any]):
         """
         Initializes the MultiWindowClicker.
 
@@ -69,31 +70,6 @@ class MultiWindowClicker:
         if self.dry_run:
             self.logger.warning("[MULTICLICK] DRY RUN MODE - No actual clicks will be sent.")
 
-    def _get_sorted_windows(self, reverse_order: bool = False) -> List[Tuple[str, int]]:
-        """
-        Retrieves the list of game windows, sorted according to the configuration order.
-        """
-        self.window_manager.ensure_fresh()
-        raw_windows: List[Tuple[str, int]] = list(self.window_manager.windows.items())
-
-        if not raw_windows:
-            return []
-
-        cycle_order: List[str] = self.config.get("window_cycle_order", [])
-
-        def sort_key(item: Tuple[str, int]) -> int:
-            title, _ = item
-            title_lower = title.lower()
-            for i, name_part in enumerate(cycle_order):
-                if name_part.lower() in title_lower:
-                    return i
-            return len(cycle_order) + 1000
-
-        raw_windows.sort(key=lambda x: x[0])
-        raw_windows.sort(key=sort_key, reverse=reverse_order) # Apply reverse here
-        
-        return raw_windows
-
     async def click_all_windows(self, screen_position: Tuple[int, int]) -> None:
         """
         Clicks on all game windows at an equivalent relative position.
@@ -102,8 +78,8 @@ class MultiWindowClicker:
         self.stats["total_triggers"] += 1
 
         original_window: Optional[int] = win32gui.GetForegroundWindow() if self.restore_original_window else None
-        
-        windows = self._get_sorted_windows() # Use sorted order
+
+        windows = self.window_manager.get_ordered_windows()  # Use sorted order
         if not windows:
             self.logger.warning("[MULTICLICK] No game windows found to click.")
             return
@@ -136,21 +112,19 @@ class MultiWindowClicker:
 
         self._log_stats(clicked_count, failed_count, start_time)
 
-    async def reset_windows_attention_state(self, screen_position: Tuple[int, int]) -> None:
+    async def reset_windows_attention_state(self) -> None:
         """
         Simulates a human click on each window in reverse order to reset their attention state.
         This is a visually disruptive but reliable method.
         """
         self.logger.info("Starting window attention state reset sequence...")
-        original_window: Optional[int] = win32gui.GetForegroundWindow()
-        
-        windows = self._get_sorted_windows(reverse_order=True) # Process in reverse order
+
+        windows = self.window_manager.get_ordered_windows(reverse_order=True)  # Process in reverse order
         if not windows:
             self.logger.warning("No game windows found to reset.")
             return
 
-        # We need a valid click position, using the current mouse position as a fallback
-        click_x, click_y = screen_position
+        leader_window_title, leader_window_hwnd = windows[len(windows) - 1]
 
         for title, hwnd in windows:
             if win32gui.IsIconic(hwnd):
@@ -159,23 +133,19 @@ class MultiWindowClicker:
 
             try:
                 self.logger.debug(f"Resetting attention for '{title}' (HWND: {hwnd})")
-                
-                # 1. Focus the window
-                await self.focus_manager.focus(hwnd)
-                await asyncio.sleep(0.05) # Give Windows a moment to settle
 
-                # 2. Simulate a click
-                self.input_simulator.click(click_x, click_y)
-                await asyncio.sleep(0.05) # Small delay after click
+                # Focus the window
+                await self.focus_manager.focus(hwnd)
+                await asyncio.sleep(0.05)  # Give Windows a moment to settle
 
             except Exception as e:
                 self.logger.error(f"Failed to reset attention for window '{title}': {e}")
 
-        # Restore focus to the original window
-        if original_window:
-            await self.focus_manager.focus(original_window)
+        # Restore focus to the leader window
+        if leader_window_hwnd:
+            self.logger.debug(f"Restoring focus to '{leader_window_title}' window ")
+            await self.focus_manager.focus(leader_window_hwnd)
         self.logger.info("Window attention state reset sequence complete.")
-
 
     def _calculate_relative_position(self, screen_pos: Tuple[int, int], window_hwnds: List[int]) -> Optional[
         Tuple[int, int]]:

@@ -1,5 +1,5 @@
 import logging
-from typing import List, Tuple, Dict, Any
+from typing import Dict, Any
 
 import win32gui
 
@@ -34,53 +34,11 @@ class WindowCycler:
         self.focus_manager: FocusManager = focus_manager
         self.config: Dict[str, Any] = config
 
-    def _get_sorted_windows(self) -> List[Tuple[str, int]]:
-        """
-        Retrieves the list of visible (non-minimized) game windows,
-        sorted according to the configuration order.
-
-        Returns:
-            A list of tuples (window_title, hwnd), sorted by priority.
-        """
-        self.window_manager.ensure_fresh()
-
-        raw_windows: List[Tuple[str, int]] = list(self.window_manager.windows.items())
-        if not raw_windows:
-            return []
-
-        # Filter out minimized windows
-        visible_windows = [
-            (title, hwnd) for title, hwnd in raw_windows
-            if not win32gui.IsIconic(hwnd)
-        ]
-        
-        if not visible_windows:
-            self.logger.debug("No visible game windows to cycle.")
-            return []
-
-        # Get priority order from config
-        cycle_order: List[str] = self.config.get("window_cycle_order", [])
-
-        # Sort key function
-        def sort_key(item: Tuple[str, int]) -> int:
-            title, _ = item
-            title_lower = title.lower()
-            for i, name_part in enumerate(cycle_order):
-                if name_part.lower() in title_lower:
-                    return i
-            return len(cycle_order) + 1000
-
-        # Sort visible windows
-        visible_windows.sort(key=lambda x: x[0])
-        visible_windows.sort(key=sort_key)
-
-        return visible_windows
-
     async def cycle_next(self) -> None:
         """
         Switches focus to the next visible window in the sorted list.
         """
-        sorted_windows = self._get_sorted_windows()
+        sorted_windows = self.window_manager.get_active_ordered_windows()
         if not sorted_windows:
             return
 
@@ -108,7 +66,7 @@ class WindowCycler:
         """
         Switches focus to the previous visible window in the sorted list.
         """
-        sorted_windows = self._get_sorted_windows()
+        sorted_windows = self.window_manager.get_active_ordered_windows()
         if not sorted_windows:
             return
 

@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import sys
 from typing import Dict, Any, Callable
 
 from src.app.config_loader import load_config
@@ -35,7 +34,7 @@ class MinobotApp:
         self.system_tray: SystemTrayManager = SystemTrayManager(self.logger, self.stop)
         self.window_manager: WindowManager = WindowManager(self.logger, self.config)
         self.input_simulator: InputSimulator = InputSimulator(self.logger)
-        self.focus_manager: FocusManager = FocusManager(self.logger, self.config, self.input_simulator)
+        self.focus_manager: FocusManager = FocusManager(self.logger, self.config, self.input_simulator, self.window_manager)
         self.keyboard_monitor: KeyboardMonitor = KeyboardMonitor(self.logger)
 
         # Features
@@ -93,7 +92,7 @@ class MinobotApp:
             self.multi_clicker.reset_windows_attention_state,
             "Reset Windows State",
             cooldown=1.0,
-            pass_mouse_pos=True
+            pass_mouse_pos=False
         )
         self._register_feature_hotkey(
             "group_invite_enabled", "group_invite_hotkey", "F8",

@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Dict, Any, Optional, List
+from typing import Tuple, Dict, Any, List, Optional
 
 import win32gui
 
@@ -45,7 +45,7 @@ class WindowManager:
 
             # Check if the title contains any of the game keywords
             if any(keyword in title for keyword in game_keywords):
-                self.windows[title] = hwnd
+                self.windows[self.extract_character_name(title)] = hwnd
 
         win32gui.EnumWindows(enum_windows_callback, None)
         self.last_refresh = time.time()
@@ -99,3 +99,72 @@ class WindowManager:
 
         self.logger.warning(f"Could not find any window for character '{character_name}'.")
         return None
+
+    def extract_character_name(self, title: str) -> Optional[str]:
+        """
+        Extracts the character name from the notification title based on separators.
+
+        Args:
+            title: The notification title.
+
+        Returns:
+            The extracted name or the cleaned title.
+        """
+        separators: List[str] = self.config.get("character_separators", [" - ", ": ", " | "])
+
+        for separator in separators:
+            if separator in title:
+                return title.split(separator)[0].strip()
+
+        return title.strip()
+
+    def get_ordered_windows(self, reverse_order: bool = False) -> List[Tuple[str, int]]:
+        """
+        Retrieves the list of game windows, sorted according to the configuration order.
+        """
+        self.ensure_fresh()
+        raw_windows: List[Tuple[str, int]] = list(self.windows.items())
+
+        if not raw_windows:
+            return []
+
+        cycle_order: List[str] = self.config.get("window_cycle_order", [])
+
+        def sort_key(item: Tuple[str, int]) -> int:
+            title, _ = item
+            title_lower = title.lower()
+            for i, name_part in enumerate(cycle_order):
+                if name_part.lower() in title_lower:
+                    return i
+            return len(cycle_order) + 1000
+
+        raw_windows.sort(key=lambda x: x[0])
+        raw_windows.sort(key=sort_key, reverse=reverse_order)  # Apply reverse here
+
+        self.logger.debug(raw_windows)
+
+        return raw_windows
+
+    def get_active_ordered_windows(self) -> List[Tuple[str, int]]:
+        """
+        Retrieves the list of visible (non-minimized) game windows,
+        sorted according to the configuration order.
+
+        Returns:
+            A list of tuples (window_title, hwnd), sorted by priority.
+        """
+        self.ensure_fresh()
+
+        ordered_windows = self.get_ordered_windows()
+
+        # Filter out minimized windows
+        visible_windows = [
+            (title, hwnd) for title, hwnd in ordered_windows
+            if not win32gui.IsIconic(hwnd)
+        ]
+
+        if not visible_windows:
+            self.logger.debug("No visible game windows to cycle.")
+            return []
+
+        return visible_windows
