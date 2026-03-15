@@ -9,6 +9,7 @@ from src.app.logger import setup_logger
 from src.core.focus_manager import FocusManager
 from src.core.input_simulator import InputSimulator
 from src.core.keyboard_monitor import KeyboardMonitor
+from src.core.notification_manager import NotificationManager
 from src.core.system_tray import SystemTrayManager
 from src.core.window_manager import WindowManager
 from src.features.group_manager import GroupManager
@@ -56,18 +57,20 @@ class MinobotApp:
             self.logger, 
             self.config, 
             self.input_simulator, 
-            self.window_manager
+            self.window_manager,
+            keyboard_monitor=self.keyboard_monitor
         )
+        self.notification_manager: NotificationManager = NotificationManager(self.logger, self.config)
 
         # Features
+        self.notification_listener: NotificationListener = NotificationListener(
+            self.logger, self.window_manager, self.focus_manager, self.notification_manager, self.config
+        )
         self.group_manager: GroupManager = GroupManager(
             self.logger, self.window_manager, self.input_simulator, self.focus_manager, self.config
         )
         self.multi_clicker: MultiWindowClicker = MultiWindowClicker(
             self.logger, self.window_manager, self.focus_manager, self.input_simulator, self.config
-        )
-        self.notification_listener: NotificationListener = NotificationListener(
-            self.logger, self.window_manager, self.focus_manager, self.config
         )
         self.window_cycler: WindowCycler = WindowCycler(
             self.logger, self.window_manager, self.focus_manager, self.config
@@ -149,7 +152,8 @@ class MinobotApp:
 
         try:
             tasks = [
-                asyncio.create_task(self.notification_listener.start(), name="notification_listener"),
+                # Start the Core Notification Manager (instead of the Listener)
+                asyncio.create_task(self.notification_manager.start(), name="notification_manager"),
                 asyncio.create_task(self.keyboard_monitor.start(), name="keyboard_monitor")
             ]
             await asyncio.gather(*tasks)
