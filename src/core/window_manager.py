@@ -1,30 +1,30 @@
+import ctypes
 import logging
 import time
 from typing import Tuple, Dict, Any, List, Optional
 
 import win32gui
 
+# --- Monitor API Setup ---
+user32 = ctypes.windll.user32
+MONITOR_DEFAULTTONEAREST = 0x00000002
+
 
 class WindowManager:
     """
-    Manages the detection and tracking of game windows.
+    Manages the detection and tracking of game windows, including their monitor context.
     """
 
     def __init__(self, logger: logging.Logger, config: Dict[str, Any]):
         """
         Initializes the WindowManager.
-
-        Args:
-            logger: The application logger.
-            config: The application configuration dictionary.
         """
         self.logger: logging.Logger = logger
         self.config: Dict[str, Any] = config
-        # Maps HWND to its current Window Title
+        # Maps HWND (int) -> Title (str)
         self.windows: Dict[int, str] = {}
         self.last_refresh: float = 0.0
-
-        # Get refresh interval, ensuring it's a number
+        # Ensure refresh_interval is a float
         refresh_interval_val = config.get("window_refresh_interval", 30)
         self.refresh_interval: float = float(refresh_interval_val)
 
@@ -38,21 +38,14 @@ class WindowManager:
         game_keywords: List[str] = self.config.get("game_keywords", ["Dofus"])
 
         def enum_windows_callback(hwnd: int, _) -> None:
-            """Callback function for win32gui.EnumWindows."""
             if not win32gui.IsWindowVisible(hwnd):
                 return
-
             title: str = win32gui.GetWindowText(hwnd)
-
-            # Check if the title contains any of the game keywords
             if any(keyword in title for keyword in game_keywords):
-                # We use HWND as key to allow multiple windows with the same title
-                # (e.g., several windows named "Dofus Retro" during login)
                 self.windows[hwnd] = title
 
         win32gui.EnumWindows(enum_windows_callback, None)
         self.last_refresh = time.time()
-
         self.logger.debug(f"Detected {len(self.windows)} game window(s).")
         if self.windows:
             for hwnd, title in self.windows.items():
@@ -61,10 +54,8 @@ class WindowManager:
     def ensure_fresh(self) -> None:
         """
         Ensures the window list is up-to-date by checking the refresh interval.
-        If the list is stale, a new refresh is triggered.
         """
-        is_stale = (time.time() - self.last_refresh) > self.refresh_interval
-        if is_stale:
+        if (time.time() - self.last_refresh) > self.refresh_interval:
             self.logger.info("Window list is stale, refreshing...")
             self.refresh()
 
@@ -81,14 +72,14 @@ class WindowManager:
         self.ensure_fresh()
         character_lower = character_name.lower()
 
-        # 1. Attempt exact match on extracted character name
+        # 1. Exact match on extracted name
         for hwnd, title in self.windows.items():
             extracted = self.extract_character_name(title)
             if extracted and extracted.lower() == character_lower:
                 self.logger.debug(f"Found exact match for '{character_name}': '{title}'")
                 return hwnd
 
-        # 2. Fallback to partial match in the full title
+        # 2. Partial match on full title
         for hwnd, title in self.windows.items():
             if character_lower in title.lower():
                 self.logger.debug(f"Found partial match for '{character_name}': '{title}'")
@@ -99,7 +90,7 @@ class WindowManager:
 
     def extract_character_name(self, title: str) -> Optional[str]:
         """
-        Extracts the character name from the notification title based on separators.
+        Extracts the character name from the window title based on separators.
 
         Args:
             title: The notification title.
@@ -108,19 +99,19 @@ class WindowManager:
             The extracted name or the cleaned title.
         """
         separators: List[str] = self.config.get("character_separators", [" - ", ": ", " | "])
-
         for separator in separators:
             if separator in title:
                 return title.split(separator)[0].strip()
-
         return title.strip()
 
     def get_ordered_windows(self, reverse_order: bool = False) -> List[Tuple[str, int]]:
         """
         Retrieves the list of game windows, sorted according to the configuration order.
+        Returns a list of (Title, HWND) tuples.
         """
         self.ensure_fresh()
-        # Create a list of (title, hwnd) for compatibility with other features
+        
+        # Convert dict items (HWND, Title) to list of (Title, HWND)
         raw_windows: List[Tuple[str, int]] = [(title, hwnd) for hwnd, title in self.windows.items()]
 
         if not raw_windows:
@@ -134,35 +125,50 @@ class WindowManager:
             for i, name_part in enumerate(cycle_order):
                 if name_part.lower() in title_lower:
                     return i
-            # Windows without character names in title go to the end
+            # Windows not in config go to the end
             return len(cycle_order) + 1000
 
-        # Primary sort by title, then by the configured order
+        # Sort alphabetically first to stabilize order for unknown windows
         raw_windows.sort(key=lambda x: x[0])
+        # Then sort by priority configuration
         raw_windows.sort(key=sort_key, reverse=reverse_order)
 
         return raw_windows
 
     def get_active_ordered_windows(self) -> List[Tuple[str, int]]:
         """
-        Retrieves the list of visible (non-minimized) game windows,
-        sorted according to the configuration order.
-
-        Returns:
-            A list of tuples (window_title, hwnd), sorted by priority.
+        Retrieves the list of visible (non-minimized) game windows, sorted.
+        Returns a list of (Title, HWND) tuples.
         """
-        self.ensure_fresh()
-
         ordered_windows = self.get_ordered_windows()
+        return [(title, hwnd) for title, hwnd in ordered_windows if not win32gui.IsIconic(hwnd)]
 
-        # Filter out minimized windows
-        visible_windows = [
-            (title, hwnd) for title, hwnd in ordered_windows
-            if not win32gui.IsIconic(hwnd)
+    def get_monitor_handle(self, hwnd: int) -> int:
+        """Returns the handle of the monitor containing the given window."""
+        return user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST)
+
+    def get_windows_on_current_monitor(self) -> List[Tuple[str, int]]:
+        """
+        Returns a list of ordered game windows that are on the same monitor
+        as the currently active window.
+        """
+        current_hwnd = win32gui.GetForegroundWindow()
+        
+        # If no window is focused, just return all active windows
+        if not current_hwnd:
+            return self.get_active_ordered_windows()
+
+        current_monitor = self.get_monitor_handle(current_hwnd)
+        all_windows = self.get_active_ordered_windows()
+
+        # Filter windows that are on the same monitor
+        same_monitor_windows = [
+            (title, hwnd) for title, hwnd in all_windows
+            if self.get_monitor_handle(hwnd) == current_monitor
         ]
-
-        if not visible_windows:
-            self.logger.debug("No visible game windows to cycle.")
+        
+        if not same_monitor_windows:
+            self.logger.debug("No game windows found on the current monitor.")
             return []
 
-        return visible_windows
+        return same_monitor_windows

@@ -10,7 +10,7 @@ from src.core.window_manager import WindowManager
 class WindowCycler:
     """
     Manages the cycling of game window focus based on a predefined order.
-    It only cycles through non-minimized windows.
+    It cycles through non-minimized windows located on the CURRENT MONITOR.
     """
 
     def __init__(
@@ -36,56 +36,62 @@ class WindowCycler:
 
     async def cycle_next(self) -> None:
         """
-        Switches focus to the next visible window in the sorted list.
+        Switches focus to the next visible window on the SAME MONITOR.
         """
-        sorted_windows = self.window_manager.get_active_ordered_windows()
-        if not sorted_windows:
+        # Use the core logic to get monitor-scoped windows
+        monitor_windows = self.window_manager.get_windows_on_current_monitor()
+        if not monitor_windows:
+            self.logger.debug("No windows to cycle on this monitor.")
             return
 
         current_hwnd = win32gui.GetForegroundWindow()
 
-        # Find index of current window
+        # Find index of current window in the filtered list
         current_index = -1
-        for i, (_, hwnd) in enumerate(sorted_windows):
+        for i, (_, hwnd) in enumerate(monitor_windows):
             if hwnd == current_hwnd:
                 current_index = i
                 break
 
-        # Calculate next index (looping)
+        # Calculate next index (looping within the monitor group)
         if current_index == -1:
+            # If current window is not in the list (e.g. external app), start with the first one
             next_index = 0
         else:
-            next_index = (current_index + 1) % len(sorted_windows)
+            next_index = (current_index + 1) % len(monitor_windows)
 
-        next_title, next_hwnd = sorted_windows[next_index]
-        self.logger.debug(f"Cycling to next window: {next_title}")
+        next_title, next_hwnd = monitor_windows[next_index]
+        self.logger.debug(f"Cycling NEXT (Monitor-Scoped) to: {next_title}")
 
         await self.focus_manager.focus(next_hwnd)
 
     async def cycle_prev(self) -> None:
         """
-        Switches focus to the previous visible window in the sorted list.
+        Switches focus to the previous visible window on the SAME MONITOR.
         """
-        sorted_windows = self.window_manager.get_active_ordered_windows()
-        if not sorted_windows:
+        # Use the core logic to get monitor-scoped windows
+        monitor_windows = self.window_manager.get_windows_on_current_monitor()
+        if not monitor_windows:
+            self.logger.debug("No windows to cycle on this monitor.")
             return
 
         current_hwnd = win32gui.GetForegroundWindow()
 
-        # Find index of current window
+        # Find index of current window in the filtered list
         current_index = -1
-        for i, (_, hwnd) in enumerate(sorted_windows):
+        for i, (_, hwnd) in enumerate(monitor_windows):
             if hwnd == current_hwnd:
                 current_index = i
                 break
 
-        # Calculate prev index (looping)
+        # Calculate prev index (looping within the monitor group)
         if current_index == -1:
-            prev_index = len(sorted_windows) - 1
+            # If current window is not in the list, start with the last one
+            prev_index = len(monitor_windows) - 1
         else:
-            prev_index = (current_index - 1) % len(sorted_windows)
+            prev_index = (current_index - 1) % len(monitor_windows)
 
-        prev_title, prev_hwnd = sorted_windows[prev_index]
-        self.logger.debug(f"Cycling to prev window: {prev_title}")
+        prev_title, prev_hwnd = monitor_windows[prev_index]
+        self.logger.debug(f"Cycling PREV (Monitor-Scoped) to: {prev_title}")
 
         await self.focus_manager.focus(prev_hwnd)
