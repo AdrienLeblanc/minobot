@@ -67,7 +67,12 @@ class MinobotApp:
             self.logger, self.window_manager, self.focus_manager, self.notification_manager, self.config
         )
         self.group_manager: GroupManager = GroupManager(
-            self.logger, self.window_manager, self.input_simulator, self.focus_manager, self.config
+            self.logger, 
+            self.window_manager, 
+            self.input_simulator, 
+            self.focus_manager, 
+            self.notification_manager,  # Added NotificationManager to GroupManager
+            self.config
         )
         self.multi_clicker: MultiWindowClicker = MultiWindowClicker(
             self.logger, self.window_manager, self.focus_manager, self.input_simulator, self.config
