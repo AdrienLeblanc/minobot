@@ -4,24 +4,35 @@ Minobot is a quality-of-life application for the game **Dofus Retro**, designed 
 
 ## Setup
 
-### Requirements
+### Using a release
 
-- Python 3.x
-- Windows OS
+Minobot ships as a self-contained folder: unzip it anywhere and run `Minobot.exe`. There is nothing
+to install — not even Java, which travels with it.
 
-### Installation
+On first launch it writes a `config.json` next to the executable. Edit it (see **Configuration**
+below), then restart. A system tray icon shows that Minobot is running; right-click it and choose
+**Quit** to stop.
 
-1. Clone the repository or download the source code.
-2. Install the required Python packages:
-   ```shell
-   pip install -r requirements.txt
-   ```
-3. Configure the application by editing the `config.json` file. See the **Configuration** section below for details.
-4. Run the application:
-   ```shell
-   python main.py
-   ```
-   A system tray icon will appear, indicating that Minobot is running. To stop the application, right-click the icon and select "Exit".
+### Building from source
+
+Requirements: **JDK 25** and Windows. Maven is not needed — the wrapper downloads it.
+
+```shell
+# Run the test suite
+./mvnw verify
+
+# Build the distributable folder: target/dist/Minobot/Minobot.exe
+./mvnw -Pdist verify
+```
+
+To run it straight from the build without packaging:
+
+```shell
+./mvnw package && java -jar target/minobot.jar
+```
+
+> If `JAVA_HOME` is not set to your JDK 25, prefix the commands with it:
+> `JAVA_HOME=C:\path\to\jdk-25 ./mvnw verify`
 
 ---
 
@@ -34,7 +45,10 @@ Synchronizes mouse clicks across all game windows. When you click in one window,
 - **Hotkey**: `X1` (mouse side button "Back")
 - **Configuration**:
   - `multiclick_enabled`: `true` or `false` to enable/disable.
-  - `multiclick_button`: The mouse button to trigger the action (e.g., "x1", "x2", "middle").
+  - `multiclick_hotkey`: The key that triggers the action (default `x1`).
+  - `multiclick_button`: The mouse button that gets *sent* to the windows — `left`, `right` or
+    `middle` (default `left`). This is not the trigger; the trigger is `multiclick_hotkey`.
+  - `multiclick_exclude`: Character names to leave out of the click.
 
 ### 2. Group Invitation
 
@@ -85,7 +99,8 @@ This file contains all the settings for the application.
   "log_level": "INFO",
   
   "multiclick_enabled": true,
-  "multiclick_button": "x1",
+  "multiclick_hotkey": "x1",
+  "multiclick_button": "left",
   
   "group_invite_enabled": true,
   "group_invite_hotkey": "F8",

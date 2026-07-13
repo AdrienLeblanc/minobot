@@ -1,0 +1,220 @@
+package fr.minobot.win32;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+/**
+ * An in-memory desktop.
+ *
+ * <p>This is the whole point of {@link WindowApi}: the window ordering, the monitor filtering and
+ * the hotkey matching can be driven from a test, on any OS, with no game running
+ */
+public final class FakeWindowApi implements WindowApi {
+
+    private final Map<Long, String> titles = new LinkedHashMap<>();
+    private final Set<Long> minimized = ConcurrentHashMap.newKeySet();
+    private final Set<Long> hidden = ConcurrentHashMap.newKeySet();
+    private final Map<Long, Long> monitors = new LinkedHashMap<>();
+    private final Map<Long, Long> parents = new LinkedHashMap<>();
+    private final Set<Integer> keysDown = ConcurrentHashMap.newKeySet();
+    private final List<PostedMessage> posted = new CopyOnWriteArrayList<>();
+    private final List<Long> shown = new CopyOnWriteArrayList<>();
+    private final List<Long> focused = new CopyOnWriteArrayList<>();
+
+    private long foreground = Win32.NULL_HANDLE;
+    private long underCursor = Win32.NULL_HANDLE;
+    private Point cursor = new Point(0, 0);
+
+    /** Adds a visible window on monitor 1, in the order the fake will enumerate it. */
+    public FakeWindowApi withWindow(long hwnd, String title) {
+        titles.put(hwnd, title);
+        monitors.put(hwnd, 1L);
+        return this;
+    }
+
+    public FakeWindowApi onMonitor(long hwnd, long monitor) {
+        monitors.put(hwnd, monitor);
+        return this;
+    }
+
+    public FakeWindowApi minimize(long hwnd) {
+        minimized.add(hwnd);
+        return this;
+    }
+
+    public FakeWindowApi withForeground(long hwnd) {
+        foreground = hwnd;
+        return this;
+    }
+
+    public FakeWindowApi withCursor(Point position) {
+        cursor = position;
+        return this;
+    }
+
+    /** The window {@code WindowFromPoint} reports — a child window is a legitimate answer. */
+    public FakeWindowApi withWindowUnderCursor(long hwnd) {
+        underCursor = hwnd;
+        return this;
+    }
+
+    /** Declares a child window, so the multi-clicker's walk back up to the game window is exercised. */
+    public FakeWindowApi withParent(long child, long parent) {
+        parents.put(child, parent);
+        return this;
+    }
+
+    /** Presses a key, as the polling loop will see it on its next tick. */
+    public void press(int virtualKey) {
+        keysDown.add(virtualKey);
+    }
+
+    public void release(int virtualKey) {
+        keysDown.remove(virtualKey);
+    }
+
+    @Override
+    public List<Long> topLevelWindows() {
+        return new ArrayList<>(titles.keySet());
+    }
+
+    @Override
+    public String windowText(long hwnd) {
+        return titles.getOrDefault(hwnd, "");
+    }
+
+    @Override
+    public boolean isWindowVisible(long hwnd) {
+        return titles.containsKey(hwnd) && !hidden.contains(hwnd);
+    }
+
+    @Override
+    public boolean isIconic(long hwnd) {
+        return minimized.contains(hwnd);
+    }
+
+    @Override
+    public boolean isWindow(long hwnd) {
+        return titles.containsKey(hwnd);
+    }
+
+    @Override
+    public void showWindow(long hwnd, int command) {
+        switch (command) {
+            case Win32.SW_HIDE -> hidden.add(hwnd);
+            case Win32.SW_RESTORE -> {
+                minimized.remove(hwnd);
+                hidden.remove(hwnd);
+                shown.add(hwnd);
+            }
+            case Win32.SW_SHOW -> {
+                hidden.remove(hwnd);
+                shown.add(hwnd);
+            }
+            default -> throw new IllegalArgumentException("Unsupported ShowWindow command: " + command);
+        }
+    }
+
+    /** The windows brought back on screen, in order — the taskbar order the reorder feature builds. */
+    public List<Long> shownWindows() {
+        return List.copyOf(shown);
+    }
+
+    public boolean isHidden(long hwnd) {
+        return hidden.contains(hwnd);
+    }
+
+    @Override
+    public boolean setForegroundWindow(long hwnd) {
+        if (!isWindow(hwnd)) {
+            return false;
+        }
+        foreground = hwnd;
+        focused.add(hwnd);
+        return true;
+    }
+
+    /** The windows focused so far, in order — what a cycling or invitation sequence really did. */
+    public List<Long> focusedWindows() {
+        return List.copyOf(focused);
+    }
+
+    @Override
+    public void bringWindowToTop(long hwnd) {
+        // Z-order is not modelled: nothing here reads it.
+    }
+
+    @Override
+    public long foregroundWindow() {
+        return foreground;
+    }
+
+    @Override
+    public boolean postMessage(long hwnd, int message, long wparam, long lparam) {
+        posted.add(new PostedMessage(hwnd, message, wparam, lparam));
+        return isWindow(hwnd);
+    }
+
+    /** Every message posted so far — the multi-clicker's whole output. */
+    public List<PostedMessage> postedMessages() {
+        return List.copyOf(posted);
+    }
+
+    public record PostedMessage(long hwnd, int message, long wparam, long lparam) {
+    }
+
+    /** The client area is modelled as the screen shifted by (hwnd * 10), so the maths is checkable. */
+    @Override
+    public Optional<Point> screenToClient(long hwnd, Point screen) {
+        if (!isWindow(hwnd)) {
+            return Optional.empty();
+        }
+        int offset = (int) (hwnd * 10);
+        return Optional.of(new Point(screen.x() - offset, screen.y() - offset));
+    }
+
+    @Override
+    public Optional<Point> clientToScreen(long hwnd, Point client) {
+        if (!isWindow(hwnd)) {
+            return Optional.empty();
+        }
+        int offset = (int) (hwnd * 10);
+        return Optional.of(new Point(client.x() + offset, client.y() + offset));
+    }
+
+    @Override
+    public long windowFromPoint(Point screen) {
+        return underCursor;
+    }
+
+    @Override
+    public long parentWindow(long hwnd) {
+        return parents.getOrDefault(hwnd, Win32.NULL_HANDLE);
+    }
+
+    @Override
+    public boolean isKeyDown(int virtualKey) {
+        return keysDown.contains(virtualKey);
+    }
+
+    @Override
+    public Optional<Point> cursorPosition() {
+        return Optional.of(cursor);
+    }
+
+    @Override
+    public long monitorFromWindow(long hwnd) {
+        return monitors.getOrDefault(hwnd, Win32.NULL_HANDLE);
+    }
+
+    @Override
+    public void stopFlashing(long hwnd) {
+        // Nothing to model: the taskbar is not simulated.
+    }
+}

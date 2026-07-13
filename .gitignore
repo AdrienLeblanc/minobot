@@ -1,21 +1,17 @@
-# Default ignored files
-/shelf/
-/.idea/workspace.xml
-# Ignored default folder with query files
-/queries/
-# Datasource local storage ignored files
-/dataSources/
-/dataSources.local.xml
-# Editor-based HTTP Client requests
-/httpRequests/
 # IDE
 .idea/
 *.iml
-# Build
-build/
-dist/
-*.spec
-**/__pycache__
+/shelf/
+/queries/
+/httpRequests/
+/dataSources/
+/dataSources.local.xml
 
-# Custom config.json
+# Build
+target/
+
+# Runtime
+logs/
+
+# Local configuration, generated next to the executable on first launch
 config.json
