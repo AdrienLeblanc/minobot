@@ -1,12 +1,12 @@
 package fr.minobot.app;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,11 +45,10 @@ class ConfigLoaderTest {
 
         assertThat(config.logLevel()).isEqualTo("DEBUG");
         assertThat(config.windowCycleOrder()).isEqualTo(List.of("Bravo", "Echo"));
-        // Untouched keys must not collapse to 0 / false / null.
-        assertThat(config.pollIntervalSeconds()).isEqualTo(0.5);
-        assertThat(config.notificationBatchSize()).isEqualTo(10);
-        assertThat(config.multiclickEnabled()).isTrue();
-        assertThat(config.gameKeywords()).isEqualTo(List.of("Dofus"));
+        // Untouched keys must not collapse to null — a blank hotkey is a disabled feature.
+        assertThat(config.multiclickHotkey()).isEqualTo("x1");
+        assertThat(config.groupInviteHotkey()).isEqualTo("F8");
+        assertThat(config.multiclickExclude()).isEmpty();
     }
 
     @Test
@@ -61,11 +60,16 @@ class ConfigLoaderTest {
     }
 
     @Test
-    void fractionalSecondsBecomeDurations() {
-        Config config = Config.defaults();
+    @DisplayName("a setting dropped from the record is ignored, not a crash on an old config.json")
+    void ignoresUnknownKeys(@TempDir Path dir) throws IOException {
+        Path configPath = dir.resolve("config.json");
+        Files.writeString(configPath, """
+                {
+                  "multiclick_button": "right",
+                  "smart_focus_enabled": false
+                }
+                """);
 
-        assertThat(config.pollInterval()).isEqualTo(Duration.ofMillis(500));
-        assertThat(config.focusCooldown()).isEqualTo(Duration.ofMillis(100));
-        assertThat(config.multiclickDelay()).isEqualTo(Duration.ofMillis(10));
+        assertThat(ConfigLoader.load(configPath)).isEqualTo(Config.defaults());
     }
 }

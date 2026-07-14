@@ -48,40 +48,37 @@ public final class MultiWindowClicker {
      */
     private static final int RESET_SETTLE_MILLIS = 50;
 
+    /**
+     * Breathing room between two windows: a posted click the game has not yet drained can otherwise
+     * be dropped. The whole point of the feature is speed, so this is as small as it can be.
+     */
+    private static final int CLICK_DELAY_MILLIS = 10;
+
     private final WindowApi api;
     private final WindowManager windows;
     private final FocusManager focus;
-    private final Config config;
 
     private final List<String> excluded;
-    private final MouseButton button;
 
     public MultiWindowClicker(WindowApi api, WindowManager windows, FocusManager focus, Config config) {
         this.api = api;
         this.windows = windows;
         this.focus = focus;
-        this.config = config;
 
         this.excluded = config.multiclickExclude().stream()
                 .map(name -> name.toLowerCase(Locale.ROOT))
                 .toList();
-        this.button = MouseButton.of(config.multiclickButton());
-
-        if (config.multiclickDryRun()) {
-            log.warn("[MULTICLICK] Dry-run mode: no click will actually be sent.");
-        }
     }
 
     /**
      * Clicks every game window at the position equivalent to where the player just clicked.
      *
+     * <p>The player's own window is clicked too: the trigger is a side button, not the click itself,
+     * so nothing has landed there yet.
+     *
      * @param cursor the screen position of the cursor when the hotkey went down
      */
     public void clickAllWindows(Point cursor) {
-
-        // Read before anything else: the click must not leave the player's window behind.
-        final var original = config.multiclickRestoreFocus() ? api.foregroundWindow() : Win32.NULL_HANDLE;
-
         final var targets = windows.orderedWindows();
         if (targets.isEmpty()) {
             log.warn("[MULTICLICK] No game window to click.");
@@ -93,12 +90,7 @@ public final class MultiWindowClicker {
         sourceClient.ifPresent(point -> targets.stream()
                 .filter(not(this::isExcluded))
                 .filter(not(window -> api.isIconic(window.hwnd())))
-                .filter(not(window -> window.hwnd() == original))
                 .forEach(window -> click(window, point)));
-
-        if (original != Win32.NULL_HANDLE) {
-            api.setForegroundWindow(original);
-        }
     }
 
     /**
@@ -175,14 +167,9 @@ public final class MultiWindowClicker {
             return;
         }
 
-        if (config.multiclickDryRun()) {
-            log.debug("[DRY RUN] Would click '{}' at client {}.", window.title(), point);
-            return;
-        }
-
         for (var attempt = 0; attempt < CLICK_ATTEMPTS; attempt++) {
             if (post(window.hwnd(), point)) {
-                sleep((int) config.multiclickDelay().toMillis());
+                sleep(CLICK_DELAY_MILLIS);
                 return;
             }
             if (!sleep(RETRY_MILLIS)) {
@@ -194,7 +181,7 @@ public final class MultiWindowClicker {
     }
 
     /**
-     * Posts the down/up pair of the configured button.
+     * Posts the down/up pair of a left click.
      *
      * <p>Bracketed by {@code FlashWindowEx(FLASHW_STOP)}: the click itself is what makes an unfocused
      * window flash orange in the taskbar, so the flash is cancelled on both sides of it.
@@ -203,8 +190,8 @@ public final class MultiWindowClicker {
         final var lparam = Win32.makeLParam(client.x(), client.y());
 
         api.stopFlashing(hwnd);
-        final var posted = api.postMessage(hwnd, button.down(), button.flag(), lparam)
-                && api.postMessage(hwnd, button.up(), 0, lparam);
+        final var posted = api.postMessage(hwnd, Win32.WM_LBUTTONDOWN, Win32.MK_LBUTTON, lparam)
+                && api.postMessage(hwnd, Win32.WM_LBUTTONUP, 0, lparam);
         api.stopFlashing(hwnd);
 
         return posted;
@@ -223,46 +210,6 @@ public final class MultiWindowClicker {
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
             return false;
-        }
-    }
-
-    /**
-     * The messages of one mouse button: what to post down, up, and in the {@code wParam}.
-     */
-    private enum MouseButton {
-        LEFT(Win32.WM_LBUTTONDOWN, Win32.WM_LBUTTONUP, Win32.MK_LBUTTON),
-        RIGHT(Win32.WM_RBUTTONDOWN, Win32.WM_RBUTTONUP, Win32.MK_RBUTTON),
-        MIDDLE(Win32.WM_MBUTTONDOWN, Win32.WM_MBUTTONUP, Win32.MK_MBUTTON);
-
-        private final int down;
-        private final int up;
-        private final int flag;
-
-        MouseButton(int down, int up, int flag) {
-            this.down = down;
-            this.up = up;
-            this.flag = flag;
-        }
-
-        static MouseButton of(String name) {
-            try {
-                return valueOf(name.strip().toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException _) {
-                log.warn("Unknown multiclick_button '{}', falling back to the left button.", name);
-                return LEFT;
-            }
-        }
-
-        int down() {
-            return down;
-        }
-
-        int up() {
-            return up;
-        }
-
-        int flag() {
-            return flag;
         }
     }
 }

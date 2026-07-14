@@ -24,9 +24,6 @@ import static org.assertj.core.api.Assertions.fail;
 @Timeout(value = 30, unit = TimeUnit.SECONDS)
 class GroupManagerTest {
 
-    /** The sequence's own sleeps already outlast the cooldown; switching it off keeps this honest. */
-    private static final Map<String, Object> NO_COOLDOWN = Map.of("focus_cooldown", 0);
-
     /** Alphabetical by default: Alpha (1) invites Bravo (2), who invites Delta (3). */
     private FakeWindowApi desktop() {
         return new FakeWindowApi()
@@ -43,7 +40,7 @@ class GroupManagerTest {
     @DisplayName("each character invites the next, and the leader gets the focus back")
     void relaysTheInvitationDownTheOrder() throws InterruptedException {
         final var api = desktop();
-        final var features = new Features(api, NO_COOLDOWN);
+        final var features = new Features(api, Map.of());
         final var input = features.input();
         final var groupManager = features.groupManager();
 
@@ -67,7 +64,7 @@ class GroupManagerTest {
     @DisplayName("a toast that is not an invitation does not advance the sequence")
     void waitsForTheInvitationToast() throws InterruptedException {
         final var api = desktop();
-        final var features = new Features(api, NO_COOLDOWN);
+        final var features = new Features(api, Map.of());
         final var input = features.input();
         final var groupManager = features.groupManager();
 
@@ -93,7 +90,7 @@ class GroupManagerTest {
     @DisplayName("a lone character is not a group")
     void refusesToInviteWithASingleCharacter() {
         final var api = new FakeWindowApi().withWindow(1, "Alpha - Dofus");
-        final var features = new Features(api, NO_COOLDOWN);
+        final var features = new Features(api, Map.of());
 
         features.groupManager().inviteAll();
 

@@ -1,6 +1,5 @@
 package fr.minobot.core;
 
-import fr.minobot.app.Config;
 import fr.minobot.core.input.Input;
 import fr.minobot.win32.Win32;
 import fr.minobot.win32.WindowApi;
@@ -8,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.event.KeyEvent;
+import java.time.Duration;
 
 /**
  * Brings a game window to the foreground — the counterpart of {@code focus_manager.py}.
@@ -28,8 +28,13 @@ public final class FocusManager {
     private static final int RESTORE_SETTLE_MILLIS = 100;
     private static final int FOREGROUND_SETTLE_MILLIS = 100;
 
+    /** Two focus requests landing together — a burst of toasts — must not fight over the screen. */
+    private static final Duration COOLDOWN = Duration.ofMillis(100);
+
+    /** How recently the player must have typed for a smart focus to leave their window alone. */
+    private static final Duration TYPING_THRESHOLD = Duration.ofSeconds(2);
+
     private final WindowApi api;
-    private final Config config;
     private final Input input;
     private final WindowManager windows;
     private final KeyboardMonitor keyboard;
@@ -38,10 +43,8 @@ public final class FocusManager {
     private long lastFocusNanos;
     private boolean everFocused;
 
-    public FocusManager(WindowApi api, Config config, Input input,
-                        WindowManager windows, KeyboardMonitor keyboard) {
+    public FocusManager(WindowApi api, Input input, WindowManager windows, KeyboardMonitor keyboard) {
         this.api = api;
-        this.config = config;
         this.input = input;
         this.windows = windows;
         this.keyboard = keyboard;
@@ -113,15 +116,14 @@ public final class FocusManager {
      * requests arriving together would both see a stale timestamp and both pass the cooldown.
      */
     private boolean claimFocus(long hwnd, boolean smart) {
-        if (smart && config.smartFocusEnabled() && keyboard != null
-                && keyboard.typedWithin(config.smartFocusThreshold())) {
+        if (smart && keyboard != null && keyboard.typedWithin(TYPING_THRESHOLD)) {
             log.debug("Smart focus for HWND {} skipped (recent user activity detected).", hwnd);
             return false;
         }
 
         synchronized (cooldownLock) {
             final var now = System.nanoTime();
-            if (everFocused && now - lastFocusNanos < config.focusCooldown().toNanos()) {
+            if (everFocused && now - lastFocusNanos < COOLDOWN.toNanos()) {
                 log.debug("Focus attempt on HWND {} skipped due to cooldown.", hwnd);
                 return false;
             }

@@ -16,15 +16,9 @@ public final class Win32 {
     // Mouse messages
     public static final int WM_LBUTTONDOWN = 0x0201;
     public static final int WM_LBUTTONUP = 0x0202;
-    public static final int WM_RBUTTONDOWN = 0x0204;
-    public static final int WM_RBUTTONUP = 0x0205;
-    public static final int WM_MBUTTONDOWN = 0x0207;
-    public static final int WM_MBUTTONUP = 0x0208;
 
-    // wParam flags of the mouse messages above
+    // wParam flag of the mouse messages above
     public static final int MK_LBUTTON = 0x0001;
-    public static final int MK_RBUTTON = 0x0002;
-    public static final int MK_MBUTTON = 0x0010;
 
     /** FlashWindowEx: stop flashing and restore the window to its original state. */
     public static final int FLASHW_STOP = 0;

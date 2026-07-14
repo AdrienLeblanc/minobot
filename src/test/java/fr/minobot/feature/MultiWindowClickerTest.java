@@ -93,26 +93,13 @@ class MultiWindowClickerTest {
     class Targets {
 
         @Test
-        @DisplayName("by default the foreground window is clicked too: the hotkey is X1, not a click")
+        @DisplayName("the foreground window is clicked too: the hotkey is X1, not a click")
         void clicksTheForegroundWindowAsWell() {
             final var api = desktop().withForeground(2).withWindowUnderCursor(2);
 
             new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
 
             assertThat(api.postedMessages()).extracting(PostedMessage::hwnd).contains(2L);
-        }
-
-        @Test
-        @DisplayName("multiclick_restore_focus spares it, for when the hotkey is the click itself")
-        void skipsTheForegroundWindowWhenRestoringTheFocus() {
-            final var api = desktop().withForeground(2).withWindowUnderCursor(2);
-
-            new Features(api, Map.of("multiclick_restore_focus", true))
-                    .clicker().clickAllWindows(CURSOR);
-
-            assertThat(api.postedMessages()).extracting(PostedMessage::hwnd)
-                    .containsOnly(1L, 3L); // the player's own click already landed on window 2
-            assertThat(api.foregroundWindow()).isEqualTo(2);
         }
 
         @Test
@@ -147,47 +134,6 @@ class MultiWindowClickerTest {
     }
 
     @Nested
-    class Buttons {
-
-        @Test
-        void postsTheConfiguredButton() {
-            final var api = desktop()
-                    .withForeground(1)
-                    .withWindowUnderCursor(1)
-                    .minimize(3); // one window is enough to read the messages
-            new Features(api, Map.of("multiclick_button", "right", "multiclick_restore_focus", true))
-                    .clicker().clickAllWindows(CURSOR);
-
-            final var lparam = Win32.makeLParam(90, 90);
-            assertThat(api.postedMessages()).containsExactly(
-                    new PostedMessage(2, Win32.WM_RBUTTONDOWN, Win32.MK_RBUTTON, lparam),
-                    new PostedMessage(2, Win32.WM_RBUTTONUP, 0, lparam));
-        }
-
-        @Test
-        @DisplayName("an unknown button falls back to the left one rather than failing")
-        void fallsBackToTheLeftButton() {
-            final var api = desktop().withForeground(1).withWindowUnderCursor(1);
-
-            new Features(api, Map.of("multiclick_button", "thumb"))
-                    .clicker().clickAllWindows(CURSOR);
-
-            assertThat(api.postedMessages()).extracting(PostedMessage::message)
-                    .containsOnly(Win32.WM_LBUTTONDOWN, Win32.WM_LBUTTONUP);
-        }
-
-        @Test
-        void dryRunPostsNothing() {
-            final var api = desktop().withForeground(1).withWindowUnderCursor(1);
-
-            new Features(api, Map.of("multiclick_dry_run", true))
-                    .clicker().clickAllWindows(CURSOR);
-
-            assertThat(api.postedMessages()).isEmpty();
-        }
-    }
-
-    @Nested
     class AttentionReset {
 
         @Test
@@ -195,9 +141,7 @@ class MultiWindowClickerTest {
         void visitsEveryWindowAndReturnsToTheLeader() {
             final var api = desktop().withForeground(1);
 
-            new Features(api, Map.of(
-                    "window_cycle_order", List.of("Delta", "Bravo", "Alpha"),
-                    "focus_cooldown", 0))
+            new Features(api, Map.of("window_cycle_order", List.of("Delta", "Bravo", "Alpha")))
                     .clicker().resetWindowsAttentionState();
 
             // Configured order is Delta (3), Bravo (2), Alpha (1): visited back to front, then the
@@ -211,7 +155,7 @@ class MultiWindowClickerTest {
         void picksTheLeaderFromTheConfiguredOrder() {
             final var api = desktop().withForeground(3);
 
-            new Features(api, Map.of("focus_cooldown", 0)).clicker().resetWindowsAttentionState();
+            new Features(api, Map.of()).clicker().resetWindowsAttentionState();
 
             // Alphabetical for want of a configured order: the leader is Alpha, and the reversal is a
             // real one — sorting by rank would leave the list untouched, every window sharing a rank.

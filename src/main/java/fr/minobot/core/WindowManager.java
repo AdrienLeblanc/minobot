@@ -7,6 +7,7 @@ import fr.minobot.win32.WindowApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -23,6 +24,13 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class WindowManager {
 
     private static final Logger log = LoggerFactory.getLogger(WindowManager.class);
+
+    /** What a game window's title carries: {@code "Bravo - Dofus Retro v1.48.18"}. */
+    private static final List<String> GAME_KEYWORDS = List.of("Dofus");
+    private static final List<String> CHARACTER_SEPARATORS = List.of(" - ", ": ", " | ");
+
+    /** Windows are opened and closed by hand, so the list may lag by this much without harm. */
+    private static final Duration REFRESH_INTERVAL = Duration.ofSeconds(30);
 
     /** How far past the configured order an unlisted window is pushed. */
     private static final int UNRANKED_OFFSET = 1000;
@@ -52,7 +60,7 @@ public final class WindowManager {
                 continue;
             }
             final var title = api.windowText(hwnd);
-            if (isGameWindow(title)) {
+            if (isGameTitle(title)) {
                 found.add(new GameWindow(hwnd, title));
             }
         }
@@ -66,18 +74,19 @@ public final class WindowManager {
         }
     }
 
-    private boolean isGameWindow(String title) {
-        return config.gameKeywords().stream().anyMatch(title::contains);
+    /** Whether a title is the game's — a window's, or a toast's, which carry the same keywords. */
+    public static boolean isGameTitle(String title) {
+        return GAME_KEYWORDS.stream().anyMatch(title::contains);
     }
 
-    /** Refreshes only if the list has gone stale, per {@code window_refresh_interval}. */
+    /** Refreshes only if the list has gone stale. */
     public void ensureFresh() {
         final var last = snapshot.get();
         if (last == null) {
             refresh();
             return;
         }
-        if (System.nanoTime() - last.takenNanos() > config.windowRefreshInterval().toNanos()) {
+        if (System.nanoTime() - last.takenNanos() > REFRESH_INTERVAL.toNanos()) {
             log.info("Window list is stale, refreshing...");
             refresh();
         }
@@ -90,12 +99,12 @@ public final class WindowManager {
     }
 
     /**
-     * The character name a title carries, cut at the first configured separator.
+     * The character name a title carries, cut at the first separator.
      *
      * <p>{@code "Bravo - Dofus Retro v1.48.18"} yields {@code "Bravo"}.
      */
     public String extractCharacterName(String title) {
-        for (final var separator : config.characterSeparators()) {
+        for (final var separator : CHARACTER_SEPARATORS) {
             final var index = title.indexOf(separator);
             if (index >= 0) {
                 return title.substring(0, index).strip();

@@ -1,6 +1,5 @@
 package fr.minobot.feature;
 
-import fr.minobot.app.Config;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.domain.GameWindow;
 import fr.minobot.core.domain.Notification;
@@ -20,13 +19,11 @@ public final class NotificationListener {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationListener.class);
 
-    private final Config config;
     private final WindowManager windows;
     private final FocusManager focus;
 
-    public NotificationListener(Config config, WindowManager windows, FocusManager focus,
+    public NotificationListener(WindowManager windows, FocusManager focus,
                                 NotificationManager notifications) {
-        this.config = config;
         this.windows = windows;
         this.focus = focus;
 
@@ -36,7 +33,7 @@ public final class NotificationListener {
     /** Runs on a virtual thread, one per notification, from {@link NotificationManager}. */
     void onNotification(Notification notification) {
         final var title = notification.title();
-        if (title == null || title.isBlank() || !isFromTheGame(title)) {
+        if (title == null || title.isBlank() || !WindowManager.isGameTitle(title)) {
             return;
         }
 
@@ -53,11 +50,7 @@ public final class NotificationListener {
                 () -> log.warn("No window found for the character '{}'.", character));
     }
 
-    private boolean isFromTheGame(String title) {
-        return config.gameKeywords().stream().anyMatch(title::contains);
-    }
-
-    /** The focus manager holds the {@code smart_focus_enabled} switch, so it is always asked for. */
+    /** Smart: the focus manager drops the request if the player is typing at that very moment. */
     private void focusSmartly(GameWindow window) {
         focus.focus(window.hwnd(), true, false);
     }

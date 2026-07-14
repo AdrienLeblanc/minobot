@@ -29,10 +29,19 @@ fr.minobot
 
 **Two interfaces are the only doors to the outside world:** `win32.WindowApi` (the screen) and
 `core.Input` (the keyboard and mouse). Everything else is code that runs in a test, on any OS, with no
-game running — which is why there are 83 tests.
+game running — which is why there are 79 tests.
 
 **Keep it that way.** Do not call `user32.dll` or `java.awt.Robot` from anywhere but their
 implementations: a feature that reaches past `WindowApi` becomes untestable.
+
+### Config
+
+`Config` holds what a *player* changes: their `window_cycle_order`, their `multiclick_exclude`, their
+hotkeys, their `log_level`. Nothing else. A timing, a mouse button, a keyword of the game's window
+titles, a dry-run flag — those are dictated by Windows or by the game, not by the player, and belong
+in a constant next to the code that reads it. **Adding a field to `Config` is a claim that a player
+has a reason to change it**; a knob nobody turns is a knob that silently breaks a feature when someone
+does. An empty hotkey disables its feature; there is no `*_enabled` flag.
 
 ### Concurrency
 

@@ -34,6 +34,8 @@ public final class MinobotApp {
 
     private static final Logger log = LoggerFactory.getLogger(MinobotApp.class);
 
+    /** Each hotkey's own minimum spacing: enough to swallow a double trigger, never to feel laggy. */
+    private static final Duration MULTICLICK_COOLDOWN = Duration.ofMillis(10);
     private static final Duration RESET_WINDOWS_COOLDOWN = Duration.ofSeconds(1);
     private static final Duration GROUP_INVITE_COOLDOWN = Duration.ofSeconds(5);
     private static final Duration WINDOW_CYCLE_COOLDOWN = Duration.ofMillis(100);
@@ -74,8 +76,8 @@ public final class MinobotApp {
         this.windowManager = new WindowManager(api, config);
         this.inputSimulator = new InputSimulator();
         this.keyboardMonitor = new KeyboardMonitor(api);
-        this.focusManager = new FocusManager(api, config, inputSimulator, windowManager, keyboardMonitor);
-        this.notificationManager = new NotificationManager(config);
+        this.focusManager = new FocusManager(api, inputSimulator, windowManager, keyboardMonitor);
+        this.notificationManager = new NotificationManager();
 
         this.multiClicker = new MultiWindowClicker(api, windowManager, focusManager, config);
         this.windowCycler = new WindowCycler(api, windowManager, focusManager);
@@ -83,32 +85,27 @@ public final class MinobotApp {
         this.groupManager = new GroupManager(windowManager, inputSimulator, focusManager, notificationManager);
 
         // Registers itself with the notification manager; it has no hotkey of its own.
-        new NotificationListener(config, windowManager, focusManager, notificationManager);
+        new NotificationListener(windowManager, focusManager, notificationManager);
 
         registerHotkeys();
     }
 
     private void registerHotkeys() {
-        if (config.multiclickEnabled()) {
-            onHotkeyWithCursor("Multi-window click", config.multiclickHotkey(),
-                    config.multiclickCooldown(), multiClicker::clickAllWindows);
-            onHotkey("Reset windows state", config.resetWindowsHotkey(),
-                    RESET_WINDOWS_COOLDOWN, multiClicker::resetWindowsAttentionState);
-        }
-        if (config.groupInviteEnabled()) {
-            onHotkey("Group invitation", config.groupInviteHotkey(),
-                    GROUP_INVITE_COOLDOWN, groupManager::inviteAll);
-        }
-        if (config.windowCycleEnabled()) {
-            onHotkey("Window cycler (next)", config.windowCycleNextHotkey(),
-                    WINDOW_CYCLE_COOLDOWN, windowCycler::cycleNext);
-            onHotkey("Window cycler (previous)", config.windowCyclePrevHotkey(),
-                    WINDOW_CYCLE_COOLDOWN, windowCycler::cyclePrev);
-        }
-        if (config.windowReorderEnabled()) {
-            onHotkey("Window reorder", config.windowReorderHotkey(),
-                    WINDOW_REORDER_COOLDOWN, windowReorder::reorderTaskbar);
-        }
+        onHotkeyWithCursor("Multi-window click", config.multiclickHotkey(),
+                MULTICLICK_COOLDOWN, multiClicker::clickAllWindows);
+        onHotkey("Reset windows state", config.resetWindowsHotkey(),
+                RESET_WINDOWS_COOLDOWN, multiClicker::resetWindowsAttentionState);
+
+        onHotkey("Group invitation", config.groupInviteHotkey(),
+                GROUP_INVITE_COOLDOWN, groupManager::inviteAll);
+
+        onHotkey("Window cycler (next)", config.windowCycleNextHotkey(),
+                WINDOW_CYCLE_COOLDOWN, windowCycler::cycleNext);
+        onHotkey("Window cycler (previous)", config.windowCyclePrevHotkey(),
+                WINDOW_CYCLE_COOLDOWN, windowCycler::cyclePrev);
+
+        onHotkey("Window reorder", config.windowReorderHotkey(),
+                WINDOW_REORDER_COOLDOWN, windowReorder::reorderTaskbar);
     }
 
     /** An empty hotkey in the config disables the feature without disabling the others. */

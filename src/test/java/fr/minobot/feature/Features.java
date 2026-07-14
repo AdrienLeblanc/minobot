@@ -32,7 +32,7 @@ final class Features {
         this.windows = new WindowManager(api, config);
         // No keyboard monitor: the smart focus is off by construction, which is what every feature
         // but the notification listener asks for anyway.
-        this.focus = new FocusManager(api, config, input, windows, null);
+        this.focus = new FocusManager(api, input, windows, null);
     }
 
     FakeInput input() {
@@ -56,11 +56,11 @@ final class Features {
     }
 
     NotificationListener notificationListener() {
-        return new NotificationListener(config, windows, focus, notifications());
+        return new NotificationListener(windows, focus, notifications());
     }
 
     /** Never started: the tests hand the notifications to the feature themselves. */
     private NotificationManager notifications() {
-        return new NotificationManager(config, Path.of("no-such-database.db"));
+        return new NotificationManager(Path.of("no-such-database.db"));
     }
 }

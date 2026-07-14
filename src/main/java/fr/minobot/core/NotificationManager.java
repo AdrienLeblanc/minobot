@@ -1,6 +1,5 @@
 package fr.minobot.core;
 
-import fr.minobot.app.Config;
 import fr.minobot.core.domain.Notification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +45,12 @@ public final class NotificationManager {
     /** {@code SQLITE_OPEN_READONLY} — sqlite-jdbc's way of opening without claiming a write lock. */
     private static final String READ_ONLY = "1";
 
-    private final Config config;
+    /** The invitation relay waits on these toasts, so the poll has to be quicker than the player. */
+    private static final long POLL_MILLIS = 500;
+
+    /** Windows purges the table as toasts are dismissed; it never holds anywhere near this many. */
+    private static final int BATCH_SIZE = 10;
+
     private final Path databasePath;
     private final List<Consumer<Notification>> callbacks = new CopyOnWriteArrayList<>();
     private final ExecutorService dispatcher = Executors.newVirtualThreadPerTaskExecutor();
@@ -56,12 +60,11 @@ public final class NotificationManager {
     private volatile boolean listening;
     private long lastId;
 
-    public NotificationManager(Config config) {
-        this(config, defaultDatabasePath());
+    public NotificationManager() {
+        this(defaultDatabasePath());
     }
 
-    public NotificationManager(Config config, Path databasePath) {
-        this.config = config;
+    public NotificationManager(Path databasePath) {
         this.databasePath = databasePath;
     }
 
@@ -147,8 +150,6 @@ public final class NotificationManager {
     }
 
     private void poll(Connection connection) throws InterruptedException {
-        final var pollMillis = config.pollInterval().toMillis();
-
         while (listening) {
             try {
                 for (final var toast : readBatch(connection)) {
@@ -159,10 +160,10 @@ public final class NotificationManager {
                 }
             } catch (RuntimeException e) {
                 log.error("Unexpected error in the notification polling loop.", e);
-                Thread.sleep(pollMillis);
+                Thread.sleep(POLL_MILLIS);
             }
 
-            Thread.sleep(pollMillis);
+            Thread.sleep(POLL_MILLIS);
         }
     }
 
@@ -176,7 +177,7 @@ public final class NotificationManager {
         final var batch = new ArrayList<Toast>();
 
         try (final var statement = connection.prepareStatement(QUERY)) {
-            statement.setInt(1, config.notificationBatchSize());
+            statement.setInt(1, BATCH_SIZE);
 
             try (final var rows = statement.executeQuery()) {
                 while (rows.next()) {

@@ -14,13 +14,16 @@ import org.slf4j.LoggerFactory;
 import java.nio.file.Path;
 
 /**
- * Applies the log settings of {@link Config} to Logback at runtime — the equivalent of
- * {@code logger.py}. The console appender comes from {@code logback.xml}; the rotating file
- * appender is added here only when {@code log_to_file} is on.
+ * Applies the log level of {@link Config} to Logback at runtime — the equivalent of {@code logger.py}.
+ *
+ * <p>The console appender comes from {@code logback.xml}; the rotating file appender is added here.
+ * Minobot runs from the system tray, with no console to watch: the file is the only trace a player can
+ * send back, so it is always written, capped, and rotated.
  */
 public final class LoggerSetup {
 
     private static final String FILE_APPENDER_NAME = "MINOBOT_FILE";
+    private static final String LOG_FILE = "logs/minobot.log";
 
     private static final String MAX_FILE_SIZE = "5MB";
     private static final int MAX_BACKUPS = 3;
@@ -34,12 +37,10 @@ public final class LoggerSetup {
 
         root.setLevel(Level.toLevel(config.logLevel(), Level.INFO));
 
+        final var logFile = baseDirectory.resolve(LOG_FILE);
         root.detachAppender(FILE_APPENDER_NAME);
-        if (config.logToFile()) {
-            final var logFile = baseDirectory.resolve(config.logFilePath());
-            root.addAppender(fileAppender(context, logFile));
-            root.info("Logging to file: {}", logFile);
-        }
+        root.addAppender(fileAppender(context, logFile));
+        root.info("Logging to file: {}", logFile);
     }
 
     private static RollingFileAppender<ILoggingEvent> fileAppender(
