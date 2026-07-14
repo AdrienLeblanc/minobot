@@ -79,14 +79,14 @@ tourne. Pour l'arrêter, faites un clic droit dessus et choisissez **Quitter**.
 Au premier lancement, Minobot crée un fichier **`config.json`** juste à côté de `Minobot.exe`. C'est
 le seul fichier que vous aurez à toucher. Ouvrez-le avec le Bloc-notes.
 
-![img.png](assets/img.png)
+![initial_config.png](assets/initial_config.png)
 
 ### La seule chose vraiment obligatoire : la liste de vos personnages
 
 Remplacez la liste `window_cycle_order` par **les noms de vos personnages, dans l'ordre où vous voulez
 qu'ils défilent** :
 
-![img_1.png](assets/img_1.png)
+![edited_config.png](assets/edited_config.png)
 
 Cet ordre sert à deux choses : le défilement des fenêtres (`X2`) et le rangement de la barre des
 tâches (`F9`).
