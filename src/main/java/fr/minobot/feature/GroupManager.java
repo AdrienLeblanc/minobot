@@ -36,8 +36,8 @@ public final class GroupManager {
     /** What an invitation toast says, across the game's languages. */
     private static final List<String> INVITE_KEYWORDS = List.of("invite", "groupe", "group");
 
-    private static final int AFTER_CHAT_OPEN_MILLIS = 50;
-    private static final int BEFORE_ACCEPT_MILLIS = 100;
+    private static final int AFTER_CHAT_OPEN_MILLIS = 25;
+    private static final int BEFORE_ACCEPT_MILLIS = 25;
 
     private final WindowManager windows;
     private final Input input;

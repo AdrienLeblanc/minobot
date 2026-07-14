@@ -31,9 +31,6 @@ public final class FocusManager {
     /** Two focus requests landing together — a burst of toasts — must not fight over the screen. */
     private static final Duration COOLDOWN = Duration.ofMillis(100);
 
-    /** How recently the player must have typed for a smart focus to leave their window alone. */
-    private static final Duration TYPING_THRESHOLD = Duration.ofSeconds(2);
-
     private final WindowApi api;
     private final Input input;
     private final WindowManager windows;
@@ -51,16 +48,14 @@ public final class FocusManager {
     }
 
     public void focus(long hwnd) {
-        focus(hwnd, false, false);
+        focus(hwnd, false);
     }
 
     /**
-     * @param smart skip the focus if the user is currently typing, so we never steal the keystrokes
-     *              they are aiming at another window
      * @param force bypass both the smart check and the cooldown
      */
-    public void focus(long hwnd, boolean smart, boolean force) {
-        if (!force && !claimFocus(hwnd, smart)) {
+    public void focus(long hwnd, boolean force) {
+        if (!force && !claimFocus(hwnd)) {
             return;
         }
 
@@ -115,11 +110,7 @@ public final class FocusManager {
      * <p>Synchronized because hotkey callbacks run concurrently on virtual threads: without it, two
      * requests arriving together would both see a stale timestamp and both pass the cooldown.
      */
-    private boolean claimFocus(long hwnd, boolean smart) {
-        if (smart && keyboard != null && keyboard.typedWithin(TYPING_THRESHOLD)) {
-            log.debug("Smart focus for HWND {} skipped (recent user activity detected).", hwnd);
-            return false;
-        }
+    private boolean claimFocus(long hwnd) {
 
         synchronized (cooldownLock) {
             final var now = System.nanoTime();

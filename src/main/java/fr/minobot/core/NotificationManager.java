@@ -46,7 +46,7 @@ public final class NotificationManager {
     private static final String READ_ONLY = "1";
 
     /** The invitation relay waits on these toasts, so the poll has to be quicker than the player. */
-    private static final long POLL_MILLIS = 500;
+    private static final long POLL_MILLIS = 50;
 
     /** Windows purges the table as toasts are dismissed; it never holds anywhere near this many. */
     private static final int BATCH_SIZE = 10;

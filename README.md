@@ -57,9 +57,6 @@ que vous avez configuré.
 Quand un de vos personnages en arrière-plan se fait attaquer, recevoir un message ou inviter, le jeu
 affiche une notification Windows. Minobot la voit et **bascule automatiquement sur ce personnage**.
 
-Il est poli : **si vous êtes en train de taper au clavier à cet instant précis, il ne vous vole pas la
-fenêtre.** Vous ne perdrez jamais une phrase de chat à moitié écrite à cause de lui.
-
 ---
 
 ## Installation

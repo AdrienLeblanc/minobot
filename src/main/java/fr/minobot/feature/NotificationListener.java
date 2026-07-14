@@ -1,7 +1,6 @@
 package fr.minobot.feature;
 
 import fr.minobot.core.FocusManager;
-import fr.minobot.core.domain.GameWindow;
 import fr.minobot.core.domain.Notification;
 import fr.minobot.core.NotificationManager;
 import fr.minobot.core.WindowManager;
@@ -46,12 +45,8 @@ public final class NotificationListener {
         }
 
         windows.findWindow(character).ifPresentOrElse(
-                this::focusSmartly,
+                window -> focus.focus(window.hwnd(), false),
                 () -> log.warn("No window found for the character '{}'.", character));
     }
 
-    /** Smart: the focus manager drops the request if the player is typing at that very moment. */
-    private void focusSmartly(GameWindow window) {
-        focus.focus(window.hwnd(), true, false);
-    }
 }
