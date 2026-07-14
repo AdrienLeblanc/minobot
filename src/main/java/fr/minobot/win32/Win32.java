@@ -20,8 +20,23 @@ public final class Win32 {
     // wParam flag of the mouse messages above
     public static final int MK_LBUTTON = 0x0001;
 
-    /** FlashWindowEx: stop flashing and restore the window to its original state. */
+    /**
+     * FlashWindowEx: stop flashing, and restore the taskbar button to its resting state.
+     *
+     * <p>Windows ignores it <em>while the button is still blinking</em>; it only clears the orange the
+     * blinking leaves behind. Measured against the game — do not expect it to cut an animation short.
+     */
     public static final int FLASHW_STOP = 0;
+
+    /**
+     * SystemParametersInfo: how many times a taskbar button blinks when Windows refuses an
+     * application the foreground. Seven by default.
+     *
+     * <p>The setting behind the whole multi-window click nuisance. <strong>Zero is not silence</strong>
+     * — it means "blink until the window is activated", so one is as quiet as it goes.
+     */
+    public static final int SPI_GETFOREGROUNDFLASHCOUNT = 0x2004;
+    public static final int SPI_SETFOREGROUNDFLASHCOUNT = 0x2005;
 
     /** MonitorFromWindow: return the monitor that the window overlaps the most. */
     public static final int MONITOR_DEFAULTTONEAREST = 0x00000002;

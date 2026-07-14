@@ -44,6 +44,7 @@ class MultiWindowClickerTest {
                 new PostedMessage(hwnd, Win32.WM_LBUTTONUP, 0, lparam));
     }
 
+
     @Nested
     class Positioning {
 
@@ -130,6 +131,42 @@ class MultiWindowClickerTest {
             new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
 
             assertThat(api.foregroundWindow()).isEqualTo(1);
+        }
+    }
+
+    @Nested
+    class TaskbarOrange {
+
+        @Test
+        @DisplayName("the clicked windows keep being cleared after the click, not only at it")
+        void clearsTheOrangeAfterTheGameHasRaisedIt() throws InterruptedException {
+            final var api = desktop().withForeground(1).withWindowUnderCursor(1);
+
+            new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
+
+            // The game has not even drained the click yet, and Windows ignores the request while the
+            // button is blinking: what is cleared now is cleared for nothing. What counts is what comes
+            // after — a single call at click time is exactly the bug this feature had.
+            final var atClickTime = api.flashStopsFor(2);
+            Thread.sleep(300);
+
+            assertThat(api.flashStopsFor(2)).isGreaterThan(atClickTime);
+        }
+
+        @Test
+        @DisplayName("a window that was not clicked is left alone")
+        void leavesTheUnclickedWindowsAlone() throws InterruptedException {
+            final var api = desktop().minimize(3).withForeground(1).withWindowUnderCursor(1);
+
+            new Features(api, Map.of("multiclick_exclude", List.of("Bravo")))
+                    .clicker().clickAllWindows(CURSOR);
+            Thread.sleep(300);
+
+            // Bravo (2) is excluded, Delta (3) is minimized: neither was clicked, so neither can be
+            // orange, and neither is worth a native call.
+            assertThat(api.flashStopsFor(1)).isPositive();
+            assertThat(api.flashStopsFor(2)).isZero();
+            assertThat(api.flashStopsFor(3)).isZero();
         }
     }
 

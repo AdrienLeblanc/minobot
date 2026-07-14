@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -26,6 +27,8 @@ public final class FakeWindowApi implements WindowApi {
     private final List<PostedMessage> posted = new CopyOnWriteArrayList<>();
     private final List<Long> shown = new CopyOnWriteArrayList<>();
     private final List<Long> focused = new CopyOnWriteArrayList<>();
+
+    private boolean readableFlashCount = true;
 
     private long foreground = Win32.NULL_HANDLE;
     private long underCursor = Win32.NULL_HANDLE;
@@ -213,8 +216,43 @@ public final class FakeWindowApi implements WindowApi {
         return monitors.getOrDefault(hwnd, Win32.NULL_HANDLE);
     }
 
+    private final List<Long> flashStops = new CopyOnWriteArrayList<>();
+
+    /** Windows' own default: seven blinks of the taskbar button on a refused foreground request. */
+    private int flashCount = 7;
+
     @Override
     public void stopFlashing(long hwnd) {
-        // Nothing to model: the taskbar is not simulated.
+        flashStops.add(hwnd);
+    }
+
+    /**
+     * How many times a window was told to drop its orange.
+     *
+     * <p>The taskbar is not simulated — but <em>when</em> the orange is cleared is the whole question:
+     * Windows ignores the request while the button is still blinking.
+     */
+    public long flashStopsFor(long hwnd) {
+        return flashStops.stream().filter(stopped -> stopped == hwnd).count();
+    }
+
+    /** Makes the setting unreadable, as a locked-down machine would. */
+    public FakeWindowApi withUnreadableFlashCount() {
+        readableFlashCount = false;
+        return this;
+    }
+
+    @Override
+    public OptionalInt foregroundFlashCount() {
+        return readableFlashCount ? OptionalInt.of(flashCount) : OptionalInt.empty();
+    }
+
+    @Override
+    public boolean setForegroundFlashCount(int count) {
+        if (!readableFlashCount) {
+            return false; // a machine that will not tell will not be told either
+        }
+        flashCount = count;
+        return true;
     }
 }

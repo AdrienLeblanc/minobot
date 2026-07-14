@@ -2,6 +2,7 @@ package fr.minobot.win32;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * Every Win32 call the application makes, behind one interface.
@@ -76,6 +77,24 @@ public interface WindowApi {
     /** The monitor the window sits on — two windows share a monitor iff this returns the same handle. */
     long monitorFromWindow(long hwnd);
 
-    /** Stops the taskbar button from flashing orange, without touching the focus. */
+    /**
+     * Clears the orange "wants your attention" state of a taskbar button, without touching the focus.
+     *
+     * <p>A no-op while the button is still blinking: it clears what the blinking leaves behind.
+     */
     void stopFlashing(long hwnd);
+
+    /**
+     * How many times Windows flashes a taskbar button when it refuses an application the foreground.
+     *
+     * <p>Empty when the setting cannot be read, which is a reason to change nothing.
+     */
+    OptionalInt foregroundFlashCount();
+
+    /**
+     * Sets that count for the whole user session — {@code 0} to stop the flashing altogether.
+     *
+     * @return whether Windows accepted the change
+     */
+    boolean setForegroundFlashCount(int count);
 }

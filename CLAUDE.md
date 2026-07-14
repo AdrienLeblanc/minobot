@@ -23,13 +23,13 @@ fr.minobot
 ├── app/            MinobotApp (wires everything), Config, ConfigLoader, LoggerSetup.
 ├── win32/          WindowApi (the interface), User32 (the FFM implementation), Win32, Point.
 ├── core/           The Windows mechanics: WindowManager, FocusManager, KeyboardMonitor,
-│                   NotificationManager, SystemTrayManager, Input / InputSimulator.
+│                   NotificationManager, FlashSuppressor, SystemTrayManager, Input / InputSimulator.
 └── feature/        The five user-facing features (below).
 ```
 
 **Two interfaces are the only doors to the outside world:** `win32.WindowApi` (the screen) and
 `core.Input` (the keyboard and mouse). Everything else is code that runs in a test, on any OS, with no
-game running — which is why there are 82 tests.
+game running — which is why there are 92 tests.
 
 **Keep it that way.** Do not call `user32.dll` or `java.awt.Robot` from anywhere but their
 implementations: a feature that reaches past `WindowApi` becomes untestable.
@@ -76,9 +76,40 @@ The click is **posted** (`PostMessage`), not simulated, so the windows never tak
 position travels through the **client** area, not the screen: the same client coordinates land on the
 same in-game spot in every window, wherever they sit on the desktop.
 
-A posted click makes a background window flash orange in the taskbar. `FlashWindowEx(FLASHW_STOP)`
-brackets the click to cancel it, and `shift+x1` clears whatever slipped through by visiting each
-window in turn.
+A clicked background window flashes orange in the taskbar — and **it is the game that lights it up,
+not us**: it asks for the foreground when it drains the click, Windows refuses (the same rule the ALT
+trick works around), and a flashing taskbar button is the consolation prize Windows hands a refused
+application.
+
+That button does **two** things, and `core.FlashSuppressor` needs one lever for each. Both were
+measured against the real game; neither is guesswork, and neither alone is enough.
+
+*It blinks*, and that blinking **cannot be cut short**: `FlashWindowEx(FLASHW_STOP)` is ignored while
+the shell is playing the animation, however fast it is swept — which is why cancelling at the moment of
+the click cancels nothing. All that can be done is to make the animation short. Windows exposes how
+many blinks it plays on a refusal (`SPI_*FOREGROUNDFLASHCOUNT`, seven by default) and the quietest it
+goes is **one**. **Zero is not silence** — like `uCount` in `FlashWindowEx`, zero means "blink until
+the window is activated", and setting it makes things *worse*. It is a setting of the whole Windows
+session, borrowed by `suppress()` at startup, so **every exit path must go through `restore()`**
+(`SystemParametersInfo` without `SPIF_UPDATEINIFILE`: the change dies with the session, and a killed
+Minobot leaves nothing a logout does not undo).
+
+*Then it stays orange* — a separate state, the one that actually annoys. `FlashWindowEx(FLASHW_STOP)`
+**does** clear it, but only once the blinking is over, so `watch()` sweeps the clicked windows for three
+seconds afterwards on a virtual thread — never on the click's own, which must stay as fast as it is.
+`shift+x1` remains the last resort.
+
+**A clicked character goes deaf, and `shift+x1` is the only cure.** The game raises its toast only for
+a character nobody is watching; a posted click is, seen from inside the game, a click like any other,
+so it concludes the player is there and stops notifying. The notification auto-focus lives on those
+toasts and dies with them. This is a limit of the game client, not a bug to be fixed here — and it was
+chased to the end before being written down: a single posted click deafens the window it hits and no
+other; no toast is raised at all (the Windows notification database stays *empty*, so nothing is being
+missed); and the game cannot be talked out of it. `WM_ACTIVATE`, `WM_NCACTIVATE`, `WM_KILLFOCUS`,
+`WM_ACTIVATEAPP`, a full activation/deactivation cycle, a real `SetFocus` through `AttachThreadInput` —
+all measured against the real game, all ignored. Only an activation that genuinely brings the window up
+on screen re-arms it, which is exactly what `shift+x1` does. **Do not post messages at the game hoping
+to undo this: that ground is burnt.**
 
 ### Group invitation — `F8`
 

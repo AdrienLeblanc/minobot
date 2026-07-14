@@ -40,6 +40,7 @@ public final class MinobotApp {
     private final KeyboardMonitor keyboardMonitor;
     private final FocusManager focusManager;
     private final NotificationManager notificationManager;
+    private final FlashSuppressor flashSuppressor;
 
     private final MultiWindowClicker multiClicker;
     private final WindowCycler windowCycler;
@@ -69,8 +70,9 @@ public final class MinobotApp {
         this.keyboardMonitor = new KeyboardMonitor(api);
         this.focusManager = new FocusManager(api, inputSimulator, windowManager);
         this.notificationManager = new NotificationManager();
+        this.flashSuppressor = new FlashSuppressor(api);
 
-        this.multiClicker = new MultiWindowClicker(api, windowManager, focusManager, config);
+        this.multiClicker = new MultiWindowClicker(api, windowManager, focusManager, flashSuppressor, config);
         this.windowCycler = new WindowCycler(api, windowManager, focusManager);
         this.windowReorder = new WindowReorder(api, windowManager, focusManager);
         this.groupManager = new GroupManager(windowManager, inputSimulator, focusManager, notificationManager);
@@ -145,6 +147,10 @@ public final class MinobotApp {
         systemTray.start();
         windowManager.refresh();
 
+        // A session-wide setting, and the only thing that keeps the multi-clicked windows from
+        // flashing in the taskbar. Given back in stop().
+        flashSuppressor.suppress();
+
         notificationManager.start();
         keyboardMonitor.start();
 
@@ -162,6 +168,7 @@ public final class MinobotApp {
         log.info("=== Minobot stopping ===");
         keyboardMonitor.stop();
         notificationManager.stop();
+        flashSuppressor.restore();
         systemTray.stop();
 
         stopped.countDown();

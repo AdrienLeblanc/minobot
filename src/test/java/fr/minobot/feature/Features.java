@@ -2,6 +2,7 @@ package fr.minobot.feature;
 
 import fr.minobot.app.Config;
 import fr.minobot.app.TestConfigs;
+import fr.minobot.core.FlashSuppressor;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
 import fr.minobot.core.WindowManager;
@@ -53,7 +54,7 @@ final class Features {
     }
 
     MultiWindowClicker clicker() {
-        return new MultiWindowClicker(api, windows, focus, config);
+        return new MultiWindowClicker(api, windows, focus, new FlashSuppressor(api), config);
     }
 
     GroupManager groupManager() {

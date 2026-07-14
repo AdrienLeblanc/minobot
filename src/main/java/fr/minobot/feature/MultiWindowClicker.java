@@ -1,6 +1,7 @@
 package fr.minobot.feature;
 
 import fr.minobot.app.Config;
+import fr.minobot.core.FlashSuppressor;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.WindowManager;
 import fr.minobot.core.domain.GameWindow;
@@ -10,12 +11,11 @@ import fr.minobot.win32.WindowApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
-import static java.util.function.Predicate.not;
 
 /**
  * Replays one click on every game window at the same spot — the counterpart of
@@ -27,6 +27,18 @@ import static java.util.function.Predicate.not;
  *
  * <p>The position is translated through the <em>client</em> area, not the screen: the same client
  * coordinates land on the same in-game spot in every window, whatever their position on the desktop.
+ *
+ * <p><strong>A clicked character goes deaf, and there is no cure but {@code shift+x1}.</strong> The
+ * game only raises its Windows toast for a character nobody is watching, and a posted click is — seen
+ * from inside the game — a click like any other: it concludes the player is there and stops notifying.
+ * The notification auto-focus, which lives on those toasts, dies with them. This was chased down to the
+ * end: a single posted click deafens the window it hits and no other; the toast is never raised at all
+ * (the Windows notification database stays empty, so there is nothing to miss); and the game cannot be
+ * talked out of it. {@code WM_ACTIVATE}, {@code WM_NCACTIVATE}, {@code WM_KILLFOCUS},
+ * {@code WM_ACTIVATEAPP}, a full activation/deactivation cycle, even a real {@code SetFocus} through
+ * {@code AttachThreadInput} — all measured, all ignored. Only an activation that genuinely brings the
+ * window up on screen re-arms it, which is precisely what {@code shift+x1} does and why it exists.
+ * <strong>Do not add a "fix" here that posts messages at the game: that ground is burnt.</strong>
  */
 public final class MultiWindowClicker {
 
@@ -57,13 +69,16 @@ public final class MultiWindowClicker {
     private final WindowApi api;
     private final WindowManager windows;
     private final FocusManager focus;
+    private final FlashSuppressor flash;
 
     private final List<String> excluded;
 
-    public MultiWindowClicker(WindowApi api, WindowManager windows, FocusManager focus, Config config) {
+    public MultiWindowClicker(WindowApi api, WindowManager windows, FocusManager focus,
+                              FlashSuppressor flash, Config config) {
         this.api = api;
         this.windows = windows;
         this.focus = focus;
+        this.flash = flash;
 
         this.excluded = config.multiclickExclude().stream()
                 .map(name -> name.toLowerCase(Locale.ROOT))
@@ -86,11 +101,24 @@ public final class MultiWindowClicker {
         }
 
         final var sourceClient = clientPositionOf(cursor, targets);
+        if (sourceClient.isEmpty()) {
+            return;
+        }
 
-        sourceClient.ifPresent(point -> targets.stream()
-                .filter(not(this::isExcluded))
-                .filter(not(window -> api.isIconic(window.hwnd())))
-                .forEach(window -> click(window, point)));
+        final var clicked = new ArrayList<Long>();
+        for (final var window : targets) {
+            if (isExcluded(window) || api.isIconic(window.hwnd())) {
+                continue;
+            }
+            if (click(window, sourceClient.get())) {
+                clicked.add(window.hwnd());
+            }
+        }
+
+        // Each of these windows is about to ask the game for the foreground, be refused, and turn
+        // orange in the taskbar. The suppressor clears them once that has happened — on its own thread,
+        // never on this one, which must stay as fast as it is.
+        flash.watch(clicked);
     }
 
     /**
@@ -165,40 +193,33 @@ public final class MultiWindowClicker {
         return excluded.stream().anyMatch(title::contains);
     }
 
-    private void click(GameWindow window, Point point) {
+    /** @return whether the click was posted, and the window is therefore about to turn orange */
+    private boolean click(GameWindow window, Point point) {
         if (!api.isWindow(window.hwnd())) {
             log.debug("[MULTICLICK] Skipping the stale window '{}'.", window.title());
-            return;
+            return false;
         }
 
         for (var attempt = 0; attempt < CLICK_ATTEMPTS; attempt++) {
             if (post(window.hwnd(), point)) {
                 sleep(CLICK_DELAY_MILLIS);
-                return;
+                return true;
             }
             if (!sleep(RETRY_MILLIS)) {
-                return;
+                return false;
             }
         }
 
         log.warn("[MULTICLICK] Could not click '{}' after {} attempts.", window.title(), CLICK_ATTEMPTS);
+        return false;
     }
 
-    /**
-     * Posts the down/up pair of a left click.
-     *
-     * <p>Bracketed by {@code FlashWindowEx(FLASHW_STOP)}: the click itself is what makes an unfocused
-     * window flash orange in the taskbar, so the flash is cancelled on both sides of it.
-     */
+    /** Posts the down/up pair of a left click. */
     private boolean post(long hwnd, Point client) {
         final var lparam = Win32.makeLParam(client.x(), client.y());
 
-        api.stopFlashing(hwnd);
-        final var posted = api.postMessage(hwnd, Win32.WM_LBUTTONDOWN, Win32.MK_LBUTTON, lparam)
+        return api.postMessage(hwnd, Win32.WM_LBUTTONDOWN, Win32.MK_LBUTTON, lparam)
                 && api.postMessage(hwnd, Win32.WM_LBUTTONUP, 0, lparam);
-        api.stopFlashing(hwnd);
-
-        return posted;
     }
 
     /**

@@ -148,4 +148,13 @@ class User32Test {
         // A bad cbSize or a mis-aligned hwnd field would corrupt the call, not merely do nothing.
         assertDoesNotThrow(() -> api.stopFlashing(hwnd));
     }
+
+    @Test
+    @DisplayName("SystemParametersInfo reads back the taskbar flash count of this session")
+    void readsTheForegroundFlashCount() {
+        // Read-only: the write is exercised by FlashSuppressorTest, on the fake — setting it here
+        // would change the session of whoever runs the tests. A wrong FFM signature would throw, and
+        // a pvParam Windows would not write into comes back empty.
+        assertThat(api.foregroundFlashCount()).as("Windows always has a flash count").isPresent();
+    }
 }

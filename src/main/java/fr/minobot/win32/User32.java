@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * The real {@link WindowApi}: {@code user32.dll} called through the FFM API
@@ -39,6 +40,15 @@ public final class User32 implements WindowApi {
             ValueLayout.JAVA_INT.withName("uCount"),
             ValueLayout.JAVA_INT.withName("dwTimeout"),
             MemoryLayout.paddingLayout(4));         // tail padding to the struct's 8-byte alignment
+
+    /**
+     * {@code fWinIni} of {@code SystemParametersInfo}: neither write the setting to the user's
+     * profile, nor broadcast it.
+     *
+     * <p>The change then lives in the session and dies with it — so a Minobot killed outright leaves
+     * nothing behind that a logout does not undo.
+     */
+    private static final int NO_PERSIST = 0;
 
     /** {@code WNDENUMPROC: BOOL CALLBACK(HWND, LPARAM)} */
     private static final FunctionDescriptor ENUM_PROC = FunctionDescriptor.of(
@@ -81,6 +91,20 @@ public final class User32 implements WindowApi {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT));
     private static final MethodHandle FlashWindowEx = downcall("FlashWindowEx",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+
+    /**
+     * {@code BOOL SystemParametersInfoW(UINT uiAction, UINT uiParam, PVOID pvParam, UINT fWinIni)}.
+     *
+     * <p>Two handles on one symbol, because {@code pvParam} is a pointer when reading a setting and
+     * the value itself, cast to a pointer, when writing one. On the Win64 ABI both travel in the same
+     * register, but the FFM signature has to say which it is.
+     */
+    private static final MethodHandle SystemParametersInfoRead = downcall("SystemParametersInfoW",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS, ValueLayout.JAVA_INT));
+    private static final MethodHandle SystemParametersInfoWrite = downcall("SystemParametersInfoW",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT));
 
     private static final User32 INSTANCE = new User32();
 
@@ -320,9 +344,39 @@ public final class User32 implements WindowApi {
             info.set(ValueLayout.JAVA_INT, 16, Win32.FLASHW_STOP);          // dwFlags
             info.set(ValueLayout.JAVA_INT, 20, 0);                          // uCount
             info.set(ValueLayout.JAVA_INT, 24, 0);                          // dwTimeout
+
+            // The return value is the window's previous state, not a success: nothing to check.
             final var ignored = (int) FlashWindowEx.invokeExact(info);
         } catch (Throwable t) {
             throw failure("FlashWindowEx", t);
+        }
+    }
+
+    @Override
+    public OptionalInt foregroundFlashCount() {
+        try (final var arena = Arena.ofConfined()) {
+            final var count = arena.allocate(ValueLayout.JAVA_INT);
+
+            final var read = (int) SystemParametersInfoRead.invokeExact(
+                    Win32.SPI_GETFOREGROUNDFLASHCOUNT, 0, count, NO_PERSIST);
+
+            return read == 0
+                    ? OptionalInt.empty()
+                    : OptionalInt.of(count.get(ValueLayout.JAVA_INT, 0));
+        } catch (Throwable t) {
+            throw failure("SystemParametersInfo", t);
+        }
+    }
+
+    @Override
+    public boolean setForegroundFlashCount(int count) {
+        try {
+            final var written = (int) SystemParametersInfoWrite.invokeExact(
+                    Win32.SPI_SETFOREGROUNDFLASHCOUNT, 0, (long) count, NO_PERSIST);
+
+            return written != 0;
+        } catch (Throwable t) {
+            throw failure("SystemParametersInfo", t);
         }
     }
 
