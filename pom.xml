@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>fr.minobot</groupId>
+    <artifactId>minobot</artifactId>
+    <version>2.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <name>Minobot</name>
+    <description>Multi-window helper for Dofus Retro</description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.release>25</maven.compiler.release>
+
+        <!-- FFM (java.lang.foreign) refuses native access without this; a future JDK will hard-fail. -->
+        <native.access.arg>--enable-native-access=ALL-UNNAMED</native.access.arg>
+
+        <main.class>fr.minobot.Main</main.class>
+
+        <!--
+          The JDK modules the application actually needs, as reported by `jdeps`.
+          java.sql pulls java.xml and java.logging in transitively; jdk.unsupported is there because
+          sqlite-jdbc reaches for sun.misc.Unsafe, which no static analysis reports.
+        -->
+        <dist.modules>java.base,java.desktop,java.naming,java.sql,java.xml,jdk.unsupported</dist.modules>
+
+        <!-- jpackage only accepts a numeric version, so it cannot reuse the SNAPSHOT one. -->
+        <dist.version>2.0.0</dist.version>
+
+        <sqlite.version>3.50.3.0</sqlite.version>
+        <slf4j.version>2.0.17</slf4j.version>
+        <logback.version>1.5.18</logback.version>
+        <jackson.version>2.19.0</jackson.version>
+        <junit.version>5.13.4</junit.version>
+        <assertj.version>3.27.3</assertj.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>${sqlite.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>minobot</finalName>
+
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.14.0</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.3</version>
+                <configuration>
+                    <argLine>${native.access.arg}</argLine>
+                </configuration>
+            </plugin>
+
+            <!-- mvnw exec:java -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.1</version>
+                <configuration>
+                    <mainClass>${main.class}</mainClass>
+                    <arguments/>
+                    <commandlineArgs/>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>run</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>java</executable>
+                            <arguments>
+                                <argument>${native.access.arg}</argument>
+                                <argument>-classpath</argument>
+                                <classpath/>
+                                <argument>${main.class}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Dependencies next to the jar, so `java -jar target/minobot.jar` just works. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.8.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <includeScope>runtime</includeScope>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.4.2</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>${main.class}</mainClass>
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>lib/</classpathPrefix>
+                        </manifest>
+                        <manifestEntries>
+                            <!-- JEP 472: grants native access to the executable jar without a CLI flag. -->
+                            <Enable-Native-Access>ALL-UNNAMED</Enable-Native-Access>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!--
+          `./mvnw -Pdist verify` → target/dist/Minobot/Minobot.exe, a self-contained folder with its
+          own cut-down Java runtime. Nothing to install, and no console window.
+
+          jpackage runs jlink itself when told which modules to keep, so there is no separate jlink
+          step. Everything runs after `package`, so the jar and its dependencies are already on disk.
+        -->
+        <profile>
+            <id>dist</id>
+
+            <build>
+                <plugins>
+                    <!-- jpackage refuses to write into a directory that already exists. -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-clean-plugin</artifactId>
+                        <version>3.4.0</version>
+                        <executions>
+                            <execution>
+                                <id>clean-dist</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>clean</goal>
+                                </goals>
+                                <configuration>
+                                    <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                                    <filesets>
+                                        <fileset>
+                                            <directory>${project.build.directory}/dist</directory>
+                                        </fileset>
+                                        <fileset>
+                                            <directory>${project.build.directory}/app</directory>
+                                        </fileset>
+                                    </filesets>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!--
+                      jpackage copies its whole input directory into the app; target/ is full of
+                      build litter, so the jar and its dependencies are staged on their own. The lib/
+                      layout matches the jar's manifest Class-Path, which is how the dependencies are
+                      found at runtime.
+                    -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>stage-app</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${project.build.directory}/app</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${project.build.directory}</directory>
+                                            <includes>
+                                                <include>${project.build.finalName}.jar</include>
+                                            </includes>
+                                        </resource>
+                                        <resource>
+                                            <directory>${project.build.directory}/lib</directory>
+                                            <targetPath>lib</targetPath>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jpackage</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>${java.home}/bin/jpackage</executable>
+                                    <arguments>
+                                        <!-- A portable folder, not an installer: no WiX needed. -->
+                                        <argument>--type</argument>
+                                        <argument>app-image</argument>
+
+                                        <argument>--name</argument>
+                                        <argument>Minobot</argument>
+                                        <argument>--app-version</argument>
+                                        <argument>${dist.version}</argument>
+
+                                        <argument>--input</argument>
+                                        <argument>${project.build.directory}/app</argument>
+                                        <argument>--main-jar</argument>
+                                        <argument>${project.build.finalName}.jar</argument>
+                                        <argument>--main-class</argument>
+                                        <argument>${main.class}</argument>
+                                        <argument>--dest</argument>
+                                        <argument>${project.build.directory}/dist</argument>
+
+                                        <!-- jpackage shells out to jlink with these. -->
+                                        <argument>--add-modules</argument>
+                                        <argument>${dist.modules}</argument>
+                                        <argument>--jlink-options</argument>
+                                        <argument>--strip-native-commands --strip-debug --no-header-files --no-man-pages --compress=zip-9</argument>
+
+                                        <!--
+                                          jpackage builds its own classpath, so the jar's
+                                          Enable-Native-Access manifest entry (which only applies to
+                                          `java -jar`) does not carry over. Without this, FFM refuses
+                                          to call user32.dll and the whole application is inert.
+                                        -->
+                                        <argument>--java-options</argument>
+                                        <argument>${native.access.arg}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>
