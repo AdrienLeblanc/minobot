@@ -1,6 +1,6 @@
 package fr.minobot.core;
 
-import fr.minobot.app.Config;
+import fr.minobot.app.Settings;
 import fr.minobot.app.TestConfigs;
 import fr.minobot.core.domain.GameWindow;
 import fr.minobot.win32.FakeWindowApi;
@@ -18,8 +18,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class WindowManagerTest {
 
-    private static Config config(Map<String, Object> overrides) {
-        return TestConfigs.with(overrides);
+    private static Settings settings(Map<String, Object> overrides) {
+        return TestConfigs.settings(overrides);
     }
 
     private static List<String> titlesOf(List<GameWindow> windows) {
@@ -37,7 +37,7 @@ class WindowManagerTest {
                     .withWindow(2, "Untitled - Notepad")
                     .withWindow(3, "Charlie - Dofus Retro");
 
-            final var manager = new WindowManager(api, config(Map.of()));
+            final var manager = new WindowManager(api, settings(Map.of()));
             manager.refresh();
 
             assertThat(titlesOf(manager.windows())).isEqualTo(List.of("Bravo - Dofus Retro", "Charlie - Dofus Retro"));
@@ -49,7 +49,7 @@ class WindowManagerTest {
                     .withWindow(1, "Bravo - Dofus Retro")
                     .withWindow(2, "Charlie - Dofus Retro");
 
-            final var manager = new WindowManager(api, config(Map.of()));
+            final var manager = new WindowManager(api, settings(Map.of()));
 
             assertThat(manager.findWindow("bravo").map(GameWindow::hwnd)).contains(1L);
         }
@@ -59,7 +59,7 @@ class WindowManagerTest {
         void findsACharacterByPartialTitle() {
             final var api = new FakeWindowApi().withWindow(7, "Bravo - Dofus Retro v1.48");
 
-            final var manager = new WindowManager(api, config(Map.of()));
+            final var manager = new WindowManager(api, settings(Map.of()));
 
             assertThat(manager.findWindow("v1.48").map(GameWindow::hwnd)).contains(7L);
             assertThat(manager.findWindow("Nobody")).isEmpty();
@@ -69,7 +69,7 @@ class WindowManagerTest {
     @Nested
     class CharacterNames {
 
-        private final WindowManager manager = new WindowManager(new FakeWindowApi(), config(Map.of()));
+        private final WindowManager manager = new WindowManager(new FakeWindowApi(), settings(Map.of()));
 
         @Test
         void cutsTheTitleAtTheFirstConfiguredSeparator() {
@@ -98,7 +98,7 @@ class WindowManagerTest {
         @DisplayName("follows window_cycle_order, whatever order Windows enumerated the windows in")
         void sortsByConfiguredOrder() {
             final var manager = new WindowManager(api,
-                    config(Map.of("window_cycle_order", List.of("Bravo", "Charlie"))));
+                    settings(Map.of("window_cycle_order", List.of("Bravo", "Charlie"))));
 
             assertThat(titlesOf(manager.orderedWindows())).isEqualTo(List.of("Bravo - Dofus", "Charlie - Dofus", "Alpha - Dofus", "Delta - Dofus"));
         }
@@ -106,7 +106,7 @@ class WindowManagerTest {
         @Test
         @DisplayName("windows absent from the config go last, alphabetically rather than arbitrarily")
         void breaksTiesAlphabetically() {
-            final var manager = new WindowManager(api, config(Map.of("window_cycle_order", List.of())));
+            final var manager = new WindowManager(api, settings(Map.of("window_cycle_order", List.of())));
 
             assertThat(titlesOf(manager.orderedWindows())).isEqualTo(List.of("Alpha - Dofus", "Bravo - Dofus", "Charlie - Dofus", "Delta - Dofus"));
         }
@@ -115,7 +115,7 @@ class WindowManagerTest {
         @DisplayName("reversing flips the ranks but keeps the alphabetical tie-break")
         void reversesTheConfiguredOrder() {
             final var manager = new WindowManager(api,
-                    config(Map.of("window_cycle_order", List.of("Bravo", "Charlie"))));
+                    settings(Map.of("window_cycle_order", List.of("Bravo", "Charlie"))));
 
             assertThat(titlesOf(manager.orderedWindows(true))).isEqualTo(List.of("Alpha - Dofus", "Delta - Dofus", "Charlie - Dofus", "Bravo - Dofus"));
         }
@@ -124,7 +124,7 @@ class WindowManagerTest {
         @DisplayName("the config matches on a fragment of the title, case-insensitively")
         void matchesTheConfiguredNameCaseInsensitively() {
             final var manager = new WindowManager(api,
-                    config(Map.of("window_cycle_order", List.of("dElTa"))));
+                    settings(Map.of("window_cycle_order", List.of("dElTa"))));
 
             assertThat(titlesOf(manager.orderedWindows()).getFirst()).isEqualTo("Delta - Dofus");
         }
@@ -132,9 +132,24 @@ class WindowManagerTest {
         @Test
         void dropsTheMinimizedWindows() {
             api.minimize(2);
-            final var manager = new WindowManager(api, config(Map.of()));
+            final var manager = new WindowManager(api, settings(Map.of()));
 
             assertThat(titlesOf(manager.activeOrderedWindows())).isEqualTo(List.of("Alpha - Dofus", "Bravo - Dofus", "Delta - Dofus"));
+        }
+
+        @Test
+        @DisplayName("a new order is in effect on the next cycle — the overlay's drag & drop needs no restart")
+        void followsALiveChangeOfTheOrder() {
+            final var live = settings(Map.of("window_cycle_order", List.of("Bravo", "Charlie")));
+            final var manager = new WindowManager(api, live);
+
+            assertThat(titlesOf(manager.orderedWindows()).getFirst()).isEqualTo("Bravo - Dofus");
+
+            live.update(config -> config.withWindowCycleOrder(List.of("Delta", "Alpha")));
+
+            assertThat(titlesOf(manager.orderedWindows()))
+                    .as("the very same manager must sort by the order the player just dragged")
+                    .isEqualTo(List.of("Delta - Dofus", "Alpha - Dofus", "Bravo - Dofus", "Charlie - Dofus"));
         }
     }
 
@@ -151,7 +166,7 @@ class WindowManagerTest {
                     .onMonitor(3, 2L)
                     .withForeground(1);
 
-            WindowManager manager = new WindowManager(api, config(Map.of()));
+            WindowManager manager = new WindowManager(api, settings(Map.of()));
 
             assertThat(titlesOf(manager.windowsOnCurrentMonitor())).isEqualTo(List.of("Bravo - Dofus", "Charlie - Dofus"));
         }
@@ -163,7 +178,7 @@ class WindowManagerTest {
                     .withWindow(1, "Bravo - Dofus")
                     .withWindow(2, "Charlie - Dofus");
 
-            WindowManager manager = new WindowManager(api, config(Map.of()));
+            WindowManager manager = new WindowManager(api, settings(Map.of()));
 
             assertThat(manager.windowsOnCurrentMonitor()).hasSize(2);
         }
@@ -178,7 +193,7 @@ class WindowManagerTest {
                     .onMonitor(2, 2L)
                     .withForeground(2);
 
-            WindowManager manager = new WindowManager(api, config(Map.of()));
+            WindowManager manager = new WindowManager(api, settings(Map.of()));
 
             assertThat(manager.windowsOnCurrentMonitor()).isEmpty();
         }

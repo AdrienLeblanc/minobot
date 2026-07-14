@@ -60,6 +60,15 @@ public interface WindowApi {
     Optional<Point> clientToScreen(long hwnd, Point client);
 
     /**
+     * The window's <em>client</em> area, in screen coordinates — empty if the handle is stale.
+     *
+     * <p>The game, and nothing but the game: not the title bar Windows draws above it, nor the border
+     * around it. That is what the overlay covers, and it is why this is the client area rather than the
+     * window's bounds — the panel must not sit over the minimize, maximize and close buttons.
+     */
+    Optional<Rect> clientArea(long hwnd);
+
+    /**
      * The window under the given screen point — possibly a child window, hence
      * {@link #parentWindow(long)} to walk back up to the game window.
      */

@@ -26,8 +26,19 @@ public record Config(
         @JsonProperty("window_cycle_order") List<String> windowCycleOrder,
         @JsonProperty("window_cycle_next_hotkey") String windowCycleNextHotkey,
         @JsonProperty("window_cycle_prev_hotkey") String windowCyclePrevHotkey,
-        @JsonProperty("window_reorder_hotkey") String windowReorderHotkey
+        @JsonProperty("window_reorder_hotkey") String windowReorderHotkey,
+        @JsonProperty("overlay_hotkey") String overlayHotkey,
+        @JsonProperty("overlay_scale") double overlayScale
 ) {
+
+    /**
+     * The ends of the overlay's slider, and the bounds a hand-written {@code config.json} is held to.
+     *
+     * <p>The panel is drawn at this many times its natural size, so a zero would be a panel with
+     * nothing in it — which is why the value is clamped rather than trusted.
+     */
+    public static final double MIN_OVERLAY_SCALE = 1.0;
+    public static final double MAX_OVERLAY_SCALE = 2.0;
 
     /** The values written to disk when no {@code config.json} exists yet. */
     public static Config defaults() {
@@ -40,13 +51,67 @@ public record Config(
                 List.of(),
                 "x2",
                 "shift+x2",
-                "F9"
+                "F9",
+                "F10",
+                // Swing's natural sizes were laid out for a 96-DPI desktop, and the game is played on a
+                // screen twice that. Unscaled, the panel is legible and nobody wants to read it.
+                1.5
         );
     }
 
     public Config {
         multiclickExclude = copyOrEmpty(multiclickExclude);
         windowCycleOrder = copyOrEmpty(windowCycleOrder);
+        overlayScale = Math.clamp(overlayScale, MIN_OVERLAY_SCALE, MAX_OVERLAY_SCALE);
+    }
+
+    /**
+     * The same configuration with one hotkey changed — how the overlay rebinds a key.
+     *
+     * <p>A blank combination turns the feature off, which is what makes this the toggle too.
+     */
+    public Config withHotkey(Feature feature, String combination) {
+        return new Config(
+                logLevel,
+                hotkeyOf(Feature.MULTICLICK, feature, combination),
+                multiclickExclude,
+                hotkeyOf(Feature.RESET_WINDOWS, feature, combination),
+                hotkeyOf(Feature.GROUP_INVITE, feature, combination),
+                windowCycleOrder,
+                hotkeyOf(Feature.WINDOW_CYCLE_NEXT, feature, combination),
+                hotkeyOf(Feature.WINDOW_CYCLE_PREV, feature, combination),
+                hotkeyOf(Feature.WINDOW_REORDER, feature, combination),
+                hotkeyOf(Feature.OVERLAY, feature, combination),
+                overlayScale);
+    }
+
+    /** The new combination for the feature being rebound, the current one for every other. */
+    private String hotkeyOf(Feature slot, Feature rebound, String combination) {
+        return slot == rebound ? combination : slot.hotkeyIn(this);
+    }
+
+    /** The same configuration in a new character order — how the overlay's drag & drop lands. */
+    public Config withWindowCycleOrder(List<String> order) {
+        return new Config(
+                logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
+                order, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey, overlayHotkey,
+                overlayScale);
+    }
+
+    /** The same configuration with a different set of characters left out of the multi-click. */
+    public Config withMulticlickExclude(List<String> excluded) {
+        return new Config(
+                logLevel, multiclickHotkey, excluded, resetWindowsHotkey, groupInviteHotkey,
+                windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
+                overlayHotkey, overlayScale);
+    }
+
+    /** The same configuration with the panel drawn bigger or smaller — how its slider lands. */
+    public Config withOverlayScale(double scale) {
+        return new Config(
+                logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
+                windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
+                overlayHotkey, scale);
     }
 
     private static List<String> copyOrEmpty(List<String> value) {

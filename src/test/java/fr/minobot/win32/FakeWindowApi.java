@@ -23,6 +23,7 @@ public final class FakeWindowApi implements WindowApi {
     private final Set<Long> hidden = ConcurrentHashMap.newKeySet();
     private final Map<Long, Long> monitors = new LinkedHashMap<>();
     private final Map<Long, Long> parents = new LinkedHashMap<>();
+    private final Map<Long, Rect> bounds = new LinkedHashMap<>();
     private final Set<Integer> keysDown = ConcurrentHashMap.newKeySet();
     private final List<PostedMessage> posted = new CopyOnWriteArrayList<>();
     private final List<Long> shown = new CopyOnWriteArrayList<>();
@@ -189,6 +190,45 @@ public final class FakeWindowApi implements WindowApi {
         }
         int offset = (int) (hwnd * 10);
         return Optional.of(new Point(client.x() + offset, client.y() + offset));
+    }
+
+    /**
+     * The frame Windows draws around a window, modelled so that a test can tell "over the game" from
+     * "over the title bar" — which is the whole difference between the client area and the bounds.
+     */
+    private static final int TITLE_BAR = 30;
+    private static final int BORDER = 8;
+
+    /**
+     * The game inside the frame. A window is 800x600 at (hwnd * 100, hwnd * 100) unless a test says
+     * otherwise — so two windows are never in the same place, and the overlay's anchor can be told
+     * apart from its neighbour's.
+     */
+    @Override
+    public Optional<Rect> clientArea(long hwnd) {
+        if (!isWindow(hwnd)) {
+            return Optional.empty();
+        }
+
+        final var origin = (int) (hwnd * 100);
+        final var window = bounds.getOrDefault(hwnd, new Rect(origin, origin, origin + 800, origin + 600));
+
+        return Optional.of(new Rect(
+                window.left() + BORDER,
+                window.top() + TITLE_BAR,
+                window.right() - BORDER,
+                window.bottom() - BORDER));
+    }
+
+    /** Puts a window somewhere precise — on another monitor, say. Bounds, frame included. */
+    public FakeWindowApi withBounds(long hwnd, Rect window) {
+        bounds.put(hwnd, window);
+        return this;
+    }
+
+    /** Moves or resizes a window after the fact, as a player dragging it by its title bar would. */
+    public void moveTo(long hwnd, Rect window) {
+        bounds.put(hwnd, window);
     }
 
     @Override

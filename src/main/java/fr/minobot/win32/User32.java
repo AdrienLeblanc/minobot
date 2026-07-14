@@ -31,6 +31,13 @@ public final class User32 implements WindowApi {
             ValueLayout.JAVA_INT.withName("x"),
             ValueLayout.JAVA_INT.withName("y"));
 
+    /** {@code RECT { LONG left; LONG top; LONG right; LONG bottom; }} — written in place by the callee. */
+    private static final MemoryLayout RECT = MemoryLayout.structLayout(
+            ValueLayout.JAVA_INT.withName("left"),
+            ValueLayout.JAVA_INT.withName("top"),
+            ValueLayout.JAVA_INT.withName("right"),
+            ValueLayout.JAVA_INT.withName("bottom"));
+
     /** {@code FLASHWINFO { UINT cbSize; HWND hwnd; DWORD dwFlags; UINT uCount; DWORD dwTimeout; }} */
     private static final MemoryLayout FLASHWINFO = MemoryLayout.structLayout(
             ValueLayout.JAVA_INT.withName("cbSize"),
@@ -78,6 +85,8 @@ public final class User32 implements WindowApi {
     private static final MethodHandle ScreenToClient = downcall("ScreenToClient",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
     private static final MethodHandle ClientToScreen = downcall("ClientToScreen",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+    private static final MethodHandle GetClientRect = downcall("GetClientRect",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
     private static final MethodHandle WindowFromPoint = downcall("WindowFromPoint",
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, POINT));
@@ -268,6 +277,33 @@ public final class User32 implements WindowApi {
             return ok == 0 ? Optional.empty() : Optional.of(readPoint(segment));
         } catch (Throwable t) {
             throw failure(name, t);
+        }
+    }
+
+    /**
+     * {@code GetClientRect} answers in <em>client</em> coordinates, so its origin is always (0, 0) and
+     * only its size means anything. Where that origin sits on the screen is a separate question — and
+     * the only one that says where to draw — hence the {@code ClientToScreen} that follows.
+     *
+     * <p>Together they exclude the frame: the client origin is <em>below</em> the title bar, which is
+     * exactly what keeps the overlay off the minimize and close buttons.
+     */
+    @Override
+    public Optional<Rect> clientArea(long hwnd) {
+        try (final var arena = Arena.ofConfined()) {
+            final var segment = arena.allocate(RECT);
+            final var ok = (int) GetClientRect.invokeExact(hwnd, segment);
+            if (ok == 0) {
+                return Optional.empty();
+            }
+
+            final var width = segment.get(ValueLayout.JAVA_INT, 8);
+            final var height = segment.get(ValueLayout.JAVA_INT, 12);
+
+            return clientToScreen(hwnd, new Point(0, 0)).map(origin ->
+                    new Rect(origin.x(), origin.y(), origin.x() + width, origin.y() + height));
+        } catch (Throwable t) {
+            throw failure("GetClientRect", t);
         }
     }
 

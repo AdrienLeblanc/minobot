@@ -22,4 +22,9 @@ public final class TestConfigs {
         overrides.forEach((key, value) -> merged.set(key, MAPPER.valueToTree(value)));
         return MAPPER.convertValue(merged, Config.class);
     }
+
+    /** The same, as the live configuration the core and the features actually take. */
+    public static Settings settings(Map<String, Object> overrides) {
+        return new Settings(with(overrides));
+    }
 }

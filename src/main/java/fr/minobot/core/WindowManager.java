@@ -1,6 +1,6 @@
 package fr.minobot.core;
 
-import fr.minobot.app.Config;
+import fr.minobot.app.Settings;
 import fr.minobot.core.domain.GameWindow;
 import fr.minobot.win32.Win32;
 import fr.minobot.win32.WindowApi;
@@ -31,7 +31,7 @@ public final class WindowManager {
     private static final int UNRANKED_OFFSET = 1000;
 
     private final WindowApi api;
-    private final Config config;
+    private final Settings settings;
 
     /**
      * The last refresh, or {@code null} until the first one.
@@ -42,9 +42,9 @@ public final class WindowManager {
      */
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
 
-    public WindowManager(WindowApi api, Config config) {
+    public WindowManager(WindowApi api, Settings settings) {
         this.api = api;
-        this.config = config;
+        this.settings = settings;
     }
 
     /** Re-enumerates the desktop and keeps the windows whose title carries a game keyword. */
@@ -150,7 +150,8 @@ public final class WindowManager {
     }
 
     private int rank(GameWindow window) {
-        final var cycleOrder = config.windowCycleOrder();
+        // Read at every call, not held: the overlay's drag & drop must be in effect on the next cycle.
+        final var cycleOrder = settings.get().windowCycleOrder();
         final var title = window.title().toLowerCase(Locale.ROOT);
 
         for (var i = 0; i < cycleOrder.size(); i++) {

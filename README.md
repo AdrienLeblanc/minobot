@@ -1,3 +1,5 @@
+![minobot.png](assets/minobot.png)
+
 # Minobot
 
 Minobot est un petit logiciel de confort pour **Dofus Retro**, destiné aux joueurs qui font tourner
@@ -115,7 +117,10 @@ Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de c
   "window_cycle_next_hotkey": "x2",
   "window_cycle_prev_hotkey": "shift+x2",
 
-  "window_reorder_hotkey": "F9"
+  "window_reorder_hotkey": "F9",
+
+  "overlay_hotkey": "F10",
+  "overlay_scale": 1.5
 }
 ```
 
@@ -123,6 +128,7 @@ Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de c
 | --- | --- |
 | `window_cycle_order` | Vos personnages, dans l'ordre. **Le réglage principal.** |
 | `multiclick_exclude` | Les personnages à **laisser en dehors** du clic multiple. Exemple : `["Mule", "Marchand"]` — votre mule en mode marchand ne bougera pas. |
+| `overlay_scale` | La taille du panneau `F10`, de `1.0` à `2.0`. Sur un grand écran, `1.5` (la valeur d'origine) se lit bien ; montez-la si le texte vous paraît petit. Le curseur en bas du panneau fait la même chose, le temps de la session. |
 | `..._hotkey` | Les touches de chaque fonction. Voir la liste ci-dessous. |
 | `log_level` | Mettez `"DEBUG"` à la place de `"INFO"` si vous devez signaler un problème : Minobot écrira beaucoup plus de détails dans son journal. |
 

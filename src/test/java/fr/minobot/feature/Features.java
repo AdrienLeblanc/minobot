@@ -1,6 +1,6 @@
 package fr.minobot.feature;
 
-import fr.minobot.app.Config;
+import fr.minobot.app.Settings;
 import fr.minobot.app.TestConfigs;
 import fr.minobot.core.FlashSuppressor;
 import fr.minobot.core.FocusManager;
@@ -24,7 +24,7 @@ import java.util.Map;
 final class Features {
 
     private final FakeWindowApi api;
-    private final Config config;
+    private final Settings settings;
     private final FakeInput input;
     private final WindowManager windows;
     private final FocusManager focus;
@@ -35,14 +35,19 @@ final class Features {
     /** @param overrides keys as they appear in {@code config.json} */
     Features(FakeWindowApi api, Map<String, Object> overrides) {
         this.api = api;
-        this.config = TestConfigs.with(overrides);
+        this.settings = TestConfigs.settings(overrides);
         this.input = new FakeInput(api::foregroundWindow);
-        this.windows = new WindowManager(api, config);
+        this.windows = new WindowManager(api, settings);
         this.focus = new FocusManager(api, input);
     }
 
     FakeInput input() {
         return input;
+    }
+
+    /** The live configuration the features read — a test changes it to change it under them. */
+    Settings settings() {
+        return settings;
     }
 
     WindowCycler cycler() {
@@ -54,7 +59,7 @@ final class Features {
     }
 
     MultiWindowClicker clicker() {
-        return new MultiWindowClicker(api, windows, focus, new FlashSuppressor(api), config);
+        return new MultiWindowClicker(api, windows, focus, new FlashSuppressor(api), settings);
     }
 
     GroupManager groupManager() {

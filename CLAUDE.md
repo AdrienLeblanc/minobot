@@ -20,19 +20,20 @@ point at it, prefix the command: `JAVA_HOME=C:\path\to\jdk-25 ./mvnw verify`.
 ```
 fr.minobot
 ├── Main            Entry point; single-instance lock on a ServerSocket (127.0.0.1:12345).
-├── app/            MinobotApp (wires everything), Config, ConfigLoader, LoggerSetup.
+├── app/            MinobotApp (wires everything), Config, Settings, Feature, ConfigLoader, LoggerSetup.
 ├── win32/          WindowApi (the interface), User32 (the FFM implementation), Win32, Point.
 ├── core/           The Windows mechanics: WindowManager, FocusManager, KeyboardMonitor,
 │                   NotificationManager, FlashSuppressor, SystemTrayManager, Input / InputSimulator.
 │   └── domain/     GameWindow (a character: their window, and their name), Notification (a toast).
-└── feature/        The five user-facing features (below).
+├── ui/             OverlayView (the panel), OverlayContent, OverlayActions. Interfaces only.
+└── feature/        The user-facing features (below), and OverlayController.
 ```
 
-**Two interfaces are the only doors to the outside world:** `win32.WindowApi` (the screen) and
-`core.Input` (the keyboard and mouse). Everything else is code that runs in a test, on any OS, with no
-game running — which is why there are 92 tests.
+**Three interfaces are the only doors to the outside world:** `win32.WindowApi` (the screen),
+`core.Input` (the keyboard and mouse), and `ui.OverlayView` (the panel we draw). Everything else is
+code that runs in a test, on any OS, with no game running — which is why there are 122 tests.
 
-**Keep it that way.** Do not call `user32.dll` or `java.awt.Robot` from anywhere but their
+**Keep it that way.** Do not call `user32.dll`, `java.awt.Robot` or Swing from anywhere but their
 implementations: a feature that reaches past `WindowApi` becomes untestable.
 
 ### A feature speaks of characters; only the core speaks of windows
@@ -51,16 +52,34 @@ first thing read, and the constraint that justifies it is the comment above it.
 ### Config
 
 `Config` holds what a *player* changes: their `window_cycle_order`, their `multiclick_exclude`, their
-hotkeys, their `log_level`. Nothing else. A timing, a mouse button, a keyword of the game's window
+hotkeys, their `log_level`, their `overlay_scale`. Nothing else. A timing, a mouse button, a keyword of the game's window
 titles, a dry-run flag — those are dictated by Windows or by the game, not by the player, and belong
 in a constant next to the code that reads it. **Adding a field to `Config` is a claim that a player
 has a reason to change it**; a knob nobody turns is a knob that silently breaks a feature when someone
 does. An empty hotkey disables its feature; there is no `*_enabled` flag.
 
+`Feature` enumerates the features that own a hotkey, and each one's slot in `Config` and cooldown. The
+hotkeys are therefore walked, not listed by hand: `MinobotApp` walks them to bind, and the overlay will
+walk them to show. A feature added to the enum and forgotten in the switch that gives it its action is
+a compile error, which is the point.
+
+**The configuration is live.** `Config` is still the immutable record it always was; `Settings` holds
+the current one and swaps a whole new one in, so a reader never sees one field of the old and one of
+the new. A feature that reads it *at every use* — `WindowManager.rank()`, the multi-click's exclusions
+— is current for free and must stay that way: **do not hoist a config value into a field at
+construction**, that is precisely what makes a setting un-editable. A feature that must *react* to a
+change (`MinobotApp` re-registering the hotkeys) listens through `Settings.onChange`.
+
+Nothing written through `Settings` reaches the disk: a change lives for as long as the process does,
+and a restart goes back to `config.json`. That is deliberate.
+
 ### Concurrency
 
 - `KeyboardMonitor` polls on a dedicated **platform** thread (a 50 Hz loop of native calls — a virtual
-  thread would buy nothing and pinning its carrier would be a trap).
+  thread would buy nothing and pinning its carrier would be a trap). Its hotkey table is **replaced,
+  never mutated**: a rebind assembles the next one aside and swaps the reference, because the loop is
+  reading it at the very moment the player edits a key. And a rebind seeds each key's state from the
+  keyboard as it *is* — a key still held is not a fresh press, or naming a hotkey would fire it.
 - **Every hotkey and notification callback runs on its own virtual thread**, the equivalent of
   `asyncio.create_task`. A long `inviteAll` must never deafen the other hotkeys.
 - Anything that sleeps (the focus sequence, the invitation relay) is therefore free to do so.
@@ -144,6 +163,71 @@ Cycles the focus through the windows in the order of `window_cycle_order`. Only 
 Rebuilds the taskbar order: Windows offers no way to reorder its buttons, so the sequence hides every
 game window and shows them again in the configured order. **The windows are hidden in the middle of
 this** — every failure path must end by showing them again, or the player loses them.
+
+### Overlay — `F10`
+
+A control panel drawn over the game: the characters Minobot has found, dragged into the order the
+cycler follows, and every feature's key, rebindable on the spot. `feature/OverlayController` decides;
+`ui/SwingOverlay` draws, and is the only class that knows Swing exists.
+
+It **belongs to a character**: it covers their game and pressing `F10` anywhere else — a browser, the
+desktop — does nothing at all. Outside the game there is no character for it to belong to, and a panel
+that appeared over a window nobody was looking at is a panel nobody asked for. Once up it *stays* up,
+whatever takes the foreground next — it is always-on-top, and always-on-top owes nothing to the focus.
+`F10` toggles it, and a **close cross** in the card's top-right corner does the same for the mouse — both
+land on `OverlayView.hide()`, the one path down, so the follow thread stops and `F10` reopens it clean. A
+character who leaves also takes their panel with them: minimized or closed, and it goes.
+
+It covers the **client area**, which is the game and nothing else: `WindowApi.clientArea` is
+`GetClientRect` followed by `ClientToScreen`, and the client origin sits *below* the title bar — which
+is what keeps the panel off the minimize, maximize and close buttons. And it **follows**: a virtual
+thread re-reads that area every 30 ms while the panel is up, so dragging or resizing the window takes
+the panel with it. There is nothing to react to instead — Windows will not say a window moved without a
+message hook, and a hook means a message pump and a native callback for what one poll answers.
+
+**While it is up, it takes the mouse over the whole game**: it is a window, and it covers the client
+area. That is the price of covering the game rather than floating in a corner of it, and it is why
+`F10` is a switch and not a mode you play in.
+
+**The card sits in the middle of the game**, where the player is already looking — the window covers the
+whole client area, but the controls are one card centred on it, over a dimmed game. On the card: the
+application's tile at the top (it draws `logo.png` from the classpath, centred and scaled to fit; the
+`MINOBOT` wordmark stands in when no such file was shipped, so the space is never a blank), then the
+characters and their drag-to-reorder, then the size slider. **The logo is a resource, not a loose file:**
+it lives in `src/main/resources/` so it rides inside the jar — a PNG in `assets/` (where the README's
+screenshots live) is lost the moment `Minobot.exe` is unpacked elsewhere. The seven keybinds are a
+**drawer** that unfolds to the right of the card — a `Keybinds ›` button opens it — because they are
+edited once and forgotten, and left inline they made the panel twice as tall as what it is for. The
+`Sheet` is a hand-written layout, not a manager: one card centred, one card beside it. The card gives up
+the exact middle for one reason only — a drawer that would open past the right edge of the game — and
+then it *slides* left by what the drawer is short of, never *shrinks*: a panel that resizes when a button
+is clicked reads as a bug.
+
+**Every size in `SwingOverlay` is a natural size, not a pixel**, and it reaches the screen multiplied by
+`overlay_scale` — `px()` for a length, `font()` for a typeface. Swing's own defaults were drawn for a
+96-DPI desktop, which on the screen the game is actually played on is a panel nobody can read; the
+default is therefore **150%**, and the slider on the card moves it. A size that skips `px()` is a size
+that will be wrong on somebody's monitor.
+
+The slider lands **when the player lets go**, not while they drag: the scale rebuilds the card, and the
+card carries the slider. And the panel **never grows past the game it covers** — the window is the
+game's and is not scaled with it, so a small window scaled up far enough would push the slider off the
+edge of the screen, which is to say off the one control that could bring it back. The list of characters
+gives way first (it scrolls), and past that the drawn scale is capped to what the window holds — in
+width and in height, the drawer counted in when it is open: the slider then reads what the player is
+looking at, not what they asked for.
+
+**It must never take the foreground**, or it would land between two keystrokes of the invitation relay.
+`setFocusableWindowState(false)` is what buys that, and **it is enough** — measured against the real
+game, both when the panel is shown and when it is clicked: the character keeps the screen throughout.
+So **do not remove it, and do not add `WS_EX_NOACTIVATE` to "make sure"**: Swing already does this one.
+
+It is also why **nothing in the panel is typed** — a keybind is read from the keyboard by
+`KeyboardMonitor.captureNext()`, not typed into a text field, which would need the focus the panel does
+not have. And why reordering is three mouse events rather than Swing's drag-and-drop stack, which
+expects a focused window. Neither is a stylistic choice; both fall out of the line above.
+
+What it changes lives **for the session only** (see `Settings`): a restart goes back to `config.json`.
 
 ### Notification auto-focus — no hotkey
 

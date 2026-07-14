@@ -101,6 +101,33 @@ class User32Test {
     }
 
     @Test
+    @DisplayName("GetClientRect fills the RECT it is handed, and it comes back in screen coordinates")
+    void readsTheClientAreaOfAWindow() {
+        final var hwnd = anyVisibleWindow();
+        assumeTrue(hwnd != Win32.NULL_HANDLE, "no visible titled window on this desktop");
+
+        final var area = api.clientArea(hwnd);
+        assumeTrue(area.isPresent(), "the window vanished mid-test");
+
+        // A mis-laid-out RECT would come back with its fields shuffled, which this catches: a real
+        // window's client area is never empty, and its right edge is never left of its left one.
+        assertThat(area.get().width()).isPositive();
+        assertThat(area.get().height()).isPositive();
+
+        // And it must be on the screen, not at the (0, 0) that GetClientRect answers on its own: the
+        // ClientToScreen that follows it is the whole reason the overlay lands on the right monitor.
+        assertThat(api.screenToClient(hwnd, area.get().center()))
+                .as("the middle of the client area, converted back, is inside the client area")
+                .hasValueSatisfying(client -> assertThat(client.x()).isPositive());
+    }
+
+    @Test
+    @DisplayName("the client area of a dead handle comes back empty, not as zeroes")
+    void reportsNoClientAreaForAStaleHandle() {
+        assertThat(api.clientArea(Win32.NULL_HANDLE)).isEmpty();
+    }
+
+    @Test
     @DisplayName("WindowFromPoint takes its POINT by value — 8 bytes in a register on Win64")
     void findsTheWindowUnderTheCursor() {
         final var cursor = api.cursorPosition();

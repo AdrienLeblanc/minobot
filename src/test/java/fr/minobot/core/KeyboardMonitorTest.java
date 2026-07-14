@@ -1,14 +1,19 @@
 package fr.minobot.core;
 
+import fr.minobot.core.KeyboardMonitor.Binding;
 import fr.minobot.win32.FakeWindowApi;
 import fr.minobot.win32.Point;
 import fr.minobot.win32.Win32;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -161,5 +166,166 @@ class KeyboardMonitorTest {
         monitor.registerHotkey("", NO_COOLDOWN, () -> {
         });
         monitor.start();
+    }
+
+    @Nested
+    @DisplayName("capturing a key — how the overlay asks 'which one do you want?'")
+    class Capturing {
+
+        /** The overlay calls this from its own thread, as the real one will. */
+        private CompletableFuture<Optional<String>> capture() {
+            return CompletableFuture.supplyAsync(() -> monitor.captureNext(Duration.ofSeconds(5)));
+        }
+
+        @Test
+        void readsBackThePressedKey() throws Exception {
+            monitor.start();
+            final var captured = capture();
+
+            settle();
+            api.press(Win32.functionKey(7));
+
+            assertThat(captured.get(5, TimeUnit.SECONDS)).contains("F7");
+        }
+
+        @Test
+        @DisplayName("the modifiers held at that moment come back with it")
+        void readsBackTheModifiers() throws Exception {
+            monitor.start();
+            final var captured = capture();
+
+            settle();
+            api.press(Win32.VK_SHIFT);
+            api.press(Win32.VK_XBUTTON1);
+
+            assertThat(captured.get(5, TimeUnit.SECONDS)).contains("shift+X1");
+        }
+
+        @Test
+        @DisplayName("naming a key must not fire what it is currently bound to")
+        void firesNoHotkeyWhileCapturing() throws Exception {
+            final var fired = new AtomicInteger();
+            monitor.registerHotkey("F9", NO_COOLDOWN, fired::incrementAndGet);
+            monitor.start();
+
+            final var captured = capture();
+            settle();
+            api.press(Win32.functionKey(9)); // F9 rebuilds the taskbar — but here it is only being named
+
+            assertThat(captured.get(5, TimeUnit.SECONDS)).contains("F9");
+            settle();
+            assertThat(fired.get()).isZero();
+        }
+
+        @Test
+        @DisplayName("a hotkey held throughout the capture is not a fresh press once it closes")
+        void firesNoHotkeyOnTheKeyStillHeldWhenTheCaptureCloses() throws Exception {
+            final var fired = new AtomicInteger();
+            monitor.registerHotkey("F9", NO_COOLDOWN, fired::incrementAndGet);
+            monitor.start();
+
+            final var captured = capture();
+            settle();
+            api.press(Win32.functionKey(9));
+            assertThat(captured.get(5, TimeUnit.SECONDS)).isPresent();
+
+            // The capture is over, and the player has not let go yet.
+            settle();
+
+            assertThat(fired.get()).isZero();
+        }
+
+        @Test
+        @DisplayName("a key already down when the capture opens is not the answer: the click is still travelling")
+        void ignoresAKeyAlreadyHeldWhenItOpens() throws Exception {
+            monitor.start();
+            api.press(Win32.VK_XBUTTON1);
+            settle();
+
+            final var captured = capture();
+            settle();
+            api.release(Win32.VK_XBUTTON1);
+            settle();
+            api.press(Win32.functionKey(7));
+
+            assertThat(captured.get(5, TimeUnit.SECONDS)).contains("F7");
+        }
+
+        @Test
+        @DisplayName("pressing nothing gives up on its own, and the hotkeys come back")
+        void givesUpWhenNothingIsPressed() throws Exception {
+            final var fired = new AtomicInteger();
+            monitor.registerHotkey("F8", NO_COOLDOWN, fired::incrementAndGet);
+            monitor.start();
+
+            assertThat(monitor.captureNext(Duration.ofMillis(100))).isEmpty();
+
+            api.press(Win32.functionKey(8));
+            settle();
+            assertThat(fired.get()).as("the hotkeys are live again").isOne();
+        }
+    }
+
+    @Nested
+    @DisplayName("rebinding, while the loop is running — how the overlay edits a keybind")
+    class Rebinding {
+
+        @Test
+        @DisplayName("the new key fires, and the key it replaced falls silent")
+        void replacesEveryHotkeyAtOnce() throws InterruptedException {
+            final var before = new AtomicInteger();
+            final var after = new AtomicInteger();
+            monitor.registerHotkey("F8", NO_COOLDOWN, before::incrementAndGet);
+            monitor.start();
+
+            monitor.rebind(List.of(Binding.of("F7", NO_COOLDOWN, after::incrementAndGet)));
+
+            api.press(Win32.functionKey(8));
+            settle();
+            assertThat(before.get()).as("F8 was rebound away: it must do nothing now").isZero();
+
+            api.press(Win32.functionKey(7));
+            settle();
+            assertThat(after.get()).isOne();
+        }
+
+        @Test
+        @DisplayName("a key still held when it is bound is not a press: the capture dialog leaves it down")
+        void doesNotFireAKeyAlreadyHeldWhenItIsBound() throws InterruptedException {
+            final var fired = new AtomicInteger();
+            monitor.start();
+
+            // The player is naming their new hotkey: the key is down when the rebind lands.
+            api.press(Win32.functionKey(7));
+            settle();
+            monitor.rebind(List.of(Binding.of("F7", NO_COOLDOWN, fired::incrementAndGet)));
+            settle();
+
+            assertThat(fired.get())
+                    .as("there was no edge — binding a key must not fire the feature it was bound to")
+                    .isZero();
+
+            api.release(Win32.functionKey(7));
+            settle();
+            api.press(Win32.functionKey(7));
+            settle();
+
+            assertThat(fired.get()).as("the next real press does fire it").isOne();
+        }
+
+        @Test
+        @DisplayName("a blank hotkey unbinds the feature rather than crashing the rebind")
+        void unbindsAFeatureGivenABlankHotkey() throws InterruptedException {
+            final var fired = new AtomicInteger();
+            monitor.registerHotkey("F8", NO_COOLDOWN, fired::incrementAndGet);
+            monitor.start();
+
+            monitor.rebind(List.of(Binding.of("", NO_COOLDOWN, fired::incrementAndGet)));
+
+            api.press(Win32.functionKey(8));
+            settle();
+
+            assertThat(fired.get()).isZero();
+        }
     }
 }

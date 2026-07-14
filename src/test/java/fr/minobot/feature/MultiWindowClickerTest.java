@@ -124,6 +124,21 @@ class MultiWindowClickerTest {
         }
 
         @Test
+        @DisplayName("excluding a character takes effect on the next click, with no restart")
+        void followsALiveChangeOfTheExclusions() {
+            final var api = desktop().withForeground(1).withWindowUnderCursor(1);
+            final var features = new Features(api, Map.of());
+            final var clicker = features.clicker();
+
+            features.settings().update(config -> config.withMulticlickExclude(List.of("Bravo")));
+            clicker.clickEveryCharacter(CURSOR);
+
+            assertThat(api.postedMessages()).extracting(PostedMessage::hwnd)
+                    .as("Bravo was excluded after the clicker was built, and must still be spared")
+                    .containsOnly(1L, 3L);
+        }
+
+        @Test
         @DisplayName("the player's window keeps the focus: no window is ever raised")
         void neverStealsTheFocus() {
             final var api = desktop().withForeground(1).withWindowUnderCursor(1);

@@ -1,6 +1,6 @@
 package fr.minobot.feature;
 
-import fr.minobot.app.Config;
+import fr.minobot.app.Settings;
 import fr.minobot.core.FlashSuppressor;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.WindowManager;
@@ -66,20 +66,15 @@ public final class MultiWindowClicker {
     private final WindowManager windows;
     private final FocusManager focus;
     private final FlashSuppressor flash;
-
-    /** The characters the player has asked to be left out of the click. */
-    private final List<String> excluded;
+    private final Settings settings;
 
     public MultiWindowClicker(WindowApi api, WindowManager windows, FocusManager focus,
-                              FlashSuppressor flash, Config config) {
+                              FlashSuppressor flash, Settings settings) {
         this.api = api;
         this.windows = windows;
         this.focus = focus;
         this.flash = flash;
-
-        this.excluded = config.multiclickExclude().stream()
-                .map(name -> name.toLowerCase(Locale.ROOT))
-                .toList();
+        this.settings = settings;
     }
 
     /**
@@ -192,13 +187,18 @@ public final class MultiWindowClicker {
 
     /** The characters the click actually reaches: a minimized one has no game to click in. */
     private List<GameWindow> clickable(List<GameWindow> characters) {
+        // Read at every click, not held: the player can exclude a character from the overlay at any time.
+        final var excluded = settings.get().multiclickExclude().stream()
+                .map(name -> name.toLowerCase(Locale.ROOT))
+                .toList();
+
         return characters.stream()
-                .filter(character -> !isExcluded(character))
+                .filter(character -> !isExcluded(character, excluded))
                 .filter(character -> !api.isIconic(character.hwnd()))
                 .toList();
     }
 
-    private boolean isExcluded(GameWindow character) {
+    private boolean isExcluded(GameWindow character, List<String> excluded) {
         final var title = character.title().toLowerCase(Locale.ROOT);
         return excluded.stream().anyMatch(title::contains);
     }
