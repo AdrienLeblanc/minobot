@@ -79,12 +79,11 @@ public final class GroupManager {
             }
 
             final var leader = characters.getFirst();
-            final var leaderName = nameOf(leader);
-            log.info("Inviting {} characters into the group of '{}'.", characters.size(), leaderName);
+            log.info("Inviting {} characters into the group of '{}'.", characters.size(), leader.name());
 
             relay(characters);
 
-            log.info("Returning the focus to '{}'.", leaderName);
+            log.info("Returning the focus to '{}'.", leader.name());
             focus.focus(leader.hwnd());
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
@@ -101,10 +100,10 @@ public final class GroupManager {
     private void relay(List<GameWindow> characters) throws InterruptedException {
         for (var step = 0; step < characters.size() - 1; step++) {
             final var invitee = characters.get(step + 1);
-            final var inviteeName = nameOf(invitee);
 
             if (!inviteAndAccept(characters.get(step), invitee)) {
-                log.error("The relay stops at '{}'; the characters after it stay out of the group.", inviteeName);
+                log.error("The relay stops at '{}'; the characters after it stay out of the group.",
+                        invitee.name());
                 return;
             }
         }
@@ -114,14 +113,12 @@ public final class GroupManager {
 
     /** One link of the relay: the inviter sends the command, the invitee accepts what it gets. */
     private boolean inviteAndAccept(GameWindow inviter, GameWindow invitee) throws InterruptedException {
-        final var name = nameOf(invitee);
-        final var inviterName = nameOf(inviter);
-        log.info("'{}' is inviting '{}'...", inviterName, name);
+        log.info("'{}' is inviting '{}'...", inviter.name(), invitee.name());
 
         // Armed before the command goes out: the game's toast can beat us to the wait below.
-        final var confirmation = expectInvitationFor(name);
+        final var confirmation = expectInvitationFor(invitee.name());
 
-        return sendInvite(inviter, name)
+        return sendInvite(inviter, invitee.name())
                 && confirmed(confirmation)
                 && accept(invitee);
     }
@@ -129,8 +126,7 @@ public final class GroupManager {
     /** Types {@code /invite Name} in the inviter's chat. */
     private boolean sendInvite(GameWindow inviter, String invitee) throws InterruptedException {
         if (!focus.focus(inviter.hwnd())) {
-            final var inviterName = nameOf(inviter);
-            log.error("Could not focus '{}': its invitation would have been typed elsewhere.", inviterName);
+            log.error("Could not focus '{}': its invitation would have been typed elsewhere.", inviter.name());
             return false;
         }
 
@@ -158,14 +154,13 @@ public final class GroupManager {
 
     /** Presses ENTER on the invitation the game is showing the invited character. */
     private boolean accept(GameWindow invitee) {
-        final var name = nameOf(invitee);
         if (!focus.focus(invitee.hwnd())) {
-            log.error("Could not focus '{}': its invitation stays on screen, unaccepted.", name);
+            log.error("Could not focus '{}': its invitation stays on screen, unaccepted.", invitee.name());
             return false;
         }
 
         input.pressKey(KeyEvent.VK_ENTER);
-        log.debug("'{}' joined the group.", name);
+        log.debug("'{}' joined the group.", invitee.name());
         return true;
     }
 
@@ -186,10 +181,6 @@ public final class GroupManager {
 
         log.info("Invitation toast received for '{}'.", confirmation.character());
         confirmation.arrived();
-    }
-
-    private String nameOf(GameWindow window) {
-        return windows.extractCharacterName(window.title());
     }
 
     /** The toast that tells one step of the relay it has landed: the invited character, and the wait. */

@@ -1,5 +1,6 @@
 package fr.minobot.core;
 
+import fr.minobot.core.domain.GameWindow;
 import fr.minobot.core.input.Input;
 import fr.minobot.win32.Win32;
 import fr.minobot.win32.WindowApi;
@@ -52,7 +53,6 @@ public final class FocusManager {
 
     private final WindowApi api;
     private final Input input;
-    private final WindowManager windows;
 
     /** One focus at a time: two of them interleaved leave the foreground anywhere at all. */
     private final ReentrantLock foreground = new ReentrantLock();
@@ -63,10 +63,9 @@ public final class FocusManager {
     private volatile boolean everFocused;
     private volatile long lastFocusNanos;
 
-    public FocusManager(WindowApi api, Input input, WindowManager windows) {
+    public FocusManager(WindowApi api, Input input) {
         this.api = api;
         this.input = input;
-        this.windows = windows;
     }
 
     /**
@@ -150,7 +149,7 @@ public final class FocusManager {
     }
 
     private boolean bringToForeground(long hwnd) {
-        final var name = windows.extractCharacterName(api.windowText(hwnd));
+        final var name = GameWindow.nameIn(api.windowText(hwnd));
 
         if (api.foregroundWindow() == hwnd) {
             log.debug("'{}' already holds the focus.", name);

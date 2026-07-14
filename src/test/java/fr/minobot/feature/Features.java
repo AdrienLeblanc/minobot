@@ -38,7 +38,7 @@ final class Features {
         this.config = TestConfigs.with(overrides);
         this.input = new FakeInput(api::foregroundWindow);
         this.windows = new WindowManager(api, config);
-        this.focus = new FocusManager(api, input, windows);
+        this.focus = new FocusManager(api, input);
     }
 
     FakeInput input() {

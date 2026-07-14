@@ -68,7 +68,7 @@ public final class MinobotApp {
         this.windowManager = new WindowManager(api, config);
         this.inputSimulator = new InputSimulator();
         this.keyboardMonitor = new KeyboardMonitor(api);
-        this.focusManager = new FocusManager(api, inputSimulator, windowManager);
+        this.focusManager = new FocusManager(api, inputSimulator);
         this.notificationManager = new NotificationManager();
         this.flashSuppressor = new FlashSuppressor(api);
 
@@ -85,9 +85,9 @@ public final class MinobotApp {
 
     private void registerHotkeys() {
         onHotkeyWithCursor("Multi-window click", config.multiclickHotkey(),
-                MULTICLICK_COOLDOWN, multiClicker::clickAllWindows);
-        onHotkey("Reset windows state", config.resetWindowsHotkey(),
-                RESET_WINDOWS_COOLDOWN, multiClicker::resetWindowsAttentionState);
+                MULTICLICK_COOLDOWN, multiClicker::clickEveryCharacter);
+        onHotkey("Character reset", config.resetWindowsHotkey(),
+                RESET_WINDOWS_COOLDOWN, multiClicker::resetCharacters);
 
         onHotkey("Group invitation", config.groupInviteHotkey(),
                 GROUP_INVITE_COOLDOWN, groupManager::inviteAll);

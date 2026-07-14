@@ -23,7 +23,6 @@ public final class WindowManager {
 
     /** What a game window's title carries: {@code "Bravo - Dofus Retro v1.48.18"}. */
     private static final List<String> GAME_KEYWORDS = List.of("Dofus");
-    private static final List<String> CHARACTER_SEPARATORS = List.of(" - ", ": ", " | ");
 
     /** Windows are opened and closed by hand, so the list may lag by this much without harm. */
     private static final Duration REFRESH_INTERVAL = Duration.ofSeconds(30);
@@ -95,18 +94,12 @@ public final class WindowManager {
     }
 
     /**
-     * The character name a title carries, cut at the first separator.
+     * The character name a title carries — a window's, or a toast's, which the game writes the same way.
      *
      * <p>{@code "Bravo - Dofus Retro v1.48.18"} yields {@code "Bravo"}.
      */
     public String extractCharacterName(String title) {
-        for (final var separator : CHARACTER_SEPARATORS) {
-            final var index = title.indexOf(separator);
-            if (index >= 0) {
-                return title.substring(0, index).strip();
-            }
-        }
-        return title.strip();
+        return GameWindow.nameIn(title);
     }
 
     /** Finds a character's window: first by exact name, then by a substring of the whole title. */
@@ -116,7 +109,7 @@ public final class WindowManager {
         final var candidates = windows();
 
         for (final var window : candidates) {
-            if (extractCharacterName(window.title()).toLowerCase(Locale.ROOT).equals(wanted)) {
+            if (window.name().toLowerCase(Locale.ROOT).equals(wanted)) {
                 log.debug("Found exact match for '{}': '{}'", characterName, window.title());
                 return Optional.of(window);
             }

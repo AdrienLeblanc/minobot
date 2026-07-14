@@ -24,6 +24,7 @@ fr.minobot
 ├── win32/          WindowApi (the interface), User32 (the FFM implementation), Win32, Point.
 ├── core/           The Windows mechanics: WindowManager, FocusManager, KeyboardMonitor,
 │                   NotificationManager, FlashSuppressor, SystemTrayManager, Input / InputSimulator.
+│   └── domain/     GameWindow (a character: their window, and their name), Notification (a toast).
 └── feature/        The five user-facing features (below).
 ```
 
@@ -33,6 +34,19 @@ game running — which is why there are 92 tests.
 
 **Keep it that way.** Do not call `user32.dll` or `java.awt.Robot` from anywhere but their
 implementations: a feature that reaches past `WindowApi` becomes untestable.
+
+### A feature speaks of characters; only the core speaks of windows
+
+A `long` is a handle, `PostMessage` is a message, `SW_HIDE` is a flag — and none of them are what the
+player asked for. The player asked for *every character to click the same spot*, for *the next character*,
+for *their characters back in order in the taskbar*. A feature that reads like the story the player would
+tell is a feature whose bugs are visible: `GroupManager` says a leader invites, the invitee accepts, and
+the relay stops — and the reason the relay must stop is right there to be seen.
+
+So a feature loops over **characters** (`GameWindow`, which carries a `name()`), and it keeps whatever
+Windows demands — the retry on a refused `PostMessage`, the `lParam`, the `SW_RESTORE` — in one named
+leaf at the bottom of the file. **The technical detail is not hidden, it is placed**: it stops being the
+first thing read, and the constraint that justifies it is the comment above it.
 
 ### Config
 

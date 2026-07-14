@@ -12,14 +12,15 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Rebuilds the taskbar order of the game windows — the counterpart of {@code window_reorder.py}.
+ * Puts the characters back in order in the taskbar — the counterpart of {@code window_reorder.py}.
  *
- * <p>Windows offers no way to reorder taskbar buttons; the only lever is the order in which the
- * windows appear. So the sequence hides them all, waits for the taskbar to catch up, then shows them
- * one by one in the configured order.
+ * <p>The player wants their taskbar buttons in the order of {@code window_cycle_order}, and Windows
+ * offers no way to move a button: the only lever is the order in which the windows appear. So the
+ * characters all leave the screen, and come back one by one in the order they should be in.
  *
- * <p>The windows are <em>hidden</em> in the middle of this: if the sequence dies there, they are gone
- * from the screen with no way back. Every failure path therefore ends in {@link #showEverythingAgain()}.
+ * <p>They are <em>gone</em> in the middle of this: a sequence that dies there leaves the player with no
+ * characters and no way to get them back. Every failure path therefore ends in
+ * {@link #bringEverybodyBack()}.
  */
 public final class WindowReorder {
 
@@ -43,76 +44,79 @@ public final class WindowReorder {
         this.focus = focus;
     }
 
-    /** Hides every game window, then shows them again in the configured order. */
+    /** Takes every character off the screen, then brings them back in the configured order. */
     public void reorderTaskbar() {
         if (!running.compareAndSet(false, true)) {
             log.warn("The window reorder sequence is already running.");
             return;
         }
 
-        // The windows are hidden in the middle of this: a toast focusing one of them here would be
-        // focusing a window that is not on screen.
+        // The characters are off the screen in the middle of this: a toast focusing one of them here
+        // would be focusing a window that is nowhere to be seen.
         try (final var _ = focus.takeOver()) {
             windows.refresh();
-            final var ordered = windows.orderedWindows();
-            if (ordered.isEmpty()) {
-                log.warn("No game window to reorder.");
+            final var characters = windows.orderedWindows();
+            if (characters.isEmpty()) {
+                log.warn("No character to reorder.");
                 return;
             }
 
-            log.info("Reordering {} window(s) to the configured order.", ordered.size());
+            log.info("Reordering {} character(s) to the configured order.", characters.size());
 
-            hide(ordered);
+            takeThemOffScreen(characters);
             Thread.sleep(TASKBAR_SETTLE_MILLIS);
-            show(ordered);
+            bringThemBackInOrder(characters);
 
-            final var first = ordered.getFirst();
-            if (api.isWindow(first.hwnd())) {
-                log.info("Restoring the focus to the first window: '{}'.", first.title());
-                focus.focus(first.hwnd());
+            final var leader = characters.getFirst();
+            if (api.isWindow(leader.hwnd())) {
+                log.info("Handing the screen to the first character: '{}'.", leader.name());
+                focus.focus(leader.hwnd());
             }
 
             log.info("Taskbar reorder complete.");
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
-            log.warn("The reorder sequence was interrupted; bringing the windows back.");
-            showEverythingAgain();
+            log.warn("The reorder sequence was interrupted; bringing the characters back.");
+            bringEverybodyBack();
         } catch (RuntimeException e) {
-            log.error("Error during the reorder sequence; bringing the windows back.", e);
-            showEverythingAgain();
+            log.error("Error during the reorder sequence; bringing the characters back.", e);
+            bringEverybodyBack();
         } finally {
             running.set(false);
         }
     }
 
-    private void hide(List<GameWindow> ordered) {
-        for (final var window : ordered) {
-            if (api.isWindow(window.hwnd())) {
-                api.showWindow(window.hwnd(), Win32.SW_HIDE);
+    private void takeThemOffScreen(List<GameWindow> characters) {
+        for (final var character : characters) {
+            if (api.isWindow(character.hwnd())) {
+                api.showWindow(character.hwnd(), Win32.SW_HIDE);
             }
         }
     }
 
-    private void show(List<GameWindow> ordered) throws InterruptedException {
-        for (final var window : ordered) {
-            if (!api.isWindow(window.hwnd())) {
+    /** One by one: the taskbar builds its buttons in the order the windows come back. */
+    private void bringThemBackInOrder(List<GameWindow> characters) throws InterruptedException {
+        for (final var character : characters) {
+            if (!api.isWindow(character.hwnd())) {
                 continue;
             }
 
-            api.showWindow(window.hwnd(), Win32.SW_SHOW);
-            if (api.isIconic(window.hwnd())) {
-                api.showWindow(window.hwnd(), Win32.SW_RESTORE);
+            api.showWindow(character.hwnd(), Win32.SW_SHOW);
+
+            // A character that was minimized comes back hidden from the taskbar otherwise.
+            if (api.isIconic(character.hwnd())) {
+                api.showWindow(character.hwnd(), Win32.SW_RESTORE);
             }
 
             Thread.sleep(BETWEEN_WINDOWS_MILLIS);
         }
     }
 
-    /** Last resort: a window left hidden is a window the player cannot get back. */
-    private void showEverythingAgain() {
-        for (final var window : windows.windows()) {
-            if (api.isWindow(window.hwnd())) {
-                api.showWindow(window.hwnd(), Win32.SW_SHOW);
+    /** Last resort: a character left off the screen is a character the player cannot get back. */
+    private void bringEverybodyBack() {
+        for (final var character : windows.windows()) {
+            if (api.isWindow(character.hwnd())) {
+                api.showWindow(character.hwnd(), Win32.SW_SHOW);
             }
         }
     }

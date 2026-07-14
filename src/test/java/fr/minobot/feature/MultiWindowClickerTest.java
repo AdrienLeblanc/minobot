@@ -53,7 +53,7 @@ class MultiWindowClickerTest {
         void replaysTheClickAtTheEquivalentClientPosition() {
             final var api = desktop().withForeground(1).withWindowUnderCursor(1);
 
-            new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
+            new Features(api, Map.of()).clicker().clickEveryCharacter(CURSOR);
 
             // The cursor is at client (90, 90) of window 1; the others are clicked at their own
             // client (90, 90) — not at screen (100, 100), which would land somewhere else in them.
@@ -69,7 +69,7 @@ class MultiWindowClickerTest {
                     .withWindowUnderCursor(77) // the render surface, not a top-level window
                     .withParent(77, 2);
 
-            new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
+            new Features(api, Map.of()).clicker().clickEveryCharacter(CURSOR);
 
             // Resolved to window 2, whose client position for the cursor is (80, 80).
             assertThat(api.postedMessages()).containsExactlyElementsOf(
@@ -81,7 +81,7 @@ class MultiWindowClickerTest {
         void postsNothingWhenTheClickDidNotLandOnAGameWindow() {
             final var api = desktop().withWindowUnderCursor(Win32.NULL_HANDLE);
 
-            new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
+            new Features(api, Map.of()).clicker().clickEveryCharacter(CURSOR);
 
             // There is no in-game spot to replay: the player clicked on the desktop or on another
             // application. Translating the screen point per window would fire every character at
@@ -98,7 +98,7 @@ class MultiWindowClickerTest {
         void clicksTheForegroundWindowAsWell() {
             final var api = desktop().withForeground(2).withWindowUnderCursor(2);
 
-            new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
+            new Features(api, Map.of()).clicker().clickEveryCharacter(CURSOR);
 
             assertThat(api.postedMessages()).extracting(PostedMessage::hwnd).contains(2L);
         }
@@ -107,7 +107,7 @@ class MultiWindowClickerTest {
         void skipsTheMinimizedWindows() {
             final var api = desktop().minimize(3).withForeground(1).withWindowUnderCursor(1);
 
-            new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
+            new Features(api, Map.of()).clicker().clickEveryCharacter(CURSOR);
 
             assertThat(api.postedMessages()).extracting(PostedMessage::hwnd).containsOnly(1L, 2L);
         }
@@ -118,7 +118,7 @@ class MultiWindowClickerTest {
             final var api = desktop().withForeground(1).withWindowUnderCursor(1);
 
             new Features(api, Map.of("multiclick_exclude", List.of("delta")))
-                    .clicker().clickAllWindows(CURSOR);
+                    .clicker().clickEveryCharacter(CURSOR);
 
             assertThat(api.postedMessages()).extracting(PostedMessage::hwnd).containsOnly(1L, 2L);
         }
@@ -128,7 +128,7 @@ class MultiWindowClickerTest {
         void neverStealsTheFocus() {
             final var api = desktop().withForeground(1).withWindowUnderCursor(1);
 
-            new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
+            new Features(api, Map.of()).clicker().clickEveryCharacter(CURSOR);
 
             assertThat(api.foregroundWindow()).isEqualTo(1);
         }
@@ -142,7 +142,7 @@ class MultiWindowClickerTest {
         void clearsTheOrangeAfterTheGameHasRaisedIt() throws InterruptedException {
             final var api = desktop().withForeground(1).withWindowUnderCursor(1);
 
-            new Features(api, Map.of()).clicker().clickAllWindows(CURSOR);
+            new Features(api, Map.of()).clicker().clickEveryCharacter(CURSOR);
 
             // The game has not even drained the click yet, and Windows ignores the request while the
             // button is blinking: what is cleared now is cleared for nothing. What counts is what comes
@@ -159,7 +159,7 @@ class MultiWindowClickerTest {
             final var api = desktop().minimize(3).withForeground(1).withWindowUnderCursor(1);
 
             new Features(api, Map.of("multiclick_exclude", List.of("Bravo")))
-                    .clicker().clickAllWindows(CURSOR);
+                    .clicker().clickEveryCharacter(CURSOR);
             Thread.sleep(300);
 
             // Bravo (2) is excluded, Delta (3) is minimized: neither was clicked, so neither can be
@@ -179,7 +179,7 @@ class MultiWindowClickerTest {
             final var api = desktop().withForeground(1);
 
             new Features(api, Map.of("window_cycle_order", List.of("Delta", "Bravo", "Alpha")))
-                    .clicker().resetWindowsAttentionState();
+                    .clicker().resetCharacters();
 
             // Configured order is Delta (3), Bravo (2), Alpha (1): visited back to front, then the
             // focus goes back to the leader, Delta — which is where the player was playing. Alpha (1)
@@ -193,7 +193,7 @@ class MultiWindowClickerTest {
         void picksTheLeaderFromTheConfiguredOrder() {
             final var api = desktop().withForeground(3);
 
-            new Features(api, Map.of()).clicker().resetWindowsAttentionState();
+            new Features(api, Map.of()).clicker().resetCharacters();
 
             // Alphabetical for want of a configured order: the leader is Alpha, and the reversal is a
             // real one — sorting by rank would leave the list untouched, every window sharing a rank.
