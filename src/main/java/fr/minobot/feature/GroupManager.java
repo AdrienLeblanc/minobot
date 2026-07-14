@@ -1,15 +1,16 @@
 package fr.minobot.feature;
 
 import fr.minobot.core.FocusManager;
-import fr.minobot.core.domain.GameWindow;
-import fr.minobot.core.input.Input;
-import fr.minobot.core.domain.Notification;
 import fr.minobot.core.NotificationManager;
 import fr.minobot.core.WindowManager;
+import fr.minobot.core.domain.GameWindow;
+import fr.minobot.core.domain.Notification;
+import fr.minobot.core.input.Input;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.event.KeyEvent;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
@@ -23,21 +24,25 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>A relay: the first character invites the second, the second accepts and invites the third, and
  * so on. Each step needs the previous one to have actually landed in the game, which is where the
  * Windows toast comes in: the game raises one when a character is invited, and the sequence waits for
- * it rather than guessing a delay. The {@code asyncio.Event} becomes a
- * {@link CountDownLatch}; the five-second timeout is the same, and it proceeds anyway on expiry —
- * the toast may simply be disabled.
+ * it rather than guessing a delay.
+ *
+ * <p>The relay types into the game, so it holds the foreground from end to end
+ * ({@link FocusManager#takeOver()}). It has to: the toast it waits for at every step is the same one
+ * the notification auto-focus reacts to, and that focus, left free, arrives in the middle of a
+ * {@code /invite} and sends the rest of it to another character's window.
  */
 public final class GroupManager {
 
     private static final Logger log = LoggerFactory.getLogger(GroupManager.class);
 
-    private static final long NOTIFICATION_TIMEOUT_SECONDS = 5;
+    /** How long the game is given to confirm an invitation with its toast. */
+    private static final Duration CONFIRMATION_TIMEOUT = Duration.ofSeconds(5);
 
     /** What an invitation toast says, across the game's languages. */
     private static final List<String> INVITE_KEYWORDS = List.of("invite", "groupe", "group");
 
-    private static final int AFTER_CHAT_OPEN_MILLIS = 25;
-    private static final int BEFORE_ACCEPT_MILLIS = 25;
+    /** Time the chat line takes to appear, before the command can be pasted into it. */
+    private static final int CHAT_OPEN_MILLIS = 25;
 
     private final WindowManager windows;
     private final Input input;
@@ -45,8 +50,8 @@ public final class GroupManager {
 
     private final AtomicBoolean running = new AtomicBoolean();
 
-    /** The step {@link #inviteAll()} is currently waiting on, or {@code null} between two steps. */
-    private final AtomicReference<PendingInvite> pending = new AtomicReference<>();
+    /** The toast the relay is waiting on, or {@code null} outside a step. */
+    private final AtomicReference<Confirmation> awaited = new AtomicReference<>();
 
     public GroupManager(WindowManager windows, Input input, FocusManager focus,
                         NotificationManager notifications) {
@@ -57,28 +62,6 @@ public final class GroupManager {
         notifications.register(this::onNotification);
     }
 
-    /** Runs on a notification's virtual thread, and releases the step waiting in {@link #inviteAll()}. */
-    void onNotification(Notification notification) {
-        // One read: the awaited name and its latch must come from the same step, or a toast landing
-        // between two steps could release the latch of the next one, which would then not wait at all.
-        final var step = pending.get();
-        if (step == null) {
-            return; // no sequence running, or between two steps
-        }
-
-        if (!notification.title().contains(step.invitee()) || !isInvitation(notification)) {
-            return;
-        }
-
-        log.info("Invitation toast received for '{}'.", step.invitee());
-        step.received().countDown();
-    }
-
-    private static boolean isInvitation(Notification notification) {
-        final var message = notification.message().toLowerCase(Locale.ROOT);
-        return INVITE_KEYWORDS.stream().anyMatch(message::contains);
-    }
-
     /** Invites every character into the first one's group, then hands the focus back to it. */
     public void inviteAll() {
         if (!running.compareAndSet(false, true)) {
@@ -86,7 +69,7 @@ public final class GroupManager {
             return;
         }
 
-        try {
+        try (final var _ = focus.takeOver()) {
             windows.refresh();
             final var characters = windows.orderedWindows();
             if (characters.size() < 2) {
@@ -97,13 +80,11 @@ public final class GroupManager {
 
             final var leader = characters.getFirst();
             final var leaderName = nameOf(leader);
-            log.info("Starting the group invitation sequence, led by '{}'.", leaderName);
+            log.info("Inviting {} characters into the group of '{}'.", characters.size(), leaderName);
 
-            for (var step = 0; step < characters.size() - 1; step++) {
-                invite(characters.get(step), characters.get(step + 1), step + 1);
-            }
+            relay(characters);
 
-            log.info("Group invitation complete; returning the focus to '{}'.", leaderName);
+            log.info("Returning the focus to '{}'.", leaderName);
             focus.focus(leader.hwnd());
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
@@ -111,42 +92,121 @@ public final class GroupManager {
         } catch (RuntimeException e) {
             log.error("Error during the group invitation sequence.", e);
         } finally {
-            pending.set(null);
+            awaited.set(null);
             running.set(false);
         }
     }
 
-    private void invite(GameWindow inviter, GameWindow invitee, int step) throws InterruptedException {
-        final var inviteeName = nameOf(invitee);
-        final var inviterName = nameOf(inviter);
-        log.info("Step {}: '{}' is inviting '{}'...", step, inviterName, inviteeName);
+    /** Each character invites the next one, who accepts and becomes the inviter of the one after. */
+    private void relay(List<GameWindow> characters) throws InterruptedException {
+        for (var step = 0; step < characters.size() - 1; step++) {
+            final var invitee = characters.get(step + 1);
+            final var inviteeName = nameOf(invitee);
 
-        // Armed before the command is sent: the toast can arrive before we get to the wait below.
-        final var latch = new CountDownLatch(1);
-        pending.set(new PendingInvite(inviteeName, latch));
-
-        focus.focus(inviter.hwnd());
-        input.pressKey(KeyEvent.VK_ENTER); // opens the chat
-        Thread.sleep(AFTER_CHAT_OPEN_MILLIS);
-        input.pasteString("/invite " + inviteeName);
-        input.pressKey(KeyEvent.VK_ENTER); // sends it
-
-        if (!latch.await(NOTIFICATION_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-            log.warn("No invitation toast for '{}' within {}s; proceeding anyway.",
-                    inviteeName, NOTIFICATION_TIMEOUT_SECONDS);
+            if (!inviteAndAccept(characters.get(step), invitee)) {
+                log.error("The relay stops at '{}'; the characters after it stay out of the group.", inviteeName);
+                return;
+            }
         }
 
-        focus.focus(invitee.hwnd());
-        Thread.sleep(BEFORE_ACCEPT_MILLIS); // the window must be ready to take the keystroke
-        input.pressKey(KeyEvent.VK_ENTER); // accepts
-        log.debug("'{}' joined the group.", inviteeName);
+        log.info("Every character is in the group.");
+    }
+
+    /** One link of the relay: the inviter sends the command, the invitee accepts what it gets. */
+    private boolean inviteAndAccept(GameWindow inviter, GameWindow invitee) throws InterruptedException {
+        final var name = nameOf(invitee);
+        final var inviterName = nameOf(inviter);
+        log.info("'{}' is inviting '{}'...", inviterName, name);
+
+        // Armed before the command goes out: the game's toast can beat us to the wait below.
+        final var confirmation = expectInvitationFor(name);
+
+        return sendInvite(inviter, name)
+                && confirmed(confirmation)
+                && accept(invitee);
+    }
+
+    /** Types {@code /invite Name} in the inviter's chat. */
+    private boolean sendInvite(GameWindow inviter, String invitee) throws InterruptedException {
+        if (!focus.focus(inviter.hwnd())) {
+            final var inviterName = nameOf(inviter);
+            log.error("Could not focus '{}': its invitation would have been typed elsewhere.", inviterName);
+            return false;
+        }
+
+        input.pressKey(KeyEvent.VK_ENTER); // opens the chat
+        Thread.sleep(CHAT_OPEN_MILLIS);
+        input.pasteString("/invite " + invitee);
+        input.pressKey(KeyEvent.VK_ENTER); // sends it
+
+        return true;
+    }
+
+    /** Waits for the game to confirm, with its toast, that the invitation reached the character. */
+    private boolean confirmed(Confirmation confirmation) throws InterruptedException {
+        if (confirmation.arrivedWithin(CONFIRMATION_TIMEOUT)) {
+            return true;
+        }
+
+        // Accepting anyway would press ENTER in a window with no invitation on screen, where it does
+        // not accept anything: it opens the chat, and the next step's command is typed into the game.
+        log.warn("No invitation toast for '{}' within {}s; the game may not have received the command, "
+                        + "or its Windows notifications may be off — the relay needs them to pace itself.",
+                confirmation.character(), CONFIRMATION_TIMEOUT.toSeconds());
+        return false;
+    }
+
+    /** Presses ENTER on the invitation the game is showing the invited character. */
+    private boolean accept(GameWindow invitee) {
+        final var name = nameOf(invitee);
+        if (!focus.focus(invitee.hwnd())) {
+            log.error("Could not focus '{}': its invitation stays on screen, unaccepted.", name);
+            return false;
+        }
+
+        input.pressKey(KeyEvent.VK_ENTER);
+        log.debug("'{}' joined the group.", name);
+        return true;
+    }
+
+    private Confirmation expectInvitationFor(String character) {
+        final var confirmation = new Confirmation(character, new CountDownLatch(1));
+        awaited.set(confirmation);
+        return confirmation;
+    }
+
+    /** Runs on a notification's virtual thread, and releases the step waiting in {@link #inviteAll()}. */
+    void onNotification(Notification notification) {
+        // One read: the awaited name and its latch must come from the same step, or a toast landing
+        // between two steps could release the latch of the next one, which would then not wait at all.
+        final var confirmation = awaited.get();
+        if (confirmation == null || !confirmation.matches(notification)) {
+            return;
+        }
+
+        log.info("Invitation toast received for '{}'.", confirmation.character());
+        confirmation.arrived();
     }
 
     private String nameOf(GameWindow window) {
         return windows.extractCharacterName(window.title());
     }
 
-    /** One step of the relay: the invited character, and the latch its toast releases. */
-    private record PendingInvite(String invitee, CountDownLatch received) {
+    /** The toast that tells one step of the relay it has landed: the invited character, and the wait. */
+    private record Confirmation(String character, CountDownLatch received) {
+
+        boolean matches(Notification toast) {
+            final var message = toast.message().toLowerCase(Locale.ROOT);
+            return toast.title().contains(character)
+                    && INVITE_KEYWORDS.stream().anyMatch(message::contains);
+        }
+
+        void arrived() {
+            received.countDown();
+        }
+
+        boolean arrivedWithin(Duration timeout) throws InterruptedException {
+            return received.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        }
     }
 }

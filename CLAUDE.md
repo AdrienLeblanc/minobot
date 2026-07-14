@@ -29,7 +29,7 @@ fr.minobot
 
 **Two interfaces are the only doors to the outside world:** `win32.WindowApi` (the screen) and
 `core.Input` (the keyboard and mouse). Everything else is code that runs in a test, on any OS, with no
-game running — which is why there are 79 tests.
+game running — which is why there are 82 tests.
 
 **Keep it that way.** Do not call `user32.dll` or `java.awt.Robot` from anywhere but their
 implementations: a feature that reaches past `WindowApi` becomes untestable.
@@ -50,6 +50,18 @@ does. An empty hotkey disables its feature; there is no `*_enabled` flag.
 - **Every hotkey and notification callback runs on its own virtual thread**, the equivalent of
   `asyncio.create_task`. A long `inviteAll` must never deafen the other hotkeys.
 - Anything that sleeps (the focus sequence, the invitation relay) is therefore free to do so.
+
+### The foreground is a single resource
+
+There is one screen, and several threads want it. `FocusManager` is what keeps them from fighting:
+
+- `focus(hwnd)` is **deliberate** — a hotkey asked for it. It waits its turn, and it **returns whether
+  the window really holds the foreground**. A caller that goes on to type *must* check it: keystrokes
+  sent to a window that never came up land in whichever one did.
+- `focusIfIdle(hwnd)` is **opportunistic** — a toast suggested it. It stands aside rather than queue up.
+- A feature that focuses *and types* holds `focus.takeOver()` for its whole sequence. Without it the
+  notification auto-focus, which reacts to the same toasts the invitation relay waits on, lands between
+  two keystrokes and sends the rest of a `/invite` to another character's window.
 
 ## The features
 
@@ -72,7 +84,10 @@ window in turn.
 
 A relay: the first character invites the second, who accepts and invites the third, and so on. Each
 step waits for the game's own **Windows toast** to confirm the invitation landed, rather than guessing
-a delay (five-second timeout, then it proceeds anyway).
+a delay. No toast within five seconds and the relay **stops there**: the ENTER that accepts an
+invitation, pressed in a window that has none on screen, opens the chat instead — and the next
+`/invite` is then typed into the game rather than into the chat. The relay owns the foreground from
+end to end (`focus.takeOver()`); the same toasts feed the auto-focus, which must not answer them here.
 
 ### Window cycler — `x2` / `shift+x2`
 

@@ -2,8 +2,8 @@ package fr.minobot.feature;
 
 import fr.minobot.app.Config;
 import fr.minobot.core.FocusManager;
-import fr.minobot.core.domain.GameWindow;
 import fr.minobot.core.WindowManager;
+import fr.minobot.core.domain.GameWindow;
 import fr.minobot.win32.Point;
 import fr.minobot.win32.Win32;
 import fr.minobot.win32.WindowApi;
@@ -108,28 +108,32 @@ public final class MultiWindowClicker {
             return;
         }
 
-        // Visited back to front, so the leader is reached last and is already on top by the time the
-        // explicit restore below runs. This reverses the list itself rather than asking for the
-        // reversed order: that sorts by rank, and windows absent from window_cycle_order all share
-        // one rank — so on a default config it would hand back the same order and the "leader" would
-        // be whichever window sorted last alphabetically.
-        for (final var window : ordered.reversed()) {
-            if (api.isIconic(window.hwnd())) {
-                log.debug("Skipping the minimized window '{}'.", window.title());
-                continue;
+        // The sequence walks the whole desktop: a toast focusing a window halfway through would leave
+        // the player somewhere other than where they were playing.
+        try (final var _ = focus.takeOver()) {
+            // Visited back to front, so the leader is reached last and is already on top by the time the
+            // explicit restore below runs. This reverses the list itself rather than asking for the
+            // reversed order: that sorts by rank, and windows absent from window_cycle_order all share
+            // one rank — so on a default config it would hand back the same order and the "leader" would
+            // be whichever window sorted last alphabetically.
+            for (final var window : ordered.reversed()) {
+                if (api.isIconic(window.hwnd())) {
+                    log.debug("Skipping the minimized window '{}'.", window.title());
+                    continue;
+                }
+
+                log.debug("Resetting the attention state of '{}' (HWND: {}).", window.title(), window.hwnd());
+                focus.focus(window.hwnd());
+
+                if (!sleep(RESET_SETTLE_MILLIS)) {
+                    return;
+                }
             }
 
-            log.debug("Resetting the attention state of '{}' (HWND: {}).", window.title(), window.hwnd());
-            focus.focus(window.hwnd());
-
-            if (!sleep(RESET_SETTLE_MILLIS)) {
-                return;
-            }
+            final var leader = ordered.getFirst();
+            log.debug("Restoring the focus to '{}'.", leader.title());
+            focus.focus(leader.hwnd());
         }
-
-        final var leader = ordered.getFirst();
-        log.debug("Restoring the focus to '{}'.", leader.title());
-        focus.focus(leader.hwnd());
 
         log.info("Window attention-reset sequence complete.");
     }

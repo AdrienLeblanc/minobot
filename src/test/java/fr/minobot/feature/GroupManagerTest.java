@@ -1,7 +1,7 @@
 package fr.minobot.feature;
 
-import fr.minobot.core.input.FakeInput;
 import fr.minobot.core.domain.Notification;
+import fr.minobot.core.input.FakeInput;
 import fr.minobot.win32.FakeWindowApi;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,8 +55,63 @@ class GroupManagerTest {
         sequence.join();
 
         assertThat(input.pasted()).containsExactly("/invite Bravo", "/invite Delta");
-        // Alpha invites, Bravo accepts; Bravo invites, Delta accepts; the focus goes back to Alpha.
-        assertThat(api.focusedWindows()).containsExactly(1L, 2L, 2L, 3L, 1L);
+        // Alpha invites, Bravo accepts and invites — it already has the focus — then Delta accepts,
+        // and the focus goes back to Alpha.
+        assertThat(api.focusedWindows()).containsExactly(1L, 2L, 3L, 1L);
+        assertThat(api.foregroundWindow()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("every command is typed into the window of the character sending it")
+    void typesEachCommandIntoItsInviter() throws InterruptedException {
+        final var api = desktop();
+        final var features = new Features(api, Map.of());
+        final var input = features.input();
+        final var groupManager = features.groupManager();
+
+        final var sequence = Thread.ofVirtual().start(groupManager::inviteAll);
+
+        awaitPaste(input, "/invite Bravo");
+        groupManager.onNotification(invitationFor("Bravo"));
+        awaitPaste(input, "/invite Delta");
+        groupManager.onNotification(invitationFor("Delta"));
+        sequence.join();
+
+        // Alpha's command in Alpha's window, Bravo's in Bravo's: a command typed anywhere else is a
+        // command the game never sees.
+        assertThat(input.pastedInto()).containsExactly(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("no toast takes the foreground from a relay in progress")
+    void keepsTheForegroundAgainstTheNotificationListener() throws InterruptedException {
+        final var api = desktop().withWindow(4, "Echo - Dofus");
+        final var features = new Features(api, Map.of());
+        final var input = features.input();
+        final var groupManager = features.groupManager();
+        final var listener = features.notificationListener();
+
+        final var sequence = Thread.ofVirtual().start(groupManager::inviteAll);
+        awaitPaste(input, "/invite Bravo");
+
+        // Echo is attacked in the middle of Alpha's command. The auto-focus would normally jump to it —
+        // here it must not: the relay is typing, and the rest of the command would go to Echo's window.
+        listener.onNotification(new Notification("Echo - Dofus Retro", "Vous etes attaque !"));
+        assertThat(api.foregroundWindow()).isEqualTo(1);
+
+        // The invitation toasts reach both features, the way the notification manager dispatches them.
+        dispatch(invitationFor("Bravo"), groupManager, listener);
+        awaitPaste(input, "/invite Delta");
+        dispatch(invitationFor("Delta"), groupManager, listener);
+        awaitPaste(input, "/invite Echo");
+        dispatch(invitationFor("Echo"), groupManager, listener);
+
+        sequence.join();
+
+        assertThat(input.pasted())
+                .containsExactly("/invite Bravo", "/invite Delta", "/invite Echo");
+        // Each command in the window of the character sending it, from end to end.
+        assertThat(input.pastedInto()).containsExactly(1L, 2L, 3L);
         assertThat(api.foregroundWindow()).isEqualTo(1);
     }
 
@@ -83,7 +138,28 @@ class GroupManagerTest {
         groupManager.onNotification(invitationFor("Delta"));
         sequence.join();
 
-        assertThat(api.focusedWindows()).containsExactly(1L, 2L, 2L, 3L, 1L);
+        assertThat(api.focusedWindows()).containsExactly(1L, 2L, 3L, 1L);
+    }
+
+    @Test
+    @DisplayName("an invitation the game never confirms stops the relay where it is")
+    void stopsWhenTheGameDoesNotConfirm() throws InterruptedException {
+        final var api = desktop();
+        final var features = new Features(api, Map.of());
+        final var input = features.input();
+        final var groupManager = features.groupManager();
+
+        final var sequence = Thread.ofVirtual().start(groupManager::inviteAll);
+        awaitPaste(input, "/invite Bravo");
+
+        // No toast: the command may never have reached the game. Accepting an invitation that is not
+        // on screen presses ENTER into the game itself, so the relay stops rather than guess.
+        sequence.join();
+
+        assertThat(input.pasted()).containsExactly("/invite Bravo");
+        // Bravo is never focused: nothing was accepted, and Delta was never invited.
+        assertThat(api.focusedWindows()).containsExactly(1L);
+        assertThat(api.foregroundWindow()).isEqualTo(1);
     }
 
     @Test
@@ -96,6 +172,13 @@ class GroupManagerTest {
 
         assertThat(features.input().actions()).isEmpty();
         assertThat(api.focusedWindows()).isEmpty();
+    }
+
+    /** What the notification manager does with a toast: hands it to every feature, on its own thread. */
+    private static void dispatch(Notification toast, GroupManager groupManager,
+                                 NotificationListener listener) {
+        Thread.ofVirtual().start(() -> groupManager.onNotification(toast));
+        Thread.ofVirtual().start(() -> listener.onNotification(toast));
     }
 
     /** Waits for the sequence to reach the step that pastes this command. */

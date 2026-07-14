@@ -1,8 +1,8 @@
 package fr.minobot.feature;
 
 import fr.minobot.core.FocusManager;
-import fr.minobot.core.domain.GameWindow;
 import fr.minobot.core.WindowManager;
+import fr.minobot.core.domain.GameWindow;
 import fr.minobot.win32.Win32;
 import fr.minobot.win32.WindowApi;
 import org.slf4j.Logger;
@@ -50,7 +50,9 @@ public final class WindowReorder {
             return;
         }
 
-        try {
+        // The windows are hidden in the middle of this: a toast focusing one of them here would be
+        // focusing a window that is not on screen.
+        try (final var _ = focus.takeOver()) {
             windows.refresh();
             final var ordered = windows.orderedWindows();
             if (ordered.isEmpty()) {
@@ -71,7 +73,7 @@ public final class WindowReorder {
             }
 
             log.info("Taskbar reorder complete.");
-        } catch (InterruptedException e) {
+        } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
             log.warn("The reorder sequence was interrupted; bringing the windows back.");
             showEverythingAgain();

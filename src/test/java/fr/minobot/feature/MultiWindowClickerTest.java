@@ -145,8 +145,9 @@ class MultiWindowClickerTest {
                     .clicker().resetWindowsAttentionState();
 
             // Configured order is Delta (3), Bravo (2), Alpha (1): visited back to front, then the
-            // focus goes back to the leader, Delta — which is where the player was playing.
-            assertThat(api.focusedWindows()).containsExactly(1L, 2L, 3L, 3L);
+            // focus goes back to the leader, Delta — which is where the player was playing. Alpha (1)
+            // is not raised: it already had the focus, so it cannot have been flashing.
+            assertThat(api.focusedWindows()).containsExactly(2L, 3L);
             assertThat(api.foregroundWindow()).isEqualTo(3);
         }
 
@@ -159,7 +160,8 @@ class MultiWindowClickerTest {
 
             // Alphabetical for want of a configured order: the leader is Alpha, and the reversal is a
             // real one — sorting by rank would leave the list untouched, every window sharing a rank.
-            assertThat(api.focusedWindows()).containsExactly(3L, 2L, 1L, 1L);
+            // Delta (3) is not raised: the player was already on it.
+            assertThat(api.focusedWindows()).containsExactly(2L, 1L);
             assertThat(api.foregroundWindow()).isEqualTo(1);
         }
     }

@@ -1,9 +1,9 @@
 package fr.minobot.feature;
 
 import fr.minobot.core.FocusManager;
-import fr.minobot.core.domain.Notification;
 import fr.minobot.core.NotificationManager;
 import fr.minobot.core.WindowManager;
+import fr.minobot.core.domain.Notification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,8 +44,10 @@ public final class NotificationListener {
             return;
         }
 
+        // A focus that yields: a toast is a convenience, and the group invitation relay waits on these
+        // very toasts. Focusing here in the middle of one would send its next command to this window.
         windows.findWindow(character).ifPresentOrElse(
-                window -> focus.focus(window.hwnd(), false),
+                window -> focus.focusIfIdle(window.hwnd()),
                 () -> log.warn("No window found for the character '{}'.", character));
     }
 

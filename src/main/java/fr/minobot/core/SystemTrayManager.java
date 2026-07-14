@@ -3,18 +3,7 @@ package fr.minobot.core;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.AWTException;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.Graphics2D;
-import java.awt.GraphicsEnvironment;
-import java.awt.Image;
-import java.awt.MenuItem;
-import java.awt.PopupMenu;
-import java.awt.RenderingHints;
-import java.awt.SystemTray;
-import java.awt.TrayIcon;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 
 /**

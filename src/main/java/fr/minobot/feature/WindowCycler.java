@@ -1,8 +1,8 @@
 package fr.minobot.feature;
 
 import fr.minobot.core.FocusManager;
-import fr.minobot.core.domain.GameWindow;
 import fr.minobot.core.WindowManager;
+import fr.minobot.core.domain.GameWindow;
 import fr.minobot.win32.WindowApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

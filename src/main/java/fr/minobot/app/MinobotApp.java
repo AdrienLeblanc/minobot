@@ -1,23 +1,14 @@
 package fr.minobot.app;
 
-import fr.minobot.core.FocusManager;
+import fr.minobot.core.*;
 import fr.minobot.core.input.InputSimulator;
-import fr.minobot.core.KeyboardMonitor;
-import fr.minobot.core.NotificationManager;
-import fr.minobot.core.SystemTrayManager;
-import fr.minobot.core.WindowManager;
-import fr.minobot.feature.GroupManager;
-import fr.minobot.feature.MultiWindowClicker;
-import fr.minobot.feature.NotificationListener;
-import fr.minobot.feature.WindowCycler;
-import fr.minobot.feature.WindowReorder;
+import fr.minobot.feature.*;
 import fr.minobot.win32.Point;
 import fr.minobot.win32.User32;
 import fr.minobot.win32.WindowApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -76,7 +67,7 @@ public final class MinobotApp {
         this.windowManager = new WindowManager(api, config);
         this.inputSimulator = new InputSimulator();
         this.keyboardMonitor = new KeyboardMonitor(api);
-        this.focusManager = new FocusManager(api, inputSimulator, windowManager, keyboardMonitor);
+        this.focusManager = new FocusManager(api, inputSimulator, windowManager);
         this.notificationManager = new NotificationManager();
 
         this.multiClicker = new MultiWindowClicker(api, windowManager, focusManager, config);
