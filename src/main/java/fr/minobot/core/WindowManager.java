@@ -55,7 +55,7 @@ public final class WindowManager {
                 continue;
             }
             final var title = api.windowText(hwnd);
-            if (isGameTitle(title)) {
+            if (isGameWindowTitle(title)) {
                 found.add(new GameWindow(hwnd, title));
             }
         }
@@ -72,6 +72,25 @@ public final class WindowManager {
     /** Whether a title is the game's — a window's, or a toast's, which carry the same keywords. */
     public static boolean isGameTitle(String title) {
         return GAME_KEYWORDS.stream().anyMatch(title::contains);
+    }
+
+    /**
+     * Whether a title is a game <em>window</em>'s, as opposed to a page that merely mentions the game.
+     *
+     * <p>The game writes {@code "<character> - Dofus Retro v1.48.18"}: the keyword opens the suffix, right
+     * after the name. A browser tab on the Dofus wiki — or on this very repository's page — carries the
+     * keyword too, buried in a sentence, and Windows lists it beside the real windows. Only the shape
+     * tells them apart, so the keyword must <em>begin</em> what the game appended, not merely appear
+     * somewhere in the title. Left as {@link #isGameTitle}, the overlay opens over the browser and the
+     * multi-click reaches into it.
+     *
+     * <p>This is stricter than {@link #isGameTitle}, which stays as it is for toasts: a toast is a
+     * notification, never a window that could hold the foreground, and its title drops the version
+     * ({@code "<character> - Dofus Retro"}), so there is no window shape to demand of it.
+     */
+    public static boolean isGameWindowTitle(String title) {
+        final var suffix = GameWindow.suffixIn(title);
+        return GAME_KEYWORDS.stream().anyMatch(suffix::startsWith);
     }
 
     /** Refreshes only if the list has gone stale. */

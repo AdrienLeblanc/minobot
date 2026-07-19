@@ -33,4 +33,21 @@ public record GameWindow(long hwnd, String title) {
         }
         return title.strip();
     }
+
+    /**
+     * What the game appends after the character name — {@code "Dofus Retro v1.48.18"} in a window's
+     * title. Empty when the title carries no separator at all.
+     *
+     * <p>Cut at the <em>same</em> first separator as {@link #nameIn}, so the name and the suffix are the
+     * two halves of one title with nothing lost between them.
+     */
+    public static String suffixIn(String title) {
+        for (final var separator : SEPARATORS) {
+            final var index = title.indexOf(separator);
+            if (index >= 0) {
+                return title.substring(index + separator.length()).strip();
+            }
+        }
+        return "";
+    }
 }

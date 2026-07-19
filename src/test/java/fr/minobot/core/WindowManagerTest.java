@@ -44,6 +44,25 @@ class WindowManagerTest {
         }
 
         @Test
+        @DisplayName("ignores a browser tab that merely mentions the game in its title")
+        void ignoresAPageThatMentionsTheGame() {
+            // A browser window open on a page about the game: "Dofus Retro" is in the page's text, buried
+            // mid-sentence rather than opening the title the way the game writes it. Windows lists it
+            // beside the real windows; only the shape tells them apart. Left in, the overlay opens over the
+            // browser and the multi-click reaches into it.
+            final var api = new FakeWindowApi()
+                    .withWindow(1, "Alpha - Dofus Retro v1.48.18")
+                    .withWindow(2, "How to play Dofus Retro on several accounts — Mozilla Firefox");
+
+            final var manager = new WindowManager(api, settings(Map.of()));
+            manager.refresh();
+
+            assertThat(titlesOf(manager.windows()))
+                    .as("the character's window is kept; the browser tab about the game is not")
+                    .containsExactly("Alpha - Dofus Retro v1.48.18");
+        }
+
+        @Test
         void findsACharacterByItsExactName() {
             final var api = new FakeWindowApi()
                     .withWindow(1, "Bravo - Dofus Retro")
