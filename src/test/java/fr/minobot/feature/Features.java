@@ -70,7 +70,16 @@ final class Features {
         return new NotificationListener(windows, focus, notifications);
     }
 
+    /** The auto-focus wired to stand aside for the toasts the trade-accepter answers in place. */
+    NotificationListener notificationListener(ExchangeAccepter accepter) {
+        return new NotificationListener(windows, focus, notifications, accepter::claims);
+    }
+
     TurnPasser turnPasser() {
         return new TurnPasser(windows, input, focus, notifications, settings);
+    }
+
+    ExchangeAccepter exchangeAccepter() {
+        return new ExchangeAccepter(api, windows, input, focus, notifications, settings);
     }
 }

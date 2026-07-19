@@ -297,6 +297,22 @@ class OverlayControllerTest {
         }
 
         @Test
+        @DisplayName("the auto-accept switch lands in the live configuration, and the panel shows it")
+        void togglesAutoAcceptTrade() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+            assertThat(view.content().orElseThrow().autoAcceptTrade()).as("on by default").isTrue();
+
+            controller.toggleAutoAcceptTrade(false);
+
+            assertThat(settings.get().autoAcceptTrade()).isFalse();
+            assertThat(view.content().orElseThrow().autoAcceptTrade())
+                    .as("the view is told at once")
+                    .isFalse();
+        }
+
+        @Test
         @DisplayName("nothing is drawn while the panel is down")
         void doesNotRedrawAHiddenPanel() {
             controller().reorder(List.of("Bravo"));

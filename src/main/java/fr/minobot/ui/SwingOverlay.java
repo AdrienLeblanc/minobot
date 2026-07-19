@@ -20,6 +20,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * The panel, in Swing. The only class in Minobot that knows Swing exists.
@@ -212,7 +213,7 @@ public final class SwingOverlay implements OverlayView {
     private void lay(OverlayContent content, double scale, Rect bounds) {
         this.scale = scale;
 
-        card = characterCard(content.autoPassTurn());
+        card = characterCard(content);
         keybinds = keybindsCard();
         keybinds.setVisible(keybindsOpen);
         window.setContentPane(new Sheet());
@@ -406,8 +407,8 @@ public final class SwingOverlay implements OverlayView {
 
     // ------------------------------------------------------------------ the card
 
-    /** The panel proper: the application, the characters, the turn-passer's switch, and the size. */
-    private JPanel characterCard(boolean autoPass) {
+    /** The panel proper: the application, the characters, the combat switches, and the size. */
+    private JPanel characterCard(OverlayContent content) {
         characterList = characterList();
 
         final var card = roundedColumn(BACKGROUND);
@@ -419,21 +420,28 @@ public final class SwingOverlay implements OverlayView {
         card.add(characterList);
         card.add(Box.createVerticalStrut(px(GAP)));
         card.add(hint("drag to reorder"));
+
         card.add(Box.createVerticalStrut(px(PADDING)));
-        card.add(sectionHeading("Auto-pass turns", autoPassControl(autoPass)));
+        final var autoPass = content.autoPassTurn();
+        card.add(sectionHeading("Auto-pass turns", switchControl(autoPass, actions::toggleAutoPassTurn)));
         card.add(hint(autoPass ? "on — every character ends its own turn" : "off — turns are yours to play"));
+
+        card.add(Box.createVerticalStrut(px(GAP)));
+        final var autoAccept = content.autoAcceptTrade();
+        card.add(sectionHeading("Auto-accept trades", switchControl(autoAccept, actions::toggleAutoAcceptTrade)));
+        card.add(hint(autoAccept ? "on — my characters' trades accept themselves" : "off"));
+
         card.add(Box.createVerticalStrut(px(PADDING)));
         card.add(scaleSlider());
         return card;
     }
 
     /**
-     * The turn-passer's switch, and the word for which way it is set — the panel's most explicit
-     * control, because it is the one that plays the game for the player. The word and the colour say
-     * the same thing twice on purpose: a switch that quietly ends every turn is a switch that has to be
-     * unmistakable.
+     * A switch, and the word for which way it is set — the panel's most explicit control, because these
+     * are the features that act on the game for the player. The word and the colour say the same thing
+     * twice on purpose: a switch that quietly plays or accepts on its own has to be unmistakable.
      */
-    private JComponent autoPassControl(boolean on) {
+    private JComponent switchControl(boolean on, Consumer<Boolean> onToggle) {
         final var state = new JLabel(on ? "ON" : "OFF");
         state.setForeground(on ? ACCENT : MUTED);
         state.setFont(tracked(font(HEADING_SIZE, Font.BOLD), 0.14));
@@ -441,12 +449,12 @@ public final class SwingOverlay implements OverlayView {
         final var control = new JPanel(new FlowLayout(FlowLayout.RIGHT, px(GAP), 0));
         control.setOpaque(false);
         control.add(state);
-        control.add(switchPill(on));
+        control.add(switchPill(on, onToggle));
         return control;
     }
 
     /** The pill the knob rests in: filled and knob-right when on, hollow and knob-left when off. */
-    private JButton switchPill(boolean on) {
+    private JButton switchPill(boolean on, Consumer<Boolean> onToggle) {
         final var pill = new JButton() {
             @Override
             protected void paintComponent(Graphics graphics) {
@@ -471,7 +479,7 @@ public final class SwingOverlay implements OverlayView {
         pill.setContentAreaFilled(false);
         pill.setBorderPainted(false);
         pill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        pill.addActionListener(_ -> actions.toggleAutoPassTurn(!on));
+        pill.addActionListener(_ -> onToggle.accept(!on));
         return pill;
     }
 

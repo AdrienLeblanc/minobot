@@ -183,6 +183,13 @@ public final class OverlayController implements OverlayActions {
     }
 
     @Override
+    public void toggleAutoAcceptTrade(boolean on) {
+        log.info("Auto-accept trades switched {}.", on ? "on" : "off");
+        settings.update(config -> config.withAutoAcceptTrade(on));
+        redraw();
+    }
+
+    @Override
     public Optional<String> captureHotkey() {
         return keyboard.captureNext(CAPTURE_TIMEOUT);
     }
@@ -213,7 +220,8 @@ public final class OverlayController implements OverlayActions {
                 .map(GameWindow::name)
                 .toList();
 
-        return new OverlayContent(characters, hotkeys, config.overlayScale(), config.autoPassTurn());
+        return new OverlayContent(characters, hotkeys, config.overlayScale(), config.autoPassTurn(),
+                config.autoAcceptTrade());
     }
 
     /** Shows the change the player just made, without moving the panel off its character. */

@@ -63,6 +63,21 @@ que vous avez configuré.
 Quand un de vos personnages en arrière-plan se fait attaquer, recevoir un message ou inviter, le jeu
 affiche une notification Windows. Minobot la voit et **bascule automatiquement sur ce personnage**.
 
+### Accepter les échanges entre vos comptes — interrupteur dans l'overlay
+
+Ouvrez l'overlay (`Shift+Espace`) et activez **Auto-accept trades**. À partir de là, quand un de vos
+personnages en propose un échange à un autre, **le receveur accepte tout seul** : un bref passage sur sa
+fenêtre, l'échange est accepté (touche **Entrée**), et vous revenez aussitôt sur la fenêtre où vous
+étiez. Fini les allers-retours pour faire transiter des ressources entre vos persos.
+
+Minobot reconnaît que la demande vient d'**un de vos comptes** grâce au nom écrit dans la notification
+(comparé **au nom exact** de vos personnages : un joueur nommé `SuperAlpha` n'est pas votre `Alpha`).
+Si c'est un **autre joueur** qui vous propose un échange, rien n'est accepté à votre place : Minobot se
+contente de **basculer sur la fenêtre concernée**, comme d'habitude, et vous décidez.
+
+**Cette fonction est activée par défaut.** Vous pouvez la couper depuis l'overlay le temps de la session ;
+pour la désactiver durablement, mettez `"auto_accept_trade": false` dans votre `config.json`.
+
 ### Passer les tours automatiquement — interrupteur dans l'overlay
 
 En combat, le jeu affiche une notification quand c'est au tour d'un personnage de jouer. Ouvrez
@@ -139,7 +154,8 @@ Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de c
   "overlay_hotkey": "shift+space",
   "overlay_scale": 1.5,
 
-  "auto_pass_turn": false
+  "auto_pass_turn": false,
+  "auto_accept_trade": true
 }
 ```
 
@@ -149,6 +165,7 @@ Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de c
 | `multiclick_exclude` | Les personnages à **laisser en dehors** du clic multiple. Exemple : `["Mule", "Marchand"]` — votre mule en mode marchand ne bougera pas. |
 | `overlay_scale` | La taille du panneau (l'overlay, ouvert par `shift+space`), de `1.0` à `2.0`. Sur un grand écran, `1.5` (la valeur d'origine) se lit bien ; montez-la si le texte vous paraît petit. Le curseur en bas du panneau fait la même chose, le temps de la session. |
 | `auto_pass_turn` | Passer automatiquement les tours de combat (`true`/`false`). Se règle surtout depuis l'interrupteur **Auto-pass turns** de l'overlay ; le mettre à `true` ici le démarre déjà activé. |
+| `auto_accept_trade` | Accepter automatiquement les échanges entre vos comptes (`true`/`false`). **Activé par défaut.** Se règle depuis l'interrupteur **Auto-accept trades** de l'overlay le temps de la session ; mettez `false` ici pour le désactiver durablement. |
 | `..._hotkey` | Les touches de chaque fonction. Voir la liste ci-dessous. |
 | `log_level` | Mettez `"DEBUG"` à la place de `"INFO"` si vous devez signaler un problème : Minobot écrira beaucoup plus de détails dans son journal. |
 

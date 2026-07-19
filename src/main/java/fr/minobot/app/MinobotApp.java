@@ -72,8 +72,14 @@ public final class MinobotApp {
         this.groupManager = new GroupManager(windowManager, inputSimulator, focusManager, notificationManager);
         this.overlay = new OverlayController(api, windowManager, settings, keyboardMonitor, SwingOverlay::new);
 
-        // Registers itself with the notification manager; it has no hotkey of its own.
-        new NotificationListener(windowManager, focusManager, notificationManager);
+        // Answers a trade between two of the player's own characters in place. Built before the
+        // auto-focus so the auto-focus can consult it and stand aside for the toasts it takes.
+        final var exchangeAccepter = new ExchangeAccepter(
+                api, windowManager, inputSimulator, focusManager, notificationManager, settings);
+
+        // Registers itself with the notification manager; it has no hotkey of its own. It stands aside
+        // for a toast the trade-accepter answers silently, and takes the player everywhere else.
+        new NotificationListener(windowManager, focusManager, notificationManager, exchangeAccepter::claims);
 
         // Also hotkey-less: the overlay's Auto-pass switch turns it on and off, and it reads that
         // switch at every toast rather than being rebound.

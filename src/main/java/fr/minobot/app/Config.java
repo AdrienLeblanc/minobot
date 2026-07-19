@@ -36,7 +36,14 @@ public record Config(
          * key — so it earns the one explicit flag in this record. The overlay flips it, and a restart
          * forgets it like every other overlay change.
          */
-        @JsonProperty("auto_pass_turn") boolean autoPassTurn
+        @JsonProperty("auto_pass_turn") boolean autoPassTurn,
+
+        /**
+         * Whether an exchange one of the player's own characters asks of another is accepted for them.
+         * The same kind of switch as {@link #autoPassTurn}: no hotkey, flipped on the overlay, forgotten
+         * on restart.
+         */
+        @JsonProperty("auto_accept_trade") boolean autoAcceptTrade
 ) {
 
     /**
@@ -66,7 +73,10 @@ public record Config(
                 1.5,
                 // Off by default: it plays the characters for the player, which is a thing they switch
                 // on deliberately, never a thing they should find already running.
-                false
+                false,
+                // On by default: passing items between one's own accounts is the bread and butter of
+                // multi-boxing, and it only ever fires on a trade the player's own character asked for.
+                true
         );
     }
 
@@ -94,7 +104,8 @@ public record Config(
                 hotkeyOf(Feature.WINDOW_REORDER, feature, combination),
                 hotkeyOf(Feature.OVERLAY, feature, combination),
                 overlayScale,
-                autoPassTurn);
+                autoPassTurn,
+                autoAcceptTrade);
     }
 
     /** The new combination for the feature being rebound, the current one for every other. */
@@ -107,7 +118,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
                 order, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey, overlayHotkey,
-                overlayScale, autoPassTurn);
+                overlayScale, autoPassTurn, autoAcceptTrade);
     }
 
     /** The same configuration with a different set of characters left out of the multi-click. */
@@ -115,7 +126,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, excluded, resetWindowsHotkey, groupInviteHotkey,
                 windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, overlayScale, autoPassTurn);
+                overlayHotkey, overlayScale, autoPassTurn, autoAcceptTrade);
     }
 
     /** The same configuration with the panel drawn bigger or smaller — how its slider lands. */
@@ -123,7 +134,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
                 windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, scale, autoPassTurn);
+                overlayHotkey, scale, autoPassTurn, autoAcceptTrade);
     }
 
     /** The same configuration with the turn-passer switched on or off — how the overlay's toggle lands. */
@@ -131,7 +142,15 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
                 windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, overlayScale, enabled);
+                overlayHotkey, overlayScale, enabled, autoAcceptTrade);
+    }
+
+    /** The same configuration with the trade-accepter switched on or off — the overlay's other toggle. */
+    public Config withAutoAcceptTrade(boolean enabled) {
+        return new Config(
+                logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
+                windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
+                overlayHotkey, overlayScale, autoPassTurn, enabled);
     }
 
     private static List<String> copyOrEmpty(List<String> value) {

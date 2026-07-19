@@ -52,13 +52,14 @@ first thing read, and the constraint that justifies it is the comment above it.
 ### Config
 
 `Config` holds what a *player* changes: their `window_cycle_order`, their `multiclick_exclude`, their
-hotkeys, their `log_level`, their `overlay_scale`, their `auto_pass_turn`. Nothing else. A timing, a mouse button, a keyword of the game's window
+hotkeys, their `log_level`, their `overlay_scale`, their `auto_pass_turn`, their `auto_accept_trade`. Nothing else. A timing, a mouse button, a keyword of the game's window
 titles, a dry-run flag — those are dictated by Windows or by the game, not by the player, and belong
 in a constant next to the code that reads it. **Adding a field to `Config` is a claim that a player
 has a reason to change it**; a knob nobody turns is a knob that silently breaks a feature when someone
-does. An empty hotkey disables its feature; there is no `*_enabled` flag — save one: `auto_pass_turn`,
-the turn-passer's switch, because that feature has no hotkey to blank. It is the sole boolean here, and
-it earns its place by being a thing the player deliberately flips on the overlay.
+does. An empty hotkey disables its feature; there is no `*_enabled` flag — save two: `auto_pass_turn`
+and `auto_accept_trade`, the two overlay switches, because those features have no hotkey to blank. They
+are the only booleans here, and they earn their place by being things the player deliberately flips on
+the overlay.
 
 `Feature` enumerates the features that own a hotkey, and each one's slot in `Config` and cooldown. The
 hotkeys are therefore walked, not listed by hand: `MinobotApp` walks them to bind, and the overlay will
@@ -195,9 +196,10 @@ area. That is the price of covering the game rather than floating in a corner of
 whole client area, but the controls are one card centred on it, over a dimmed game. On the card: the
 application's tile at the top (it draws `logo.png` from the classpath, centred and scaled to fit; the
 `MINOBOT` wordmark stands in when no such file was shipped, so the space is never a blank), then the
-characters and their drag-to-reorder, then the **Auto-pass turns** switch, then the size slider. That
-switch is the panel's one *state* rather than a key — an explicit ON/OFF pill, said in a word and a
-colour both, because a control that quietly ends every combat turn has to be unmistakable. **The logo is a resource, not a loose file:**
+characters and their drag-to-reorder, then the **Auto-pass turns** and **Auto-accept trades** switches,
+then the size slider. Those switches are the panel's *states* rather than keys — explicit ON/OFF pills,
+said in a word and a colour both, because a control that quietly ends every combat turn or accepts a
+trade has to be unmistakable. **The logo is a resource, not a loose file:**
 it lives in `src/main/resources/` so it rides inside the jar — a PNG in `assets/` (where the README's
 screenshots live) is lost the moment `Minobot.exe` is unpacked elsewhere. The seven keybinds are a
 **drawer** that unfolds to the right of the card — a `Keybinds ›` button opens it — because they are
@@ -252,11 +254,40 @@ the group invitation is done **before** the fight — the two are not meant to s
 not. The switch lives on the overlay and only there, read live at every toast; like every overlay change
 it is **session-only** — a restart goes back to `config.json`.
 
+### Auto-accept trades — no hotkey, the overlay's switch
+
+Accepts a trade one of the player's own characters asks of another. When A opens an exchange with B,
+it is **B** that the game raises a toast for — `Alpha te propose de faire un échange` — and that toast
+**names the asker** (in the message, no quotes). That name is the whole discriminator: the trade is
+*internal* when the message carries the name of one of the player's own windows (the receiver's own name
+excepted, since it is one of ours too), and it accepts it for them; a stranger's is left exactly as it
+was.
+
+The accept presses the game's accept key (`ENTER`, a constant). Sending a keystroke needs the window to
+hold the keyboard, so — for now — the accept is a **blink**: `takeOver()`, focus B, press, then focus
+straight back to where the player was (read before the blink). `accept()` is the one method to change if
+a truly background posted keystroke is ever shown to work against the game.
+
+**This is where it "thinks differently" from the auto-focus.** The notification auto-focus answers
+*every* game toast, so on its own it would jump to B and undo the point of accepting in place. So
+`NotificationListener` now takes a predicate — *is this toast answered silently elsewhere?* — and stands
+aside when it is. `ExchangeAccepter.claims()` is that predicate, a **pure function** of the toast, the
+switch and the windows, so both features decide the same without a handshake and without a race. A
+**stranger's** trade is not claimed: the auto-focus takes the player to the receiving window and does
+nothing else, which is exactly what a real trade offer deserves. The asker's name is matched as a
+**whole word** (`SuperAlpha` is not our `Alpha`). **On by default** — passing items between one's own
+accounts is the daily bread of multi-boxing, and it only ever fires on a trade a player's own character
+asked for — and session-only like the rest.
+
 ### Notification auto-focus — no hotkey
 
 The game raises a toast when a background character is attacked, messaged or invited; that toast pulls
 the focus to them. It is a *smart* focus: if the player is typing at that moment, their keystrokes are
 not stolen.
+
+It **stands aside**, though, for a toast another feature answers in place — see *Auto-accept trades*: a
+`Predicate<Notification>` it is built with tells it which toasts to leave alone, so it never jumps to a
+character whose exchange is being accepted silently.
 
 ## Conventions
 

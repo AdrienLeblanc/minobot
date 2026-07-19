@@ -32,10 +32,16 @@ public interface OverlayActions {
     void rescale(double scale);
 
     /**
-     * Switches the automatic turn-passer on or off — the panel's one toggle, for the one feature with
-     * a state rather than a key. Session-only, like every edit made through the panel.
+     * Switches the automatic turn-passer on or off — a feature with a state rather than a key.
+     * Session-only, like every edit made through the panel.
      */
     void toggleAutoPassTurn(boolean on);
+
+    /**
+     * Switches the automatic trade-accepter on or off — the panel's other stateful toggle.
+     * Session-only, like every edit made through the panel.
+     */
+    void toggleAutoAcceptTrade(boolean on);
 
     /**
      * Waits for the player to press the key they want, and reads it back — {@code "shift+F7"}.
