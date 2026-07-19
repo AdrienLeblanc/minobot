@@ -186,6 +186,21 @@ class OverlayControllerTest {
         }
 
         @Test
+        @DisplayName("a window with no character loaded yet is listed under a clean label, not its bare title")
+        void labelsANotYetLoggedInWindow() {
+            api.withForeground(1)
+                    .withWindow(10, "Dofus Retro v1.48.18") // a login screen: the game's own title, no name
+                    .runningAs(10, "C:\\Users\\me\\AppData\\Local\\Ankama\\Retro\\Dofus Retro.exe");
+
+            controller().toggle();
+
+            assertThat(view.content().orElseThrow().characters())
+                    .as("the login window is shown, but under a label rather than the raw game title")
+                    .contains("(connecting…)")
+                    .doesNotContain("Dofus Retro v1.48.18");
+        }
+
+        @Test
         @DisplayName("every feature's key, and a blank one for those the player has turned off")
         void listsTheHotkeys() {
             api.withForeground(1);
@@ -237,6 +252,20 @@ class OverlayControllerTest {
             assertThat(view.content().orElseThrow().characters())
                     .as("the panel shows the new character without waiting for the 30s sweep")
                     .containsExactly("Alpha", "Bravo", "Charlie", "Delta");
+        }
+
+        @Test
+        @DisplayName("the login label never lands in the saved order: it has no character to cycle by")
+        void keepsTheLoginLabelOutOfTheOrder() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+
+            controller.reorder(List.of("Charlie", "(connecting…)", "Alpha", "Bravo"));
+
+            assertThat(settings.get().windowCycleOrder())
+                    .as("the placeholder is dropped; the real characters keep the order the player set")
+                    .containsExactly("Charlie", "Alpha", "Bravo");
         }
 
         @Test

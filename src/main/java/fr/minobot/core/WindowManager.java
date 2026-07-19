@@ -24,6 +24,12 @@ public final class WindowManager {
     /** What a game window's title carries: {@code "Bravo - Dofus Retro v1.48.18"}. */
     private static final List<String> GAME_KEYWORDS = List.of("Dofus");
 
+    /**
+     * The executable every game window runs, whatever its title says — the discriminant a title cannot
+     * give. Matched on the leaf of the process's image path, case-insensitively.
+     */
+    private static final String GAME_EXECUTABLE = "Dofus Retro.exe";
+
     /** Windows are opened and closed by hand, so the list may lag by this much without harm. */
     private static final Duration REFRESH_INTERVAL = Duration.ofSeconds(30);
 
@@ -55,7 +61,7 @@ public final class WindowManager {
                 continue;
             }
             final var title = api.windowText(hwnd);
-            if (isGameWindowTitle(title)) {
+            if (isGameWindow(hwnd, title)) {
                 found.add(new GameWindow(hwnd, title));
             }
         }
@@ -75,16 +81,40 @@ public final class WindowManager {
     }
 
     /**
-     * Whether a title is a game <em>window</em>'s, as opposed to a page that merely mentions the game.
+     * Whether a window is the game's — the process is the truth, the title only a fallback.
+     *
+     * <p>Every game window runs {@code Dofus Retro.exe}, and only the game does: this is what a title
+     * cannot tell us. A window at the login screen carries no character name yet
+     * ({@code "Dofus Retro v1.48.18"}), and a browser tab or a wiki page merely <em>mentions</em> the
+     * game — the two are indistinguishable by title, but never by process. Left to the title alone, the
+     * overlay would not open on a not-yet-logged-in window, and might open over the browser.
+     *
+     * <p>The title check remains, second, for the case the process cannot be read at all (a refused
+     * open, a handle that died between enumeration and the query): a named window still gets in by the
+     * shape of its title. The common case — a named game window — matches the title first and never
+     * pays for the process query.
+     */
+    private boolean isGameWindow(long hwnd, String title) {
+        return isGameWindowTitle(title) || runsTheGame(hwnd);
+    }
+
+    /** Whether the window's process is {@code Dofus Retro.exe} — the leaf of its full image path. */
+    private boolean runsTheGame(long hwnd) {
+        final var path = api.executablePath(hwnd);
+        final var leaf = path.substring(path.lastIndexOf('\\') + 1);
+        return leaf.equalsIgnoreCase(GAME_EXECUTABLE);
+    }
+
+    /**
+     * Whether a title has a game <em>window</em>'s shape — the fallback discriminant when the process is
+     * unreadable, and stricter than {@link #isGameTitle}.
      *
      * <p>The game writes {@code "<character> - Dofus Retro v1.48.18"}: the keyword opens the suffix, right
-     * after the name. A browser tab on the Dofus wiki — or on this very repository's page — carries the
-     * keyword too, buried in a sentence, and Windows lists it beside the real windows. Only the shape
-     * tells them apart, so the keyword must <em>begin</em> what the game appended, not merely appear
-     * somewhere in the title. Left as {@link #isGameTitle}, the overlay opens over the browser and the
-     * multi-click reaches into it.
+     * after the name. The keyword must <em>begin</em> what the game appended, not merely appear somewhere
+     * in the title — a browser tab that mentions the game buries it mid-sentence. This does not catch a
+     * login screen with no name, which is why {@link #isGameWindow} leans on the process first.
      *
-     * <p>This is stricter than {@link #isGameTitle}, which stays as it is for toasts: a toast is a
+     * <p>Kept separate from {@link #isGameTitle}, which stays as it is for toasts: a toast is a
      * notification, never a window that could hold the foreground, and its title drops the version
      * ({@code "<character> - Dofus Retro"}), so there is no window shape to demand of it.
      */

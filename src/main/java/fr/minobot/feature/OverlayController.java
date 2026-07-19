@@ -51,6 +51,15 @@ public final class OverlayController implements OverlayActions {
     private static final Duration CAPTURE_TIMEOUT = Duration.ofSeconds(5);
 
     /**
+     * What the panel shows for a game window with no character loaded yet — a login or selection screen.
+     *
+     * <p>The window is the game's, so the panel opens on it and lists it; but it has no character name
+     * to show, and none to be cycled by. So it is drawn under this label and left out of the saved
+     * order — see {@link #reorder}.
+     */
+    private static final String LOGGING_IN = "(connecting…)";
+
+    /**
      * How often the panel checks that it is still on top of its character.
      *
      * <p>Fast enough that a dragged window does not visibly outrun it, and one native call is all it
@@ -151,8 +160,11 @@ public final class OverlayController implements OverlayActions {
 
     @Override
     public void reorder(List<String> characters) {
-        log.info("New character order: {}", characters);
-        settings.update(config -> config.withWindowCycleOrder(characters));
+        // A not-yet-logged-in window rides in the list under its label, but has no name to be cycled by:
+        // it must not land in the order, where it would be a dead entry until the character loads.
+        final var named = characters.stream().filter(name -> !name.equals(LOGGING_IN)).toList();
+        log.info("New character order: {}", named);
+        settings.update(config -> config.withWindowCycleOrder(named));
         redraw();
     }
 
@@ -224,11 +236,16 @@ public final class OverlayController implements OverlayActions {
         }
 
         final var characters = windows.orderedWindows().stream()
-                .map(GameWindow::name)
+                .map(this::label)
                 .toList();
 
         return new OverlayContent(characters, hotkeys, config.overlayScale(), config.autoPassTurn(),
                 config.autoAcceptTrade());
+    }
+
+    /** The character's name, or the login label for a window with none loaded yet. */
+    private String label(GameWindow window) {
+        return window.hasCharacterName() ? window.name() : LOGGING_IN;
     }
 
     /** Shows the change the player just made, without moving the panel off its character. */

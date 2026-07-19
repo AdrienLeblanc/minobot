@@ -26,6 +26,9 @@ public final class User32 implements WindowApi {
     private static final Linker LINKER = Linker.nativeLinker();
     private static final SymbolLookup LOOKUP = SymbolLookup.libraryLookup("user32.dll", Arena.global());
 
+    /** Opening a process and reading its image path live here, not in {@code user32.dll}. */
+    private static final SymbolLookup KERNEL32 = SymbolLookup.libraryLookup("kernel32.dll", Arena.global());
+
     /** {@code POINT { LONG x; LONG y; }} — 8 bytes, so the Win64 ABI passes it by value in a register. */
     private static final MemoryLayout POINT = MemoryLayout.structLayout(
             ValueLayout.JAVA_INT.withName("x"),
@@ -100,6 +103,19 @@ public final class User32 implements WindowApi {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT));
     private static final MethodHandle FlashWindowEx = downcall("FlashWindowEx",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS));
+    private static final MethodHandle GetWindowThreadProcessId = downcall("GetWindowThreadProcessId",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS));
+
+    /** {@code HANDLE OpenProcess(DWORD access, BOOL inherit, DWORD pid)} — the HANDLE is a 64-bit value. */
+    private static final MethodHandle OpenProcess = kernel32("OpenProcess",
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT, ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_INT));
+    /** {@code BOOL QueryFullProcessImageNameW(HANDLE, DWORD flags, LPWSTR buf, PDWORD size)} */
+    private static final MethodHandle QueryFullProcessImageNameW = kernel32("QueryFullProcessImageNameW",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG, ValueLayout.JAVA_INT,
+                    ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    private static final MethodHandle CloseHandle = kernel32("CloseHandle",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.JAVA_LONG));
 
     /**
      * {@code BOOL SystemParametersInfoW(UINT uiAction, UINT uiParam, PVOID pvParam, UINT fWinIni)}.
@@ -127,6 +143,12 @@ public final class User32 implements WindowApi {
     private static MethodHandle downcall(String name, FunctionDescriptor descriptor) {
         final var symbol = LOOKUP.find(name)
                 .orElseThrow(() -> new IllegalStateException("user32.dll exports no " + name));
+        return LINKER.downcallHandle(symbol, descriptor);
+    }
+
+    private static MethodHandle kernel32(String name, FunctionDescriptor descriptor) {
+        final var symbol = KERNEL32.find(name)
+                .orElseThrow(() -> new IllegalStateException("kernel32.dll exports no " + name));
         return LINKER.downcallHandle(symbol, descriptor);
     }
 
@@ -176,6 +198,67 @@ public final class User32 implements WindowApi {
             return new String(utf16, StandardCharsets.UTF_16LE);
         } catch (Throwable t) {
             throw failure("GetWindowTextW", t);
+        }
+    }
+
+    /**
+     * The image path of the process the window belongs to, empty when it cannot be read.
+     *
+     * <p>Three calls in a row: the window names its process ({@code GetWindowThreadProcessId}), the
+     * process is opened for the least right that reads its path ({@code OpenProcess}), and the path is
+     * read ({@code QueryFullProcessImageNameW}). The handle {@code OpenProcess} hands back is a resource,
+     * so it is closed on every path out — hence the {@code finally}.
+     *
+     * <p>A refused open or a dead process is empty, not an error: the caller reads a path it does not
+     * have, and a window whose process cannot be identified is simply not taken for the game.
+     */
+    @Override
+    public String executablePath(long hwnd) {
+        try (final var arena = Arena.ofConfined()) {
+            final var pidBuffer = arena.allocate(ValueLayout.JAVA_INT);
+            final var ignoredThreadId = (int) GetWindowThreadProcessId.invokeExact(hwnd, pidBuffer);
+            final var pid = pidBuffer.get(ValueLayout.JAVA_INT, 0);
+            if (pid == 0) {
+                return "";
+            }
+
+            final var process = (long) OpenProcess.invokeExact(
+                    Win32.PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if (process == Win32.NULL_HANDLE) {
+                return "";
+            }
+            try {
+                return imagePath(arena, process);
+            } finally {
+                closeHandle(process);
+            }
+        } catch (Throwable t) {
+            throw failure("executablePath", t);
+        }
+    }
+
+    /** Reads the opened process's full image path — {@code flags == 0} for the Win32 path format. */
+    private static String imagePath(Arena arena, long process) throws Throwable {
+        final var capacity = 512;
+        final var buffer = arena.allocate(capacity * 2L); // WCHAR
+        final var size = arena.allocate(ValueLayout.JAVA_INT);
+        size.set(ValueLayout.JAVA_INT, 0, capacity);
+
+        final var ok = (int) QueryFullProcessImageNameW.invokeExact(process, 0, buffer, size);
+        if (ok == 0) {
+            return "";
+        }
+        // The call writes back how many characters it wrote, terminator not counted.
+        final var written = size.get(ValueLayout.JAVA_INT, 0);
+        final var utf16 = buffer.asSlice(0, written * 2L).toArray(ValueLayout.JAVA_BYTE);
+        return new String(utf16, StandardCharsets.UTF_16LE);
+    }
+
+    private static void closeHandle(long handle) {
+        try {
+            final var ignored = (int) CloseHandle.invokeExact(handle);
+        } catch (Throwable t) {
+            throw failure("CloseHandle", t);
         }
     }
 

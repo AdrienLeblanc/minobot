@@ -63,6 +63,26 @@ class User32Test {
         assertThat(api.isWindow(Win32.NULL_HANDLE)).isFalse();
         assertThat(api.isWindowVisible(Win32.NULL_HANDLE)).isFalse();
         assertThat(api.windowText(Win32.NULL_HANDLE)).isEmpty();
+        assertThat(api.executablePath(Win32.NULL_HANDLE))
+                .as("no process behind no window: empty, not a crash on OpenProcess(0)")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("a window resolves to its process's executable — three native calls that must line up")
+    void readsTheExecutableBehindAWindow() {
+        final var hwnd = anyVisibleWindow();
+        assumeTrue(hwnd != Win32.NULL_HANDLE, "no visible titled window on this desktop");
+
+        final var path = api.executablePath(hwnd);
+
+        // A mis-declared OpenProcess or QueryFullProcessImageNameW would corrupt the call rather than
+        // merely come back blank: a live window belongs to a real process with a real .exe on disk.
+        assertThat(path)
+                .as("GetWindowThreadProcessId → OpenProcess → QueryFullProcessImageNameW, all lined up")
+                .isNotBlank()
+                .contains("\\");
+        assertThat(path.toLowerCase(java.util.Locale.ROOT)).endsWith(".exe");
     }
 
     @Test

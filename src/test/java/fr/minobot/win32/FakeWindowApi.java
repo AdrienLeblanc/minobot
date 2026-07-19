@@ -19,6 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class FakeWindowApi implements WindowApi {
 
     private final Map<Long, String> titles = new LinkedHashMap<>();
+    private final Map<Long, String> executables = new LinkedHashMap<>();
     private final Set<Long> minimized = ConcurrentHashMap.newKeySet();
     private final Set<Long> hidden = ConcurrentHashMap.newKeySet();
     private final Map<Long, Long> monitors = new LinkedHashMap<>();
@@ -39,6 +40,16 @@ public final class FakeWindowApi implements WindowApi {
     public FakeWindowApi withWindow(long hwnd, String title) {
         titles.put(hwnd, title);
         monitors.put(hwnd, 1L);
+        return this;
+    }
+
+    /**
+     * Puts a process behind a window — the whole path, {@code "C:\\...\\Dofus Retro.exe"}. A window
+     * with none reads back the empty string, as one whose process cannot be opened does on the real
+     * desktop.
+     */
+    public FakeWindowApi runningAs(long hwnd, String executablePath) {
+        executables.put(hwnd, executablePath);
         return this;
     }
 
@@ -96,6 +107,11 @@ public final class FakeWindowApi implements WindowApi {
     @Override
     public boolean isWindowVisible(long hwnd) {
         return titles.containsKey(hwnd) && !hidden.contains(hwnd);
+    }
+
+    @Override
+    public String executablePath(long hwnd) {
+        return executables.getOrDefault(hwnd, "");
     }
 
     @Override

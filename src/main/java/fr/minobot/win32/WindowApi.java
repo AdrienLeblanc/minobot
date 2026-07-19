@@ -24,6 +24,17 @@ public interface WindowApi {
 
     boolean isWindowVisible(long hwnd);
 
+    /**
+     * The full path of the executable behind the window's process, or the empty string when it cannot
+     * be read — a stale handle, or a process the caller may not open.
+     *
+     * <p>This is what tells a game window from anything else, the character's name aside. A title can
+     * lie both ways: a login screen carries no character name yet ({@code "Dofus Retro v1.48.18"}), and
+     * a browser tab or a wiki page merely mentions the game. The process behind the window does neither
+     * — every game window, named or not, runs {@code Dofus Retro.exe}, and nothing else does.
+     */
+    String executablePath(long hwnd);
+
     /** Whether the window is minimized. */
     boolean isIconic(long hwnd);
 

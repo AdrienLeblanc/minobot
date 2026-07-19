@@ -41,6 +41,13 @@ public final class Win32 {
     /** MonitorFromWindow: return the monitor that the window overlaps the most. */
     public static final int MONITOR_DEFAULTTONEAREST = 0x00000002;
 
+    /**
+     * OpenProcess: the least access that still reads a process's image path. Unlike the fuller
+     * {@code PROCESS_QUERY_INFORMATION}, Windows grants it across integrity levels — so Minobot reads
+     * the game's executable whether or not either runs elevated.
+     */
+    public static final int PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+
     /** The bit that {@code GetAsyncKeyState} sets when the key is currently held down. */
     public static final int KEY_DOWN_MASK = 0x8000;
 

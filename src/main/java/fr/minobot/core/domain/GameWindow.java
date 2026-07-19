@@ -19,6 +19,18 @@ public record GameWindow(long hwnd, String title) {
     }
 
     /**
+     * Whether a character is loaded in this window yet.
+     *
+     * <p>False on the login and character-selection screens: there the game titles the window with its
+     * own name alone ({@code "Dofus Retro v1.48.18"}), no {@code "<character> - "} in front. The window
+     * is the game's — the process says so — but there is no character for it to speak of yet, and
+     * {@link #name()} would answer with the bare game title.
+     */
+    public boolean hasCharacterName() {
+        return !suffixIn(title).isEmpty();
+    }
+
+    /**
      * The character name a title carries, cut at the first separator.
      *
      * <p>Static because a toast's title is written the same way as a window's, and a toast is not a

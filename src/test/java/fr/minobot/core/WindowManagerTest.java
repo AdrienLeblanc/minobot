@@ -63,6 +63,42 @@ class WindowManagerTest {
         }
 
         @Test
+        @DisplayName("a not-yet-logged-in window is kept: its process is the game, though its title has no name")
+        void keepsAWindowWithNoCharacterYetByItsProcess() {
+            // The login screen, before a character is picked: the title is the bare game name, with no
+            // "<name> - " in front of it — so its title has no window shape at all. Only the process says
+            // it is the game.
+            final var api = new FakeWindowApi()
+                    .withWindow(1, "Dofus Retro v1.48.18")
+                    .runningAs(1, "C:\\Users\\me\\AppData\\Local\\Ankama\\Retro\\Dofus Retro.exe");
+
+            final var manager = new WindowManager(api, settings(Map.of()));
+            manager.refresh();
+
+            assertThat(titlesOf(manager.windows()))
+                    .as("the overlay must be able to open on a window whose character is not logged in yet")
+                    .containsExactly("Dofus Retro v1.48.18");
+        }
+
+        @Test
+        @DisplayName("the game's process is kept by its exe alone; a page that only mentions the game is not")
+        void keepsTheGameByItsProcess() {
+            final var api = new FakeWindowApi()
+                    // A page that mentions the game without running it: neither game-shaped title nor exe.
+                    .withWindow(1, "Dofus Retro — how to multibox — Mozilla Firefox")
+                    .runningAs(1, "C:\\Program Files\\Mozilla Firefox\\firefox.exe")
+                    // A game window kept on the strength of its process, whatever the leaf's casing.
+                    .withWindow(2, "Bravo - Dofus Retro v1.48.18")
+                    .runningAs(2, "C:\\Games\\DOFUS RETRO.EXE");
+
+            final var manager = new WindowManager(api, settings(Map.of()));
+            manager.refresh();
+
+            assertThat(titlesOf(manager.windows()))
+                    .containsExactly("Bravo - Dofus Retro v1.48.18");
+        }
+
+        @Test
         void findsACharacterByItsExactName() {
             final var api = new FakeWindowApi()
                     .withWindow(1, "Bravo - Dofus Retro")
