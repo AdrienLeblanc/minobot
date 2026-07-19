@@ -52,7 +52,7 @@ public record Config(
                 "x2",
                 "shift+x2",
                 "F9",
-                "F10",
+                "shift+space",
                 // Swing's natural sizes were laid out for a 96-DPI desktop, and the game is played on a
                 // screen twice that. Unscaled, the panel is legible and nobody wants to read it.
                 1.5

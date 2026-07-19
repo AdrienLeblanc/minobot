@@ -930,7 +930,7 @@ public final class SwingOverlay implements OverlayView {
      * The close cross in the card's corner — the mouse's way out, where the hotkey is the keyboard's.
      *
      * <p>It calls {@link #hide()}, the very thing the hotkey and a departing character already trigger:
-     * the controller's follow loop then takes the panel down the same way, and {@code F10} reopens it
+     * the controller's follow loop then takes the panel down the same way, and {@code shift+space} reopens it
      * cleanly. The cross is drawn from two strokes rather than a glyph, so it stays sharp at every scale.
      */
     private JButton closeButton() {

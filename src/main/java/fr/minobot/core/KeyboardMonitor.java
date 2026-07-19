@@ -416,6 +416,7 @@ public final class KeyboardMonitor {
         for (var i = 1; i <= 12; i++) {
             keys.put("F" + i, Win32.functionKey(i));
         }
+        keys.put("SPACE", Win32.VK_SPACE);
         keys.put("LEFT", Win32.VK_LBUTTON);
         keys.put("RIGHT", Win32.VK_RBUTTON);
         keys.put("MIDDLE", Win32.VK_MBUTTON);

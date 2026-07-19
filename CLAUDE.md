@@ -164,18 +164,18 @@ Rebuilds the taskbar order: Windows offers no way to reorder its buttons, so the
 game window and shows them again in the configured order. **The windows are hidden in the middle of
 this** — every failure path must end by showing them again, or the player loses them.
 
-### Overlay — `F10`
+### Overlay — `shift+space`
 
 A control panel drawn over the game: the characters Minobot has found, dragged into the order the
 cycler follows, and every feature's key, rebindable on the spot. `feature/OverlayController` decides;
 `ui/SwingOverlay` draws, and is the only class that knows Swing exists.
 
-It **belongs to a character**: it covers their game and pressing `F10` anywhere else — a browser, the
+It **belongs to a character**: it covers their game and pressing `shift+space` anywhere else — a browser, the
 desktop — does nothing at all. Outside the game there is no character for it to belong to, and a panel
 that appeared over a window nobody was looking at is a panel nobody asked for. Once up it *stays* up,
 whatever takes the foreground next — it is always-on-top, and always-on-top owes nothing to the focus.
-`F10` toggles it, and a **close cross** in the card's top-right corner does the same for the mouse — both
-land on `OverlayView.hide()`, the one path down, so the follow thread stops and `F10` reopens it clean. A
+`shift+space` toggles it, and a **close cross** in the card's top-right corner does the same for the mouse — both
+land on `OverlayView.hide()`, the one path down, so the follow thread stops and `shift+space` reopens it clean. A
 character who leaves also takes their panel with them: minimized or closed, and it goes.
 
 It covers the **client area**, which is the game and nothing else: `WindowApi.clientArea` is
@@ -187,7 +187,7 @@ message hook, and a hook means a message pump and a native callback for what one
 
 **While it is up, it takes the mouse over the whole game**: it is a window, and it covers the client
 area. That is the price of covering the game rather than floating in a corner of it, and it is why
-`F10` is a switch and not a mode you play in.
+`shift+space` is a switch and not a mode you play in.
 
 **The card sits in the middle of the game**, where the player is already looking — the window covers the
 whole client area, but the controls are one card centred on it, over a dimmed game. On the card: the
