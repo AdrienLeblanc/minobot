@@ -419,7 +419,7 @@ public final class SwingOverlay implements OverlayView {
         card.add(sectionHeading("Characters", keybindsButton()));
         card.add(characterList);
         card.add(Box.createVerticalStrut(px(GAP)));
-        card.add(hint("drag to reorder"));
+        card.add(charactersFooter());
 
         card.add(Box.createVerticalStrut(px(PADDING)));
         final var autoPass = content.autoPassTurn();
@@ -551,6 +551,31 @@ public final class SwingOverlay implements OverlayView {
 
     // ------------------------------------------------------------------ the characters
 
+    /** The line under the list: what a drag does on the left, and the button that re-reads the desktop. */
+    private JComponent charactersFooter() {
+        final var row = new JPanel(new BorderLayout(px(GAP), 0));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, px(HOTKEY_ROW_HEIGHT)));
+        row.add(hint("drag to reorder"), BorderLayout.WEST);
+        row.add(reloadButton(), BorderLayout.EAST);
+        return row;
+    }
+
+    /**
+     * Re-reads the desktop, for a character opened or closed since the panel went up.
+     *
+     * <p><strong>Off the event dispatch thread</strong>: the refresh enumerates every window and reads
+     * each title, and the panel must not freeze while it does — the same reason a capture leaves the EDT.
+     * The redraw it triggers hands itself back to the EDT on its own.
+     */
+    private JButton reloadButton() {
+        final var button = flatButton("Reload", MUTED);
+        button.addActionListener(_ ->
+                Thread.ofVirtual().name("overlay-reload").start(actions::reload));
+        return button;
+    }
+
     private JScrollPane characterList() {
         final var list = new JList<>(characters);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -587,6 +612,10 @@ public final class SwingOverlay implements OverlayView {
         public Component getListCellRendererComponent(JList<?> list, Object value, int index,
                                                       boolean selected, boolean focused) {
             super.getListCellRendererComponent(list, value, index, selected, focused);
+
+            // The number is the row's rank read off the panel — 1 at the top — and no more: it is a
+            // mirror of the order, not a name, so a drag that reorders the list renumbers it for free.
+            setText((index + 1) + " - " + value);
 
             highlighted = selected;
             setOpaque(false);

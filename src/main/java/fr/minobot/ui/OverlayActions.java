@@ -18,6 +18,13 @@ public interface OverlayActions {
     void reorder(List<String> characters);
 
     /**
+     * Re-enumerates the desktop and redraws the list — a character opened or closed since the panel
+     * went up shows or goes. The list refreshes itself every thirty seconds anyway; this is the player
+     * saying they will not wait for the next sweep.
+     */
+    void reload();
+
+    /**
      * Binds the feature to a combination. A blank one turns the feature off — that is the toggle, and
      * the reason there is no {@code *_enabled} flag anywhere.
      */

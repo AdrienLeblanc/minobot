@@ -223,6 +223,23 @@ class OverlayControllerTest {
         }
 
         @Test
+        @DisplayName("reload re-reads the desktop: a character opened since the panel went up is picked up")
+        void reloadsTheCharacterList() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+            assertThat(view.content().orElseThrow().characters())
+                    .containsExactly("Alpha", "Bravo", "Charlie");
+
+            api.withWindow(4, "Delta - Dofus Retro"); // a fourth account, opened after the panel went up
+            controller.reload();
+
+            assertThat(view.content().orElseThrow().characters())
+                    .as("the panel shows the new character without waiting for the 30s sweep")
+                    .containsExactly("Alpha", "Bravo", "Charlie", "Delta");
+        }
+
+        @Test
         @DisplayName("a rebind lands in the live configuration")
         void rebindsAFeature() {
             api.withForeground(1);

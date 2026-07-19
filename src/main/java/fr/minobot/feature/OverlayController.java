@@ -157,6 +157,13 @@ public final class OverlayController implements OverlayActions {
     }
 
     @Override
+    public void reload() {
+        log.info("Reloading the character list on the player's request.");
+        windows.refresh();
+        redraw();
+    }
+
+    @Override
     public void rebind(Feature feature, String combination) {
         if (combination.isBlank()) {
             log.info("Feature '{}' turned off.", feature.label());
