@@ -180,14 +180,14 @@
 
             <build>
                 <plugins>
-                    <!-- jpackage refuses to write into a directory that already exists. -->
+                    <!-- Stage is rebuilt every run so a dropped dependency leaves no stale jar behind. -->
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-clean-plugin</artifactId>
                         <version>3.4.0</version>
                         <executions>
                             <execution>
-                                <id>clean-dist</id>
+                                <id>clean-app</id>
                                 <phase>pre-integration-test</phase>
                                 <goals>
                                     <goal>clean</goal>
@@ -195,9 +195,6 @@
                                 <configuration>
                                     <excludeDefaultDirectories>true</excludeDefaultDirectories>
                                     <filesets>
-                                        <fileset>
-                                            <directory>${project.build.directory}/dist</directory>
-                                        </fileset>
                                         <fileset>
                                             <directory>${project.build.directory}/app</directory>
                                         </fileset>
@@ -247,6 +244,28 @@
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>exec-maven-plugin</artifactId>
                         <executions>
+                            <!--
+                              jpackage refuses to write into a directory that already exists, so the
+                              previous build's dist/ must go first — and it marks the launcher
+                              Minobot.exe read-only, which maven-clean-plugin cannot delete
+                              (Files.delete throws AccessDeniedException on a read-only file). Remove-Item
+                              -Force clears the attribute as it deletes, the way Explorer's delete does.
+                            -->
+                            <execution>
+                                <id>clean-dist</id>
+                                <phase>pre-integration-test</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>powershell</executable>
+                                    <arguments>
+                                        <argument>-NoProfile</argument>
+                                        <argument>-Command</argument>
+                                        <argument>if (Test-Path '${project.build.directory}\dist') { Remove-Item -Recurse -Force '${project.build.directory}\dist' }</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
                             <execution>
                                 <id>jpackage</id>
                                 <phase>verify</phase>
