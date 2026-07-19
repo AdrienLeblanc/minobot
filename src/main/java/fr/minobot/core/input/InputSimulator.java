@@ -11,6 +11,7 @@ import java.awt.datatransfer.StringSelection;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Simulates the user's keyboard and mouse — the counterpart of {@code input_simulator.py}.
@@ -27,13 +28,20 @@ public final class InputSimulator implements Input {
     /** Matches {@code pyautogui.PAUSE = 0.01}: games drop inputs delivered faster than they poll. */
     private static final int AUTO_DELAY_MILLIS = 10;
 
-    /** Time left for the target window to service its WM_PASTE before the clipboard is restored. */
-    private static final int PASTE_SETTLE_MILLIS = 60;
+    /**
+     * How long the clipboard is left holding the pasted text before it is restored. The game reads it
+     * when it services WM_PASTE, which on a machine running several clients lags well behind the
+     * keystroke; the restore must land after that read, never before it (see {@link #pasteString}).
+     */
+    private static final int RESTORE_DELAY_MILLIS = 300;
 
     private static final int CLIPBOARD_ATTEMPTS = 5;
     private static final int CLIPBOARD_RETRY_MILLIS = 20;
 
     private final Robot robot;
+
+    /** Bumped by every paste; a deferred restore fires only while it still owns this number. */
+    private final AtomicLong pasteSequence = new AtomicLong();
 
     public InputSimulator() {
         try {
@@ -88,28 +96,70 @@ public final class InputSimulator implements Input {
      *
      * <p>Far faster than typing, and layout-independent — which is what makes {@code /invite Name}
      * arrive intact on an AZERTY keyboard.
+     *
+     * <p>Two hazards, both of which have sent the player's clipboard to the chat as a {@code /say}:
+     * another application overwriting our text before the game reads it, and our own restore beating
+     * that read. The first is caught before pasting ({@code false} is returned, nothing is pasted);
+     * the second is avoided by deferring the restore past the game's read (see {@link #restoreLater}).
      */
     @Override
-    public void pasteString(String text) {
+    public boolean pasteString(String text) {
         log.debug("Pasting string: '{}'", text);
+        final long mine = pasteSequence.incrementAndGet();
+
+        final Optional<String> original;
         try {
-            final var original = clipboardText();
-
+            original = clipboardText();
             setClipboardText(text);
-
-            robot.keyPress(KeyEvent.VK_CONTROL);
-            pressKey(KeyEvent.VK_V);
-            robot.keyRelease(KeyEvent.VK_CONTROL);
-
-            // The paste is asynchronous: the game reads the clipboard when it handles the message,
-            // which is after keyRelease returns. Restoring it immediately can hand it the old text.
-            sleep(PASTE_SETTLE_MILLIS);
-
-            original.ifPresent(this::setClipboardText);
         } catch (RuntimeException e) {
-            log.error("Failed to paste text, falling back to typing it.", e);
+            // The clipboard could not be set. typeString never touches it, so it cannot paste stale
+            // content — it is the safe fallback here, not a corruption risk.
+            log.error("Could not set the clipboard, typing the text instead.", e);
             typeString(text);
+            return true;
         }
+
+        // Windows grants the clipboard to one process at a time, and a clipboard manager or a
+        // password manager can overwrite our text between the set above and the game's read below.
+        // If our text is no longer there, pasting would send whatever replaced it — refuse instead.
+        if (!clipboardHolds(text)) {
+            log.warn("The clipboard no longer holds the text to paste; another application changed it.");
+            original.ifPresent(this::setClipboardText);
+            return false;
+        }
+
+        robot.keyPress(KeyEvent.VK_CONTROL);
+        pressKey(KeyEvent.VK_V);
+        robot.keyRelease(KeyEvent.VK_CONTROL);
+
+        original.ifPresent(previous -> restoreLater(previous, mine));
+        return true;
+    }
+
+    /** Whether the clipboard currently holds exactly {@code text} — the guard before a paste. */
+    private boolean clipboardHolds(String text) {
+        return clipboardText().map(text::equals).orElse(false);
+    }
+
+    /**
+     * Restores the clipboard on a background thread, once the game has had time to read the paste.
+     *
+     * <p>Restoring synchronously would race the game's WM_PASTE and could hand it the old text; the
+     * caller then sends it. A newer paste supersedes this one — its restore, not ours, owns the
+     * clipboard then, which is what the sequence number guards.
+     */
+    private void restoreLater(String previous, long sequence) {
+        Thread.ofVirtual().start(() -> {
+            sleep(RESTORE_DELAY_MILLIS);
+            if (pasteSequence.get() != sequence) {
+                return;
+            }
+            try {
+                setClipboardText(previous);
+            } catch (RuntimeException e) {
+                log.debug("Could not restore the clipboard: {}", e.getMessage());
+            }
+        });
     }
 
     @Override

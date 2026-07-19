@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Puts the characters back in order in the taskbar — the counterpart of {@code window_reorder.py}.
  *
- * <p>The player wants their taskbar buttons in the order of {@code window_cycle_order}, and Windows
+ * <p>The player wants their taskbar buttons in the player's character order, and Windows
  * offers no way to move a button: the only lever is the order in which the windows appear. So the
  * characters all leave the screen, and come back one by one in the order they should be in.
  *

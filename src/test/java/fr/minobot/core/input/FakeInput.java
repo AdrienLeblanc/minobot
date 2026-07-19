@@ -4,6 +4,7 @@ import java.awt.event.KeyEvent;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -21,9 +22,17 @@ public final class FakeInput implements Input {
     private final List<Action> actions = new CopyOnWriteArrayList<>();
     private final LongSupplier foreground;
 
+    /** Which pastes fail, standing in for a clipboard another application raced us for. */
+    private volatile Predicate<String> pasteFails = text -> false;
+
     /** @param foreground the window an action lands in, i.e. {@code FakeWindowApi::foregroundWindow} */
     public FakeInput(LongSupplier foreground) {
         this.foreground = foreground;
+    }
+
+    /** Makes any paste of {@code text} return {@code false}, as if the clipboard had been clobbered. */
+    public void failPasteOf(String text) {
+        this.pasteFails = text::equals;
     }
 
     /** Every action taken, in order: {@code "key:ENTER"}, {@code "paste:/invite Charlie"}. */
@@ -58,8 +67,12 @@ public final class FakeInput implements Input {
     }
 
     @Override
-    public void pasteString(String text) {
+    public boolean pasteString(String text) {
+        if (pasteFails.test(text)) {
+            return false; // clobbered: nothing reached the clipboard, so nothing was pasted
+        }
         record("paste:" + text);
+        return true;
     }
 
     @Override

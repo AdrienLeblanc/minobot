@@ -2,6 +2,9 @@ package fr.minobot.app;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import fr.minobot.core.domain.Character;
+import fr.minobot.core.domain.DofusClass;
+import fr.minobot.core.domain.Sex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,11 +27,13 @@ class OverlayStateTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
-    @DisplayName("it saves the order and the seven keybinds, and nothing else")
+    @DisplayName("it saves the characters and the seven keybinds, and nothing else")
     void savesOnlyThePersistedSubset(@TempDir Path dir) throws IOException {
         Path overlayPath = dir.resolve("overlay.json");
         Config config = TestConfigs.with(Map.of(
-                "window_cycle_order", List.of("Bravo", "Alpha"),
+                "characters", List.of(
+                        Map.of("name", "Bravo", "class", "IOP", "sex", "FEMALE"),
+                        Map.of("name", "Alpha")),
                 "group_invite_hotkey", "F7",
                 // Deliberately session-only — these must not reach the file.
                 "overlay_scale", 2.0,
@@ -42,7 +47,7 @@ class OverlayStateTest {
         written.fieldNames().forEachRemaining(keys::add);
 
         assertThat(keys).containsExactlyInAnyOrder(
-                "window_cycle_order",
+                "characters",
                 "multiclick_hotkey", "reset_windows_hotkey", "group_invite_hotkey",
                 "window_cycle_next_hotkey", "window_cycle_prev_hotkey", "window_reorder_hotkey",
                 "overlay_hotkey");
@@ -51,18 +56,36 @@ class OverlayStateTest {
     }
 
     @Test
+    @DisplayName("a character's class and sex survive the round trip, kept on the character")
+    void roundTripsTheCharacterClassesAndSexes(@TempDir Path dir) {
+        Path configPath = dir.resolve("config.json");
+        Path overlayPath = dir.resolve("overlay.json");
+        Config edited = TestConfigs.with(Map.of(
+                "characters", List.of(
+                        Map.of("name", "Bravo", "class", "IOP", "sex", "FEMALE"),
+                        Map.of("name", "Alpha", "class", "CRA"))));
+
+        OverlayState.save(overlayPath, edited);
+        Config reloaded = ConfigLoader.load(configPath, overlayPath);
+
+        assertThat(reloaded.characters()).containsExactly(
+                new Character("Bravo", DofusClass.IOP, Sex.FEMALE),
+                new Character("Alpha", DofusClass.CRA, null));
+    }
+
+    @Test
     @DisplayName("what it saves reloads to the same order and keybinds")
     void roundTripsThroughTheLoader(@TempDir Path dir) {
         Path configPath = dir.resolve("config.json");
         Path overlayPath = dir.resolve("overlay.json");
         Config edited = TestConfigs.with(Map.of(
-                "window_cycle_order", List.of("Bravo", "Alpha"),
+                "characters", TestConfigs.characters("Bravo", "Alpha"),
                 "group_invite_hotkey", "F7"));
 
         OverlayState.save(overlayPath, edited);
         Config reloaded = ConfigLoader.load(configPath, overlayPath);
 
-        assertThat(reloaded.windowCycleOrder()).containsExactly("Bravo", "Alpha");
+        assertThat(reloaded.characterOrder()).containsExactly("Bravo", "Alpha");
         assertThat(reloaded.groupInviteHotkey()).isEqualTo("F7");
     }
 
@@ -92,7 +115,7 @@ class OverlayStateTest {
         List<Thread> threads = new ArrayList<>();
 
         for (int i : IntStream.range(0, writers).toArray()) {
-            Config config = TestConfigs.with(Map.of("window_cycle_order", List.of("Char" + i)));
+            Config config = TestConfigs.with(Map.of("characters", TestConfigs.characters("Char" + i)));
             Thread t = Thread.ofVirtual().unstarted(() -> {
                 await(start);
                 OverlayState.save(overlayPath, config);
@@ -107,7 +130,7 @@ class OverlayStateTest {
 
         // Whatever the winner, the file is one whole, valid JSON object with exactly one character.
         ObjectNode written = (ObjectNode) MAPPER.readTree(Files.readString(overlayPath));
-        assertThat(written.get("window_cycle_order")).hasSize(1);
+        assertThat(written.get("characters")).hasSize(1);
     }
 
     private static void await(CountDownLatch latch) {

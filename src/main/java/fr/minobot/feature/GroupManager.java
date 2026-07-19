@@ -13,6 +13,7 @@ import java.awt.event.KeyEvent;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,6 +44,13 @@ public final class GroupManager {
 
     /** Time the chat line takes to appear, before the command can be pasted into it. */
     private static final int CHAT_OPEN_MILLIS = 25;
+
+    /**
+     * The one shape a line sent to the chat may have here. Nothing else must ever be typed and
+     * confirmed: a clipboard the paste failed to overwrite has, in the past, sent the player's own
+     * clipboard to {@code /say}. Every command is checked against this before its ENTER goes out.
+     */
+    private static final Pattern INVITE_COMMAND = Pattern.compile("/invite \\S.*");
 
     private final WindowManager windows;
     private final Input input;
@@ -130,9 +138,26 @@ public final class GroupManager {
             return false;
         }
 
+        final var command = "/invite " + invitee;
+        if (!INVITE_COMMAND.matcher(command).matches()) {
+            log.error("Refusing to send '{}': it is not a well-formed invite command.", command);
+            return false;
+        }
+
         input.pressKey(KeyEvent.VK_ENTER); // opens the chat
         Thread.sleep(CHAT_OPEN_MILLIS);
-        input.pasteString("/invite " + invitee);
+
+        // The command is pasted through the clipboard. A false here means it never landed there
+        // intact — another application raced us for the clipboard — so nothing was pasted. Sending
+        // ENTER now would fire whatever is on the chat line, often the player's own clipboard, into
+        // /say; stop the relay instead, and close the empty chat line we opened.
+        if (!input.pasteString(command)) {
+            log.error("'{}' was not placed on the clipboard intact; stopping the relay rather than "
+                    + "risk sending clipboard content to the chat.", command);
+            input.pressKey(KeyEvent.VK_ESCAPE);
+            return false;
+        }
+
         input.pressKey(KeyEvent.VK_ENTER); // sends it
 
         return true;

@@ -1,5 +1,6 @@
 package fr.minobot.feature;
 
+import fr.minobot.app.TestConfigs;
 import fr.minobot.win32.FakeWindowApi;
 import fr.minobot.win32.FakeWindowApi.PostedMessage;
 import fr.minobot.win32.Point;
@@ -193,7 +194,7 @@ class MultiWindowClickerTest {
         void visitsEveryWindowAndReturnsToTheLeader() {
             final var api = desktop().withForeground(1);
 
-            new Features(api, Map.of("window_cycle_order", List.of("Delta", "Bravo", "Alpha")))
+            new Features(api, Map.of("characters", TestConfigs.characters("Delta", "Bravo", "Alpha")))
                     .clicker().resetCharacters();
 
             // Configured order is Delta (3), Bravo (2), Alpha (1): visited back to front, then the

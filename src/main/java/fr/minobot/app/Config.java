@@ -2,11 +2,17 @@ package fr.minobot.app;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import fr.minobot.core.domain.Character;
+import fr.minobot.core.domain.DofusClass;
+import fr.minobot.core.domain.Sex;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.function.UnaryOperator;
 
 /**
- * The settings a player is expected to change: their character names, their hotkeys.
+ * The settings a player is expected to change: their characters, their hotkeys.
  *
  * <p>Everything else the application needs is a constant living next to the code that uses it — the
  * timings, the game's window-title format, the log plumbing. They are dictated by Windows or by the
@@ -23,7 +29,16 @@ public record Config(
         @JsonProperty("multiclick_exclude") List<String> multiclickExclude,
         @JsonProperty("reset_windows_hotkey") String resetWindowsHotkey,
         @JsonProperty("group_invite_hotkey") String groupInviteHotkey,
-        @JsonProperty("window_cycle_order") List<String> windowCycleOrder,
+
+        /**
+         * The characters the player has told the overlay about: the order they are cycled in, and the
+         * class and sex pinned to each. One list, not three maps — a {@link Character} carries its own
+         * name, class and sex, so a new thing a character owns is a field on it rather than another map
+         * to keep in step. Persisted the way the cycle order always was (see {@code OverlayState}); a
+         * character the player has not launched right now still keeps whatever they pinned to it.
+         */
+        @JsonProperty("characters") List<Character> characters,
+
         @JsonProperty("window_cycle_next_hotkey") String windowCycleNextHotkey,
         @JsonProperty("window_cycle_prev_hotkey") String windowCyclePrevHotkey,
         @JsonProperty("window_reorder_hotkey") String windowReorderHotkey,
@@ -63,6 +78,8 @@ public record Config(
                 List.of(),
                 "shift+x1",
                 "F8",
+                // No character is known until a window is detected, and none has a class or a sex until
+                // the player pins one on the overlay.
                 List.of(),
                 "x2",
                 "shift+x2",
@@ -82,8 +99,16 @@ public record Config(
 
     public Config {
         multiclickExclude = copyOrEmpty(multiclickExclude);
-        windowCycleOrder = copyOrEmpty(windowCycleOrder);
+        characters = copyOrEmpty(characters);
         overlayScale = Math.clamp(overlayScale, MIN_OVERLAY_SCALE, MAX_OVERLAY_SCALE);
+    }
+
+    /**
+     * The character names in cycle order — what {@code WindowManager} ranks the game windows by. The
+     * order <em>is</em> the list's order, so this is a plain projection of it, read fresh at every use.
+     */
+    public List<String> characterOrder() {
+        return characters.stream().map(Character::name).toList();
     }
 
     /**
@@ -98,7 +123,7 @@ public record Config(
                 multiclickExclude,
                 hotkeyOf(Feature.RESET_WINDOWS, feature, combination),
                 hotkeyOf(Feature.GROUP_INVITE, feature, combination),
-                windowCycleOrder,
+                characters,
                 hotkeyOf(Feature.WINDOW_CYCLE_NEXT, feature, combination),
                 hotkeyOf(Feature.WINDOW_CYCLE_PREV, feature, combination),
                 hotkeyOf(Feature.WINDOW_REORDER, feature, combination),
@@ -113,19 +138,35 @@ public record Config(
         return slot == rebound ? combination : slot.hotkeyIn(this);
     }
 
-    /** The same configuration in a new character order — how the overlay's drag & drop lands. */
-    public Config withWindowCycleOrder(List<String> order) {
-        return new Config(
-                logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
-                order, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey, overlayHotkey,
-                overlayScale, autoPassTurn, autoAcceptTrade);
+    /**
+     * The same configuration in a new character order — how the overlay's drag & drop lands.
+     *
+     * <p>It <strong>merges</strong> rather than replaces: the named characters take the order the player
+     * dragged them into, each keeping the class and sex already pinned to it, and any character the player
+     * cannot see right now — saved with a class or sex but not launched — is kept at the end. A reorder of
+     * who is on screen must never drop what was pinned to who is not.
+     */
+    public Config withCharacterOrder(List<String> names) {
+        final var byName = new LinkedHashMap<String, Character>();
+        for (final var character : characters) {
+            byName.put(character.name(), character);
+        }
+
+        final var reordered = new ArrayList<Character>();
+        for (final var name : names) {
+            final var known = byName.remove(name);
+            reordered.add(known != null ? known : new Character(name));
+        }
+        // Whatever the player did not name is one of ours they are not looking at: keep it, and its class.
+        reordered.addAll(byName.values());
+        return withCharacters(reordered);
     }
 
     /** The same configuration with a different set of characters left out of the multi-click. */
     public Config withMulticlickExclude(List<String> excluded) {
         return new Config(
                 logLevel, multiclickHotkey, excluded, resetWindowsHotkey, groupInviteHotkey,
-                windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
+                characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
                 overlayHotkey, overlayScale, autoPassTurn, autoAcceptTrade);
     }
 
@@ -133,7 +174,7 @@ public record Config(
     public Config withOverlayScale(double scale) {
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
-                windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
+                characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
                 overlayHotkey, scale, autoPassTurn, autoAcceptTrade);
     }
 
@@ -141,7 +182,7 @@ public record Config(
     public Config withAutoPassTurn(boolean enabled) {
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
-                windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
+                characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
                 overlayHotkey, overlayScale, enabled, autoAcceptTrade);
     }
 
@@ -149,11 +190,52 @@ public record Config(
     public Config withAutoAcceptTrade(boolean enabled) {
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
-                windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
+                characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
                 overlayHotkey, overlayScale, autoPassTurn, enabled);
     }
 
-    private static List<String> copyOrEmpty(List<String> value) {
+    /**
+     * The same configuration with one character pinned to a class — how the overlay's class picker lands.
+     * Keyed by name: a character not yet in the list is added, keeping its place in the cycle order.
+     */
+    public Config withCharacterClass(String character, DofusClass clazz) {
+        return withCharacters(upsert(character, existing -> existing.withClass(clazz)));
+    }
+
+    /** The same configuration with one character pinned to a sex — the picker's other half. */
+    public Config withCharacterSex(String character, Sex sex) {
+        return withCharacters(upsert(character, existing -> existing.withSex(sex)));
+    }
+
+    /**
+     * The character list with one character changed, found by name — or added, so the first thing a
+     * player pins to a character not yet cycled still lands. Everyone else keeps their place and pins.
+     */
+    private List<Character> upsert(String name, UnaryOperator<Character> change) {
+        final var updated = new ArrayList<Character>(characters.size() + 1);
+        var found = false;
+        for (final var character : characters) {
+            if (character.name().equals(name)) {
+                updated.add(change.apply(character));
+                found = true;
+            } else {
+                updated.add(character);
+            }
+        }
+        if (!found) {
+            updated.add(change.apply(new Character(name)));
+        }
+        return updated;
+    }
+
+    private Config withCharacters(List<Character> characters) {
+        return new Config(
+                logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
+                characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
+                overlayHotkey, overlayScale, autoPassTurn, autoAcceptTrade);
+    }
+
+    private static <T> List<T> copyOrEmpty(List<T> value) {
         return value == null ? List.of() : List.copyOf(value);
     }
 }

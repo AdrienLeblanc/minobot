@@ -1,7 +1,13 @@
 package fr.minobot.ui;
 
+import com.github.weisj.jsvg.SVGDocument;
+import com.github.weisj.jsvg.parser.SVGLoader;
+import com.github.weisj.jsvg.view.ViewBox;
 import fr.minobot.app.Config;
 import fr.minobot.app.Feature;
+import fr.minobot.core.domain.Character;
+import fr.minobot.core.domain.DofusClass;
+import fr.minobot.core.domain.Sex;
 import fr.minobot.win32.Rect;
 
 import org.slf4j.Logger;
@@ -19,6 +25,8 @@ import java.awt.font.TextAttribute;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.EnumMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -80,6 +88,15 @@ public final class SwingOverlay implements OverlayView {
     private static final int CHARACTER_ROW_HEIGHT = 26;
     private static final int HOTKEY_ROW_HEIGHT = 26;
 
+    /** The class shown on a character's row: a small icon, and the room its cell is given at the right. */
+    private static final int CLASS_ICON = 18;
+    private static final int CLASS_CELL_WIDTH = 104;
+
+    /** The class picker: a grid of tiles, each a class's icon over its name, four to a row. */
+    private static final int CLASS_COLUMNS = 4;
+    private static final int CLASS_TILE = 58;
+    private static final int CLASS_TILE_ICON = 32;
+
     /** The auto-pass switch: a pill the knob slides across, wide enough to read as one and not a dot. */
     private static final int SWITCH_WIDTH = 40;
     private static final int SWITCH_HEIGHT = 20;
@@ -113,11 +130,27 @@ public final class SwingOverlay implements OverlayView {
 
     /** The logo, read once; {@code null} when there is no {@code logo.png} to fall back from. */
     private BufferedImage logo;
-    private DefaultListModel<String> characters;
+
+    /**
+     * The class icons, parsed once off the classpath, one per class and sex. A pair missing from the map
+     * has no SVG shipped for it, and is drawn as a lettered badge instead — the same fallback the logo
+     * makes to its wordmark. They are vectors: rendered afresh at each size, so they stay crisp wherever
+     * the player scales the panel.
+     */
+    private Map<DofusClass, Map<Sex, SVGDocument>> classIcons;
+    private DefaultListModel<Character> characters;
     private JPanel card;
     private JPanel keybinds;
     private JPanel hotkeyRows;
     private JScrollPane characterList;
+
+    /**
+     * The character the class picker is open for, or {@code null} when it is closed. The picker is a
+     * modal over the whole sheet, so it is the panel's state, not the player's: nothing on disk remembers
+     * a half-made choice.
+     */
+    private String classPickerFor;
+    private JComponent classPicker;
 
     /** What every size on the cards was computed with. A change to it is a card built again. */
     private double scale;
@@ -216,6 +249,7 @@ public final class SwingOverlay implements OverlayView {
         card = characterCard(content);
         keybinds = keybindsCard();
         keybinds.setVisible(keybindsOpen);
+        classPicker = classPickerFor == null ? null : classPickerScrim(classPickerFor);
         window.setContentPane(new Sheet());
 
         characters.clear();
@@ -239,7 +273,45 @@ public final class SwingOverlay implements OverlayView {
 
         baseFont = new JLabel().getFont();
         logo = loadLogo();
+        classIcons = loadClassIcons();
         characters = new DefaultListModel<>();
+    }
+
+    /**
+     * Every class icon that was shipped, one per class and sex, parsed once off the classpath so a
+     * packaged {@code Minobot.exe} finds each where a loose file would be lost. A pair with no SVG simply
+     * stays out of the map: its absence is not a failure — {@link #paintClassIcon} draws a lettered badge
+     * in its place — so a missing file is a debug line, and a corrupt one does not bring the panel down.
+     */
+    private Map<DofusClass, Map<Sex, SVGDocument>> loadClassIcons() {
+        final var loader = new SVGLoader();
+        final var icons = new EnumMap<DofusClass, Map<Sex, SVGDocument>>(DofusClass.class);
+
+        for (final var clazz : DofusClass.values()) {
+            final var perSex = new EnumMap<Sex, SVGDocument>(Sex.class);
+            for (final var sex : Sex.values()) {
+                final var path = clazz.iconResource(sex);
+                final var resource = SwingOverlay.class.getResource(path);
+                if (resource == null) {
+                    log.debug("No {}: {} {} falls back to a badge.", path, clazz.label(), sex);
+                    continue;
+                }
+                // load() returns null on a malformed SVG and can throw on a broken stream; either way a
+                // bad icon must not take the panel down, so the pair is simply left to its badge.
+                try {
+                    final var document = loader.load(resource);
+                    if (document != null) {
+                        perSex.put(sex, document);
+                    } else {
+                        log.warn("Could not parse the class icon {}.", path);
+                    }
+                } catch (RuntimeException e) {
+                    log.warn("Could not read the class icon {}: {}", path, e.getMessage());
+                }
+            }
+            icons.put(clazz, perSex);
+        }
+        return icons;
     }
 
     /**
@@ -297,12 +369,18 @@ public final class SwingOverlay implements OverlayView {
      */
     private final class Sheet extends JPanel {
 
-        /** Added first so it sits on top of the card it rests in the corner of. */
+        /** Added ahead of the card so it sits on top of the corner it rests in. */
         private final JButton close = closeButton();
 
         private Sheet() {
             setLayout(null);
             setOpaque(false);
+            // Swing paints index 0 last, so the first added sits on top. The picker, while open, must
+            // cover everything and be the only thing to click — so it goes in first, ahead of the close
+            // cross, which itself goes ahead of the card it rests in the corner of.
+            if (classPicker != null) {
+                add(classPicker);
+            }
             add(close);
             add(card);
             add(keybinds);
@@ -328,6 +406,11 @@ public final class SwingOverlay implements OverlayView {
             // Pinned to the card's top-right corner, and it follows when the card slides for the drawer.
             final var size = px(CLOSE_SIZE);
             close.setBounds(left + main.width - px(GAP) - size, top + px(GAP), size, size);
+
+            // The picker covers the whole sheet: it dims what is behind it and catches every click.
+            if (classPicker != null) {
+                classPicker.setBounds(0, 0, getWidth(), getHeight());
+            }
         }
 
         @Override
@@ -608,14 +691,18 @@ public final class SwingOverlay implements OverlayView {
         /** Never {@code getBackground()}: with none of its own, a component answers with its parent's. */
         private boolean highlighted;
 
+        /** The row's character, kept apart from the numbered text, to draw their class and sex from. */
+        private Character character = new Character("");
+
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index,
                                                       boolean selected, boolean focused) {
             super.getListCellRendererComponent(list, value, index, selected, focused);
 
+            character = (Character) value;
             // The number is the row's rank read off the panel — 1 at the top — and no more: it is a
             // mirror of the order, not a name, so a drag that reorders the list renumbers it for free.
-            setText((index + 1) + " - " + value);
+            setText((index + 1) + " - " + character.name());
 
             highlighted = selected;
             setOpaque(false);
@@ -638,10 +725,89 @@ public final class SwingOverlay implements OverlayView {
                 canvas.setColor(ACCENT);
                 canvas.fillRoundRect(0, inset, px(3), getHeight() - 2 * inset, px(3), px(3));
             }
+
+            // The class sits at the right of the row: its icon and name once chosen, an invitation to
+            // choose one until then. Drawn before the name text (super) — the two never share the row's
+            // width, the name being short and left, the class right — so neither writes over the other.
+            paintClassCell(canvas, character, getWidth(), getHeight());
             canvas.dispose();
 
             super.paintComponent(graphics);
         }
+    }
+
+    /**
+     * The class shown at the right of a character's row: the icon and the class's name once one is
+     * pinned, a muted {@code choose class…} until then. Nothing at all for the login placeholder, which
+     * is a window without a character to give a class to.
+     */
+    private void paintClassCell(Graphics2D canvas, Character character, int width, int height) {
+        if (character.name().equals(OverlayContent.LOGGING_IN)) {
+            return;
+        }
+
+        final var right = width - px(GAP);
+        final var metrics = canvas.getFontMetrics(font(SMALL_SIZE, Font.PLAIN));
+        final var baseline = (height + metrics.getAscent() - metrics.getDescent()) / 2;
+
+        final var clazz = character.clazz();
+        if (clazz == null) {
+            canvas.setFont(font(SMALL_SIZE, Font.PLAIN));
+            canvas.setColor(MUTED);
+            final var text = "choose class…";
+            canvas.drawString(text, right - metrics.stringWidth(text), baseline);
+            return;
+        }
+
+        final var size = px(CLASS_ICON);
+        final var iconX = right - size;
+        paintClassIcon(canvas, clazz, character.sexOrDefault(), iconX, (height - size) / 2, size);
+
+        canvas.setFont(font(SMALL_SIZE, Font.PLAIN));
+        canvas.setColor(TEXT);
+        canvas.drawString(clazz.label(), iconX - px(4) - metrics.stringWidth(clazz.label()), baseline);
+    }
+
+    /**
+     * The character the panel currently holds under a name — the one the picker is open for, looked up so
+     * the toggle and the tiles can read its sex. A name off the panel (a stale click racing a disconnect)
+     * resolves to a fresh, unpinned character, drawn as male, which the controller then refuses to persist.
+     */
+    private Character characterNamed(String name) {
+        if (lastContent == null) {
+            return new Character(name);
+        }
+        return lastContent.characters().stream()
+                .filter(character -> character.name().equals(name))
+                .findFirst()
+                .orElse(new Character(name));
+    }
+
+    /**
+     * A class's icon at a given size, for a sex: its SVG if one was shipped, a lettered badge if not — the
+     * same fallback the logo makes to its wordmark, so a class with no art is still told apart at a glance.
+     *
+     * <p>The SVG is a vector, rendered straight onto the canvas at the asked-for size rather than off a
+     * cached bitmap: it is as sharp at 200% as at 100%, which is the whole reason the icons are SVG.
+     */
+    private void paintClassIcon(Graphics2D canvas, DofusClass clazz, Sex sex, int x, int y, int size) {
+        final var document = classIcons.getOrDefault(clazz, Map.of()).get(sex);
+        if (document != null) {
+            final var g = (Graphics2D) canvas.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            document.render(null, g, new ViewBox(x, y, size, size));
+            g.dispose();
+            return;
+        }
+
+        canvas.setColor(SURFACE);
+        canvas.fillRoundRect(x, y, size, size, size, size);
+        canvas.setColor(ACCENT);
+        canvas.setFont(font(SMALL_SIZE, Font.BOLD));
+        final var initial = clazz.label().substring(0, 1).toUpperCase(Locale.ROOT);
+        final var fm = canvas.getFontMetrics();
+        canvas.drawString(initial, x + (size - fm.stringWidth(initial)) / 2,
+                y + (size + fm.getAscent() - fm.getDescent()) / 2);
     }
 
     /**
@@ -654,12 +820,12 @@ public final class SwingOverlay implements OverlayView {
      */
     private final class ReorderByDragging extends MouseAdapter {
 
-        private final JList<String> list;
+        private final JList<Character> list;
 
         private int from = -1;
         private boolean moved;
 
-        private ReorderByDragging(JList<String> list) {
+        private ReorderByDragging(JList<Character> list) {
             this.list = list;
         }
 
@@ -684,13 +850,35 @@ public final class SwingOverlay implements OverlayView {
 
         @Override
         public void mouseReleased(MouseEvent event) {
+            final var index = from;
             from = -1;
-            if (!moved) {
-                return; // a plain click is not a reorder, and must not rewrite the order
+            if (moved) {
+                moved = false;
+                actions.reorder(Collections.list(characters.elements()).stream()
+                        .map(Character::name)
+                        .toList());
+                return;
             }
-            moved = false;
 
-            actions.reorder(Collections.list(characters.elements()));
+            // A plain click is not a reorder — but a plain click on the class cell at the right of a row
+            // is a request to choose that character's class. Anywhere else it is just a selection.
+            maybeOpenClassPicker(index, event.getPoint());
+        }
+
+        /** Opens the picker when the click landed in the row's class cell, on a real character. */
+        private void maybeOpenClassPicker(int index, Point point) {
+            if (index < 0 || index >= characters.size()) {
+                return;
+            }
+            final var character = characters.get(index);
+            if (character.name().equals(OverlayContent.LOGGING_IN)) {
+                return; // a not-yet-logged-in window has no character to give a class to
+            }
+
+            final var cell = list.getCellBounds(index, index);
+            if (cell != null && point.x >= cell.x + cell.width - px(CLASS_CELL_WIDTH)) {
+                openClassPicker(character.name());
+            }
         }
     }
 
@@ -772,6 +960,130 @@ public final class SwingOverlay implements OverlayView {
         if (lastContent != null && lastBounds != null) {
             draw(lastContent, lastBounds);
         }
+    }
+
+    // ------------------------------------------------------------------ the class picker
+
+    /**
+     * Opens the class picker for a character, and closes it again.
+     *
+     * <p>The picker is a <em>modal</em>: it covers the whole sheet and catches every click, so there is
+     * no way to edit the panel underneath it by accident. It is built in {@link #lay} from
+     * {@code classPickerFor}, so a redraw carries it along until the choice is made — or the player clicks
+     * off it. Neither is typed: a class is picked with the mouse, on a window that cannot take the focus.
+     */
+    private void openClassPicker(String character) {
+        classPickerFor = character;
+        redraw();
+    }
+
+    private void closeClassPicker() {
+        classPickerFor = null;
+        redraw();
+    }
+
+    /**
+     * The picker over the whole sheet: a darkened backdrop with the grid of classes centred on it. A
+     * click on the backdrop — anywhere but the grid — closes it; the game is not touched, so a mis-click
+     * costs nothing but the picker.
+     */
+    private JComponent classPickerScrim(String character) {
+        final var scrim = new JPanel(new GridBagLayout()) {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                final var canvas = (Graphics2D) graphics.create();
+                canvas.setColor(BACKDROP);
+                canvas.fillRect(0, 0, getWidth(), getHeight());
+                canvas.dispose();
+                super.paintComponent(graphics);
+            }
+        };
+        scrim.setOpaque(false);
+        scrim.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent event) {
+                closeClassPicker();
+            }
+        });
+
+        scrim.add(classGrid(character));
+        return scrim;
+    }
+
+    /**
+     * The card the picker rests on the scrim: a heading naming the character, the sex toggle, and the
+     * twelve classes drawn in the chosen sex.
+     */
+    private JComponent classGrid(String character) {
+        final var sex = characterNamed(character).sexOrDefault();
+
+        final var card = roundedColumn(BACKGROUND);
+        card.setBorder(new EmptyBorder(px(PADDING), px(PADDING), px(PADDING), px(PADDING)));
+        card.add(sectionHeading("Class · " + character, sexToggle(character, sex)));
+
+        final var grid = new JPanel(new GridLayout(0, CLASS_COLUMNS, px(GAP), px(GAP)));
+        grid.setOpaque(false);
+        grid.setAlignmentX(Component.LEFT_ALIGNMENT);
+        for (final var clazz : DofusClass.values()) {
+            grid.add(classTile(character, clazz, sex));
+        }
+        card.add(grid);
+        return card;
+    }
+
+    /**
+     * The male/female toggle, next to the picker's heading. Picking a sex records it at once and leaves
+     * the picker open — so the class tiles below redraw in that sex, and the class the player then chooses
+     * is theirs in it. The sex already set is the lit one.
+     */
+    private JComponent sexToggle(String character, Sex current) {
+        final var row = new JPanel(new FlowLayout(FlowLayout.RIGHT, px(4), 0));
+        row.setOpaque(false);
+        for (final var sex : Sex.values()) {
+            final var active = sex == current;
+            final var pill = flatButton(sex.label(), active ? BACKGROUND : MUTED, active ? ACCENT : SURFACE);
+            pill.addActionListener(_ -> actions.assignSex(character, sex));
+            row.add(pill);
+        }
+        return row;
+    }
+
+    /**
+     * One class on the picker: its icon over its name, and a click that pins it to the character and
+     * closes the picker. The assignment is made on the way out — {@code classPickerFor} is cleared first,
+     * so the redraw the assignment triggers finds the picker already shut. The icon is drawn in the sex
+     * the toggle currently shows, which is also the sex the class is pinned in.
+     */
+    private JButton classTile(String character, DofusClass clazz, Sex sex) {
+        final var tile = new JButton() {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                final var canvas = smooth(graphics);
+                canvas.setColor(getModel().isRollover() ? HOVER : SURFACE);
+                canvas.fillRoundRect(0, 0, getWidth(), getHeight(), px(RADIUS), px(RADIUS));
+
+                final var size = px(CLASS_TILE_ICON);
+                paintClassIcon(canvas, clazz, sex, (getWidth() - size) / 2, px(GAP), size);
+
+                canvas.setColor(TEXT);
+                canvas.setFont(font(HEADING_SIZE, Font.PLAIN));
+                final var fm = canvas.getFontMetrics();
+                canvas.drawString(clazz.label(),
+                        (getWidth() - fm.stringWidth(clazz.label())) / 2, getHeight() - px(GAP));
+                canvas.dispose();
+            }
+        };
+
+        tile.setPreferredSize(new Dimension(px(CLASS_TILE), px(CLASS_TILE)));
+        tile.setFocusable(false); // it could not take the focus anyway; do not draw as if it could
+        tile.setContentAreaFilled(false);
+        tile.setBorderPainted(false);
+        tile.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        tile.addActionListener(_ -> {
+            classPickerFor = null;
+            actions.assignClass(character, clazz);
+        });
+        return tile;
     }
 
     // ------------------------------------------------------------------ the size of the panel

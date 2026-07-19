@@ -1,6 +1,8 @@
 package fr.minobot.ui;
 
 import fr.minobot.app.Feature;
+import fr.minobot.core.domain.DofusClass;
+import fr.minobot.core.domain.Sex;
 
 import java.util.List;
 import java.util.Optional;
@@ -29,6 +31,18 @@ public interface OverlayActions {
      * the reason there is no {@code *_enabled} flag anywhere.
      */
     void rebind(Feature feature, String combination);
+
+    /**
+     * Pins a class to a character — how the class picker lands. Keyed by name, and persisted like the
+     * cycle order, so the choice survives a restart. Picking again simply overwrites the old class.
+     */
+    void assignClass(String character, DofusClass clazz);
+
+    /**
+     * Pins a sex to a character — the picker's other half, kept and persisted like the class. Unlike a
+     * class pick it leaves the picker open, so the player sets a sex and then chooses a class in it.
+     */
+    void assignSex(String character, Sex sex);
 
     /**
      * Draws the panel bigger or smaller — what the player has just dragged the slider to.

@@ -18,10 +18,11 @@ import java.util.function.UnaryOperator;
  * their own virtual threads while the player edits the overlay.
  *
  * <p><strong>This class writes nothing to disk.</strong> It holds the configuration and hands changes
- * to its listeners; persistence, where there is any, is one of those listeners. Two of the overlay's
- * edits — the character order and the keybinds — are persisted to {@code overlay.json} by such a
- * listener wired in {@code MinobotApp} (see {@link OverlayState}); everything else the overlay changes,
- * the scale and the two switches, lives only for the session and a restart forgets it.
+ * to its listeners; persistence, where there is any, is one of those listeners. Some of the overlay's
+ * edits — the character order, the keybinds, and each character's class — are persisted to
+ * {@code overlay.json} by such a listener wired in {@code MinobotApp} (see {@link OverlayState});
+ * everything else the overlay changes, the scale and the two switches, lives only for the session and a
+ * restart forgets it.
  *
  * <p>A feature that must react to a change — {@code MinobotApp} re-registering the hotkeys, or saving
  * the overlay state — listens through {@link #onChange}. A feature that merely reads the current value

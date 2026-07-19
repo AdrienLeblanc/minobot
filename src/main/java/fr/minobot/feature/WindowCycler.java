@@ -12,7 +12,7 @@ import java.util.List;
 /**
  * Moves the player from one character to the next — the counterpart of {@code window_cycler.py}.
  *
- * <p>The characters form a ring, in the order of {@code window_cycle_order}, and the two hotkeys walk
+ * <p>The characters form a ring, in the player's character order, and the two hotkeys walk
  * it in either direction. Only the characters on the <em>current monitor</em> are part of the ring, so
  * on a two-screen setup each screen cycles within itself — which is what makes this worth having over
  * Alt+Tab.

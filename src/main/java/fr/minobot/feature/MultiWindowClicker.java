@@ -132,7 +132,7 @@ public final class MultiWindowClicker {
         try (final var _ = focus.takeOver()) {
             // Visited back to front, so the leader is reached last and is already on top by the time the
             // explicit restore below runs. This reverses the list itself rather than asking for the
-            // reversed order: that sorts by rank, and characters absent from window_cycle_order all share
+            // reversed order: that sorts by rank, and characters absent from the character order all share
             // one rank — so on a default config it would hand back the same order, and the "leader" would
             // be whichever character sorted last alphabetically.
             for (final var character : characters.reversed()) {

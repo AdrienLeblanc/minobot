@@ -150,10 +150,10 @@ class WindowManagerTest {
                 .withWindow(4, "Alpha - Dofus");
 
         @Test
-        @DisplayName("follows window_cycle_order, whatever order Windows enumerated the windows in")
+        @DisplayName("follows the character order, whatever order Windows enumerated the windows in")
         void sortsByConfiguredOrder() {
             final var manager = new WindowManager(api,
-                    settings(Map.of("window_cycle_order", List.of("Bravo", "Charlie"))));
+                    settings(Map.of("characters", TestConfigs.characters("Bravo", "Charlie"))));
 
             assertThat(titlesOf(manager.orderedWindows())).isEqualTo(List.of("Bravo - Dofus", "Charlie - Dofus", "Alpha - Dofus", "Delta - Dofus"));
         }
@@ -161,7 +161,7 @@ class WindowManagerTest {
         @Test
         @DisplayName("windows absent from the config go last, alphabetically rather than arbitrarily")
         void breaksTiesAlphabetically() {
-            final var manager = new WindowManager(api, settings(Map.of("window_cycle_order", List.of())));
+            final var manager = new WindowManager(api, settings(Map.of("characters", List.of())));
 
             assertThat(titlesOf(manager.orderedWindows())).isEqualTo(List.of("Alpha - Dofus", "Bravo - Dofus", "Charlie - Dofus", "Delta - Dofus"));
         }
@@ -170,7 +170,7 @@ class WindowManagerTest {
         @DisplayName("reversing flips the ranks but keeps the alphabetical tie-break")
         void reversesTheConfiguredOrder() {
             final var manager = new WindowManager(api,
-                    settings(Map.of("window_cycle_order", List.of("Bravo", "Charlie"))));
+                    settings(Map.of("characters", TestConfigs.characters("Bravo", "Charlie"))));
 
             assertThat(titlesOf(manager.orderedWindows(true))).isEqualTo(List.of("Alpha - Dofus", "Delta - Dofus", "Charlie - Dofus", "Bravo - Dofus"));
         }
@@ -179,7 +179,7 @@ class WindowManagerTest {
         @DisplayName("the config matches on a fragment of the title, case-insensitively")
         void matchesTheConfiguredNameCaseInsensitively() {
             final var manager = new WindowManager(api,
-                    settings(Map.of("window_cycle_order", List.of("dElTa"))));
+                    settings(Map.of("characters", TestConfigs.characters("dElTa"))));
 
             assertThat(titlesOf(manager.orderedWindows()).getFirst()).isEqualTo("Delta - Dofus");
         }
@@ -195,12 +195,12 @@ class WindowManagerTest {
         @Test
         @DisplayName("a new order is in effect on the next cycle — the overlay's drag & drop needs no restart")
         void followsALiveChangeOfTheOrder() {
-            final var live = settings(Map.of("window_cycle_order", List.of("Bravo", "Charlie")));
+            final var live = settings(Map.of("characters", TestConfigs.characters("Bravo", "Charlie")));
             final var manager = new WindowManager(api, live);
 
             assertThat(titlesOf(manager.orderedWindows()).getFirst()).isEqualTo("Bravo - Dofus");
 
-            live.update(config -> config.withWindowCycleOrder(List.of("Delta", "Alpha")));
+            live.update(config -> config.withCharacterOrder(List.of("Delta", "Alpha")));
 
             assertThat(titlesOf(manager.orderedWindows()))
                     .as("the very same manager must sort by the order the player just dragged")

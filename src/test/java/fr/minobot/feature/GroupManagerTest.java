@@ -163,6 +163,30 @@ class GroupManagerTest {
     }
 
     @Test
+    @DisplayName("a paste that did not reach the clipboard stops the relay before it confirms")
+    void stopsWhenTheClipboardWasClobbered() throws InterruptedException {
+        final var api = desktop();
+        final var features = new Features(api, Map.of());
+        final var input = features.input();
+        final var groupManager = features.groupManager();
+
+        // Another application won the clipboard, so the command never landed there. Confirming with
+        // ENTER now would send whatever did — the player's clipboard — to /say. The relay must stop.
+        input.failPasteOf("/invite Bravo");
+
+        groupManager.inviteAll();
+
+        // Nothing was pasted, and the chat line is closed with ESCAPE rather than confirmed. Only the
+        // one ENTER that opened the chat was sent — never the second that would have fired its content
+        // into /say.
+        assertThat(input.pasted()).isEmpty();
+        assertThat(input.actions()).contains("key:Escape");
+        assertThat(input.actions()).filteredOn("key:Enter"::equals).hasSize(1);
+        // Bravo is never focused: the relay stopped at the first step.
+        assertThat(api.focusedWindows()).containsExactly(1L);
+    }
+
+    @Test
     @DisplayName("a lone character is not a group")
     void refusesToInviteWithASingleCharacter() {
         final var api = new FakeWindowApi().withWindow(1, "Alpha - Dofus");

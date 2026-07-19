@@ -199,7 +199,7 @@ public final class WindowManager {
     }
 
     /**
-     * The game windows in the order of {@code window_cycle_order}, unlisted ones last.
+     * The game windows in the player's character order, unlisted ones last.
      *
      * <p>Sorted alphabetically first, then stably by rank: windows sharing a rank — and all the
      * unlisted ones do — stay in alphabetical order instead of in the arbitrary order Windows
@@ -219,7 +219,7 @@ public final class WindowManager {
 
     private int rank(GameWindow window) {
         // Read at every call, not held: the overlay's drag & drop must be in effect on the next cycle.
-        final var cycleOrder = settings.get().windowCycleOrder();
+        final var cycleOrder = settings.get().characterOrder();
         final var title = window.title().toLowerCase(Locale.ROOT);
 
         for (var i = 0; i < cycleOrder.size(); i++) {

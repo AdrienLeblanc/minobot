@@ -19,11 +19,11 @@ class SettingsTest {
         @Test
         @DisplayName("a change is visible to everyone reading through the settings")
         void swapsTheConfiguration() {
-            final var settings = TestConfigs.settings(Map.of("window_cycle_order", List.of("Bravo")));
+            final var settings = TestConfigs.settings(Map.of("characters", TestConfigs.characters("Bravo")));
 
-            settings.update(config -> config.withWindowCycleOrder(List.of("Alpha", "Bravo")));
+            settings.update(config -> config.withCharacterOrder(List.of("Alpha", "Bravo")));
 
-            assertThat(settings.get().windowCycleOrder()).containsExactly("Alpha", "Bravo");
+            assertThat(settings.get().characterOrder()).containsExactly("Alpha", "Bravo");
         }
 
         @Test
@@ -41,12 +41,12 @@ class SettingsTest {
         @Test
         @DisplayName("a change swaps in a new Config and never mutates the old one")
         void keepsTheChangeInMemory() {
-            final var initial = TestConfigs.with(Map.of("window_cycle_order", List.of("Bravo")));
+            final var initial = TestConfigs.with(Map.of("characters", TestConfigs.characters("Bravo")));
             final var settings = new Settings(initial);
 
-            settings.update(config -> config.withWindowCycleOrder(List.of("Alpha")));
+            settings.update(config -> config.withCharacterOrder(List.of("Alpha")));
 
-            assertThat(initial.windowCycleOrder())
+            assertThat(initial.characterOrder())
                     .as("the Config that was loaded is untouched — Settings swaps, never edits in place")
                     .containsExactly("Bravo");
         }

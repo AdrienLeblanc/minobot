@@ -24,7 +24,8 @@ fr.minobot
 ├── win32/          WindowApi (the interface), User32 (the FFM implementation), Win32, Point.
 ├── core/           The Windows mechanics: WindowManager, FocusManager, KeyboardMonitor,
 │                   NotificationManager, FlashSuppressor, SystemTrayManager, Input / InputSimulator.
-│   └── domain/     GameWindow (a character: their window, and their name), Notification (a toast).
+│   └── domain/     GameWindow (a character's window, and their name), Character (the player's part of
+│                   a character: name, class, sex), DofusClass, Sex, Notification (a toast).
 ├── ui/             OverlayView (the panel), OverlayContent, OverlayActions. Interfaces only.
 └── feature/        The user-facing features (below), and OverlayController.
 ```
@@ -51,7 +52,8 @@ first thing read, and the constraint that justifies it is the comment above it.
 
 ### Config
 
-`Config` holds what a *player* changes: their `window_cycle_order`, their `multiclick_exclude`, their
+`Config` holds what a *player* changes: their `characters` (each a `Character` — name, and the class and
+sex they pinned — in cycle order), their `multiclick_exclude`, their
 hotkeys, their `log_level`, their `overlay_scale`, their `auto_pass_turn`, their `auto_accept_trade`. Nothing else. A timing, a mouse button, a keyword of the game's window
 titles, a dry-run flag — those are dictated by Windows or by the game, not by the player, and belong
 in a constant next to the code that reads it. **Adding a field to `Config` is a claim that a player
@@ -75,7 +77,8 @@ change (`MinobotApp` re-registering the hotkeys) listens through `Settings.onCha
 
 The configuration has **two tiers on disk**. `config.json` is the player's **read-only defaults** —
 generated once, edited by hand, never rewritten by the application. `overlay.json` (see `OverlayState`)
-holds the two overlay edits that must survive a restart — the `window_cycle_order` and the seven
+holds the two overlay edits that must survive a restart — the `characters` (their order, and the class
+and sex pinned to each) and the seven
 hotkeys — and it overrides `config.json` at load, key by key, so a default the player never touched
 still shows through. It holds *only* that subset: everything else the overlay changes — the
 `overlay_scale`, the two switches — reaches no disk and a restart forgets it, the switches deliberately
@@ -169,7 +172,7 @@ end to end (`focus.takeOver()`); the same toasts feed the auto-focus, which must
 
 ### Window cycler — `x2` / `shift+x2`
 
-Cycles the focus through the windows in the order of `window_cycle_order`. Only the windows of the
+Cycles the focus through the windows in the player's character order (`Config.characterOrder()`). Only the windows of the
 **current monitor** take part. Far better than Alt+Tab with several accounts.
 
 ### Window reorder — `F9`
@@ -242,11 +245,38 @@ So **do not remove it, and do not add `WS_EX_NOACTIVATE` to "make sure"**: Swing
 It is also why **nothing in the panel is typed** — a keybind is read from the keyboard by
 `KeyboardMonitor.captureNext()`, not typed into a text field, which would need the focus the panel does
 not have. And why reordering is three mouse events rather than Swing's drag-and-drop stack, which
-expects a focused window. Neither is a stylistic choice; both fall out of the line above.
+expects a focused window. And why the class picker (below) is an **in-overlay grid, not a `JPopupMenu`**:
+a popup menu expects the focus too. Neither is a stylistic choice; all three fall out of the line above.
 
-What it changes splits in two (see `Settings` and `OverlayState`): the **character order and the
-keybinds are persisted** to `overlay.json` and survive a restart; the **scale and the two switches are
-session-only** and a restart forgets them.
+Each character row also carries its **class and sex** (`DofusClass`, the twelve of Dofus Retro, and
+`Sex`, male or female). Until a class is chosen the row shows a muted `choose class…`; a click on it
+opens a **modal picker** — a grid of the twelve, drawn over a scrim that dims the panel and catches every
+click, so a mis-click closes the picker and touches nothing else. At the picker's head a **male/female
+toggle** sets the sex: picking a sex records it at once and leaves the picker open, so the class tiles
+redraw in that sex and the class the player then picks is theirs in it. Picking a class pins it and
+closes. Class and sex are two independent choices (`assignClass` / `assignSex`), both the player's, and
+both live on the **`Character`** they belong to — the one entity carrying a character's name, class and
+sex (`core/domain/Character`), so the config holds one `List<Character>` rather than an order beside a
+map of classes beside a map of sexes. **A new thing a character owns is a field on `Character`, not
+another map keyed by name.** The list is keyed by name where it must merge (a reorder, a fresh pin — a
+`GameWindow` is a window, and a window is not a choice), so a reorder does not disturb the pins, and a
+character saved but not launched right now keeps its `Character` in the config though the panel — which
+speaks only of what is in front of the player — does not show it. A character with no sex set is drawn
+as male (`Character.sexOrDefault()`).
+
+**Each class's logo is a resource, not a loose file:** one **SVG per class and sex** under
+`src/main/resources/classes/` (`iop_m.svg`, `iop_f.svg`, `cra_m.svg`, …, the leaf being the class's own
+name in lower case and the sex's one-letter suffix), so it rides inside the jar. They are drawn by
+**jsvg** (`com.github.weisj:jsvg`), the one third-party rendering dependency: a vector fits the panel,
+which scales every size through `px()`, so the icon stays crisp at 200% where a PNG would blur — the
+icon is rendered afresh at each size, never off a cached bitmap. jsvg needs only `java.desktop` and
+`java.logging`, both already in `dist.modules`, so the packaged runtime is unchanged. A class/sex with no
+SVG shipped falls back to a lettered badge, exactly as the app logo falls back to its wordmark. The
+picker is the seed of class-aware actions later; for now it only records the choice.
+
+What it changes splits in two (see `Settings` and `OverlayState`): the **character order, the keybinds
+and each character's class and sex are persisted** to `overlay.json` and survive a restart; the **scale
+and the two switches are session-only** and a restart forgets them.
 
 ### Auto-pass turns — no hotkey, the overlay's switch
 

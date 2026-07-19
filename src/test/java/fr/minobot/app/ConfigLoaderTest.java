@@ -37,14 +37,14 @@ class ConfigLoaderTest {
         Files.writeString(configPath, """
                 {
                   "log_level": "DEBUG",
-                  "window_cycle_order": ["Bravo", "Echo"]
+                  "characters": [{ "name": "Bravo" }, { "name": "Echo" }]
                 }
                 """);
 
         Config config = ConfigLoader.load(configPath);
 
         assertThat(config.logLevel()).isEqualTo("DEBUG");
-        assertThat(config.windowCycleOrder()).isEqualTo(List.of("Bravo", "Echo"));
+        assertThat(config.characterOrder()).isEqualTo(List.of("Bravo", "Echo"));
         // Untouched keys must not collapse to null — a blank hotkey is a disabled feature.
         assertThat(config.multiclickHotkey()).isEqualTo("x1");
         assertThat(config.groupInviteHotkey()).isEqualTo("F8");
@@ -80,20 +80,20 @@ class ConfigLoaderTest {
         Path overlayPath = dir.resolve("overlay.json");
         Files.writeString(configPath, """
                 {
-                  "window_cycle_order": ["Alpha", "Bravo"],
+                  "characters": [{ "name": "Alpha" }, { "name": "Bravo" }],
                   "group_invite_hotkey": "F8"
                 }
                 """);
         Files.writeString(overlayPath, """
                 {
-                  "window_cycle_order": ["Bravo", "Alpha"],
+                  "characters": [{ "name": "Bravo" }, { "name": "Alpha" }],
                   "group_invite_hotkey": "F7"
                 }
                 """);
 
         Config config = ConfigLoader.load(configPath, overlayPath);
 
-        assertThat(config.windowCycleOrder()).containsExactly("Bravo", "Alpha");
+        assertThat(config.characterOrder()).containsExactly("Bravo", "Alpha");
         assertThat(config.groupInviteHotkey()).isEqualTo("F7");
     }
 
@@ -103,12 +103,12 @@ class ConfigLoaderTest {
         Path configPath = dir.resolve("config.json");
         Path overlayPath = dir.resolve("overlay.json");
         Files.writeString(configPath, """
-                { "window_cycle_order": ["Alpha", "Bravo"] }
+                { "characters": [{ "name": "Alpha" }, { "name": "Bravo" }] }
                 """);
 
         Config config = ConfigLoader.load(configPath, overlayPath);
 
-        assertThat(config.windowCycleOrder()).containsExactly("Alpha", "Bravo");
+        assertThat(config.characterOrder()).containsExactly("Alpha", "Bravo");
     }
 
     @Test
@@ -117,12 +117,12 @@ class ConfigLoaderTest {
         Path configPath = dir.resolve("config.json");
         Path overlayPath = dir.resolve("overlay.json");
         Files.writeString(configPath, """
-                { "window_cycle_order": ["Alpha", "Bravo"] }
+                { "characters": [{ "name": "Alpha" }, { "name": "Bravo" }] }
                 """);
         Files.writeString(overlayPath, "{ not json");
 
         Config config = ConfigLoader.load(configPath, overlayPath);
 
-        assertThat(config.windowCycleOrder()).containsExactly("Alpha", "Bravo");
+        assertThat(config.characterOrder()).containsExactly("Alpha", "Bravo");
     }
 }

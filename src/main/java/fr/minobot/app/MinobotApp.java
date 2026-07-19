@@ -91,10 +91,10 @@ public final class MinobotApp {
         settings.onChange(this::bindHotkeys);
         bindHotkeys(settings.get());
 
-        // The character order and the keybinds outlive the session: one more listener writes them to
-        // overlay.json. It fires on every change but persists only that subset, so the scale and the
-        // two switches stay session-only — deliberately, for the switches. Settings itself still
-        // writes nothing; persistence is an observer, exactly like the rebinding above.
+        // The character order, the keybinds and each character's class outlive the session: one more
+        // listener writes them to overlay.json. It fires on every change but persists only that subset,
+        // so the scale and the two switches stay session-only — deliberately, for the switches. Settings
+        // itself still writes nothing; persistence is an observer, exactly like the rebinding above.
         settings.onChange(config -> OverlayState.save(overlayPath, config));
     }
 

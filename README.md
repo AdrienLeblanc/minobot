@@ -117,8 +117,8 @@ le seul fichier que vous aurez à toucher. Ouvrez-le avec le Bloc-notes.
 
 ### La seule chose vraiment obligatoire : la liste de vos personnages
 
-Remplacez la liste `window_cycle_order` par **les noms de vos personnages, dans l'ordre où vous voulez
-qu'ils défilent** :
+Remplacez la liste `characters` par **vos personnages, dans l'ordre où vous voulez qu'ils défilent** —
+un par ligne, chacun sous la forme `{ "name": "NomDuPerso" }` :
 
 ![edited_config.png](assets/edited_config.png)
 
@@ -141,10 +141,10 @@ Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de c
 
   "group_invite_hotkey": "F8",
 
-  "window_cycle_order": [
-    "PremierPerso",
-    "DeuxiemePerso",
-    "TroisiemePerso"
+  "characters": [
+    { "name": "PremierPerso" },
+    { "name": "DeuxiemePerso" },
+    { "name": "TroisiemePerso" }
   ],
   "window_cycle_next_hotkey": "x2",
   "window_cycle_prev_hotkey": "shift+x2",
@@ -161,7 +161,7 @@ Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de c
 
 | Réglage | À quoi ça sert |
 | --- | --- |
-| `window_cycle_order` | Vos personnages, dans l'ordre. **Le réglage principal.** |
+| `characters` | Vos personnages, dans l'ordre — chacun `{ "name": "..." }`. **Le réglage principal.** Leur classe et leur sexe se choisissent depuis l'overlay ; inutile de les écrire ici. |
 | `multiclick_exclude` | Les personnages à **laisser en dehors** du clic multiple. Exemple : `["Mule", "Marchand"]` — votre mule en mode marchand ne bougera pas. |
 | `overlay_scale` | La taille du panneau (l'overlay, ouvert par `shift+space`), de `1.0` à `2.0`. Sur un grand écran, `1.5` (la valeur d'origine) se lit bien ; montez-la si le texte vous paraît petit. Le curseur en bas du panneau fait la même chose, le temps de la session. |
 | `auto_pass_turn` | Passer automatiquement les tours de combat (`true`/`false`). Se règle surtout depuis l'interrupteur **Auto-pass turns** de l'overlay ; le mettre à `true` ici le démarre déjà activé. |
@@ -170,7 +170,7 @@ Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de c
 | `log_level` | Mettez `"DEBUG"` à la place de `"INFO"` si vous devez signaler un problème : Minobot écrira beaucoup plus de détails dans son journal. |
 
 Une ligne que vous supprimez du fichier reprend simplement sa valeur d'origine. Un fichier qui ne
-contiendrait que votre `window_cycle_order` fonctionne très bien.
+contiendrait que votre liste `characters` fonctionne très bien.
 
 **Pour désactiver une fonction, laissez sa touche vide** : `"group_invite_hotkey": ""` et les
 invitations de groupe ne répondront plus, sans rien casser d'autre.
@@ -231,5 +231,5 @@ souci.
 | Rien ne se passe quand j'appuie sur une touche | Minobot tourne-t-il ? Cherchez l'icône à côté de l'horloge. Et avez-vous bien **relancé** le logiciel après avoir modifié `config.json` ? |
 | Une seule fonction ne répond plus | Vous avez sans doute écrit une touche que Minobot ne connaît pas. Ouvrez `logs/minobot.log` et cherchez une ligne `Hotkey main key ... is not supported.` : les autres fonctions continuent de tourner, seule celle-là est désactivée. |
 | Les fenêtres clignotent en orange | Appuyez sur `Shift+X1`. |
-| Le défilement `X2` saute des personnages | Vérifiez l'orthographe des noms dans `window_cycle_order`, et souvenez-vous que seules les fenêtres **de l'écran courant** défilent. |
+| Le défilement `X2` saute des personnages | Vérifiez l'orthographe des noms dans `characters`, et souvenez-vous que seules les fenêtres **de l'écran courant** défilent. |
 | Le fichier `config.json` semble ignoré | Il doit être **à côté de `Minobot.exe`**, et rester un fichier valide : une virgule oubliée suffit à le casser. Dans ce cas Minobot repart sur ses réglages d'origine et le note dans son journal. |

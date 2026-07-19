@@ -6,6 +6,9 @@ import fr.minobot.app.Settings;
 import fr.minobot.app.TestConfigs;
 import fr.minobot.core.KeyboardMonitor;
 import fr.minobot.core.WindowManager;
+import fr.minobot.core.domain.Character;
+import fr.minobot.core.domain.DofusClass;
+import fr.minobot.core.domain.Sex;
 import fr.minobot.ui.FakeOverlayView;
 import fr.minobot.win32.FakeWindowApi;
 import fr.minobot.win32.Rect;
@@ -15,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -33,6 +37,25 @@ class OverlayControllerTest {
     private OverlayController controller() {
         return new OverlayController(api, new WindowManager(api, settings), settings,
                 new KeyboardMonitor(api), _ -> view);
+    }
+
+    /** The names the panel was last handed to draw, in the order it drew them. */
+    private List<String> shownNames() {
+        return view.content().orElseThrow().characters().stream().map(Character::name).toList();
+    }
+
+    /** The character the panel last drew under a name, if it drew one — to read its class and sex off. */
+    private Optional<Character> shown(String name) {
+        return view.content().orElseThrow().characters().stream()
+                .filter(character -> character.name().equals(name))
+                .findFirst();
+    }
+
+    /** The character the live configuration holds under a name — what an edit is expected to have saved. */
+    private Optional<Character> saved(String name) {
+        return settings.get().characters().stream()
+                .filter(character -> character.name().equals(name))
+                .findFirst();
     }
 
     @Nested
@@ -195,13 +218,12 @@ class OverlayControllerTest {
         @DisplayName("the characters, in the order they are cycled in")
         void listsTheCharactersInCycleOrder() {
             api.withForeground(1);
-            settings.update(config -> config.withWindowCycleOrder(List.of("Charlie", "Alpha")));
+            settings.update(config -> config.withCharacterOrder(List.of("Charlie", "Alpha")));
 
             controller().toggle();
 
             assertThat(view.content()).isPresent();
-            assertThat(view.content().orElseThrow().characters())
-                    .containsExactly("Charlie", "Alpha", "Bravo");
+            assertThat(shownNames()).containsExactly("Charlie", "Alpha", "Bravo");
         }
 
         @Test
@@ -213,9 +235,9 @@ class OverlayControllerTest {
 
             controller().toggle();
 
-            assertThat(view.content().orElseThrow().characters())
+            assertThat(shownNames())
                     .as("the login window is shown, but under a label rather than the raw game title")
-                    .contains("(connecting…)")
+                    .contains("(logging in…)")
                     .doesNotContain("Dofus Retro v1.48.18");
         }
 
@@ -247,8 +269,8 @@ class OverlayControllerTest {
 
             controller.reorder(List.of("Charlie", "Bravo", "Alpha"));
 
-            assertThat(settings.get().windowCycleOrder()).containsExactly("Charlie", "Bravo", "Alpha");
-            assertThat(view.content().orElseThrow().characters())
+            assertThat(settings.get().characterOrder()).containsExactly("Charlie", "Bravo", "Alpha");
+            assertThat(shownNames())
                     .as("the panel shows the new order without being asked again")
                     .containsExactly("Charlie", "Bravo", "Alpha");
             assertThat(view.bounds())
@@ -262,13 +284,13 @@ class OverlayControllerTest {
             api.withForeground(1);
             final var controller = controller();
             controller.toggle();
-            assertThat(view.content().orElseThrow().characters())
+            assertThat(shownNames())
                     .containsExactly("Alpha", "Bravo", "Charlie");
 
             api.withWindow(4, "Delta - Dofus Retro"); // a fourth account, opened after the panel went up
             controller.reload();
 
-            assertThat(view.content().orElseThrow().characters())
+            assertThat(shownNames())
                     .as("the panel shows the new character without waiting for the 30s sweep")
                     .containsExactly("Alpha", "Bravo", "Charlie", "Delta");
         }
@@ -280,9 +302,9 @@ class OverlayControllerTest {
             final var controller = controller();
             controller.toggle();
 
-            controller.reorder(List.of("Charlie", "(connecting…)", "Alpha", "Bravo"));
+            controller.reorder(List.of("Charlie", "(logging in…)", "Alpha", "Bravo"));
 
-            assertThat(settings.get().windowCycleOrder())
+            assertThat(settings.get().characterOrder())
                     .as("the placeholder is dropped; the real characters keep the order the player set")
                     .containsExactly("Charlie", "Alpha", "Bravo");
         }
@@ -382,8 +404,112 @@ class OverlayControllerTest {
         void doesNotRedrawAHiddenPanel() {
             controller().reorder(List.of("Bravo"));
 
-            assertThat(settings.get().windowCycleOrder()).containsExactly("Bravo");
+            assertThat(settings.get().characterOrder()).containsExactly("Bravo");
             assertThat(view.timesDrawn()).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("classes")
+    class Classes {
+
+        @Test
+        @DisplayName("a class pinned to a character lands in the live configuration and on the panel")
+        void assignsAClassToACharacter() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+            assertThat(view.content().orElseThrow().characters())
+                    .as("none to begin with").allMatch(character -> character.clazz() == null);
+
+            controller.assignClass("Bravo", DofusClass.IOP);
+
+            assertThat(saved("Bravo").orElseThrow().clazz()).isEqualTo(DofusClass.IOP);
+            assertThat(shown("Bravo").orElseThrow().clazz())
+                    .as("the view is told at once: nothing else would redraw it")
+                    .isEqualTo(DofusClass.IOP);
+        }
+
+        @Test
+        @DisplayName("picking again overwrites the class, rather than keeping both")
+        void reassignsAClass() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+
+            controller.assignClass("Bravo", DofusClass.IOP);
+            controller.assignClass("Bravo", DofusClass.CRA);
+
+            assertThat(saved("Bravo").orElseThrow().clazz()).isEqualTo(DofusClass.CRA);
+        }
+
+        @Test
+        @DisplayName("the panel shows the class only for characters on screen, keyed by name")
+        void listsClassesForShownCharactersOnly() {
+            api.withForeground(1);
+            settings.update(config -> config
+                    .withCharacterClass("Bravo", DofusClass.SRAM)
+                    // A character who is not launched right now keeps their class in the config, but the
+                    // panel speaks only of what is in front of the player.
+                    .withCharacterClass("Delta", DofusClass.XELOR));
+
+            controller().toggle();
+
+            assertThat(shown("Bravo").orElseThrow().clazz()).isEqualTo(DofusClass.SRAM);
+            assertThat(shownNames()).doesNotContain("Delta");
+        }
+
+        @Test
+        @DisplayName("the login placeholder is never given a class: it has no character to key one by")
+        void refusesToClassifyTheLoginPlaceholder() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+
+            controller.assignClass("(logging in…)", DofusClass.FECA);
+
+            assertThat(saved("(logging in…)")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("a sex pinned to a character lands in the live configuration and on the panel")
+        void assignsASexToACharacter() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+            assertThat(view.content().orElseThrow().characters())
+                    .as("none to begin with").allMatch(character -> character.sex() == null);
+
+            controller.assignSex("Bravo", Sex.FEMALE);
+
+            assertThat(saved("Bravo").orElseThrow().sex()).isEqualTo(Sex.FEMALE);
+            assertThat(shown("Bravo").orElseThrow().sex()).isEqualTo(Sex.FEMALE);
+        }
+
+        @Test
+        @DisplayName("class and sex are kept apart: setting one leaves the other untouched")
+        void classAndSexAreIndependent() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+
+            controller.assignClass("Bravo", DofusClass.SRAM);
+            controller.assignSex("Bravo", Sex.FEMALE);
+
+            assertThat(saved("Bravo").orElseThrow().clazz()).isEqualTo(DofusClass.SRAM);
+            assertThat(saved("Bravo").orElseThrow().sex()).isEqualTo(Sex.FEMALE);
+        }
+
+        @Test
+        @DisplayName("the login placeholder is never given a sex either")
+        void refusesToSexTheLoginPlaceholder() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+
+            controller.assignSex("(logging in…)", Sex.FEMALE);
+
+            assertThat(saved("(logging in…)")).isEmpty();
         }
     }
 }

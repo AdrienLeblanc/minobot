@@ -17,8 +17,15 @@ public interface Input {
     /** Types a string one key at a time; bound to the active keyboard layout. */
     void typeString(String text);
 
-    /** Pastes a string through the clipboard, restoring what was in it. Layout-independent. */
-    void pasteString(String text);
+    /**
+     * Pastes a string through the clipboard, restoring what was in it. Layout-independent.
+     *
+     * @return {@code true} if the text reached the clipboard intact and was pasted; {@code false} if
+     *         another application changed the clipboard first, in which case nothing was pasted. A
+     *         caller about to confirm with ENTER must stop on {@code false}, or it sends whatever
+     *         replaced the text — the group relay's "/say &lt;clipboard&gt;" bug.
+     */
+    boolean pasteString(String text);
 
     /** Left-clicks at a screen position. */
     void click(int x, int y);

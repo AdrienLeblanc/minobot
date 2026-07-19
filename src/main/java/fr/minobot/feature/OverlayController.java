@@ -4,7 +4,10 @@ import fr.minobot.app.Feature;
 import fr.minobot.app.Settings;
 import fr.minobot.core.KeyboardMonitor;
 import fr.minobot.core.WindowManager;
+import fr.minobot.core.domain.Character;
+import fr.minobot.core.domain.DofusClass;
 import fr.minobot.core.domain.GameWindow;
+import fr.minobot.core.domain.Sex;
 import fr.minobot.ui.OverlayActions;
 import fr.minobot.ui.OverlayContent;
 import fr.minobot.ui.OverlayView;
@@ -24,9 +27,10 @@ import java.util.function.Function;
  * The control panel: the characters Minobot has found, the order they are cycled in, and the key each
  * feature answers to — all of it editable, on top of the game.
  *
- * <p><strong>A reorder and a rebind are kept; the rest is not.</strong> The character order and the
- * keybinds go through {@link Settings} and are persisted to {@code overlay.json} (see {@link
- * fr.minobot.app.OverlayState}), so they survive a restart. The scale and the two switches also go
+ * <p><strong>A reorder, a rebind, a class and a sex are kept; the rest is not.</strong> The character
+ * order, the keybinds and each character's class and sex go through {@link Settings} and are persisted to
+ * {@code overlay.json} (see {@link fr.minobot.app.OverlayState}), so they survive a restart. The scale
+ * and the two switches also go
  * through {@link Settings}, but nothing persists them: they live for the session only, the switches
  * deliberately — an {@code Auto-pass} found already on after a restart would end turns nobody asked it
  * to. The controller does not know which of the two happens; it just calls {@code settings.update}.
@@ -52,15 +56,6 @@ public final class OverlayController implements OverlayActions {
 
     /** Long enough for a player to reach for the key they meant, short enough to give up on its own. */
     private static final Duration CAPTURE_TIMEOUT = Duration.ofSeconds(5);
-
-    /**
-     * What the panel shows for a game window with no character loaded yet — a login or selection screen.
-     *
-     * <p>The window is the game's, so the panel opens on it and lists it; but it has no character name
-     * to show, and none to be cycled by. So it is drawn under this label and left out of the saved
-     * order — see {@link #reorder}.
-     */
-    private static final String LOGGING_IN = "(connecting…)";
 
     /**
      * How often the panel checks that it is still on top of its character.
@@ -165,9 +160,11 @@ public final class OverlayController implements OverlayActions {
     public void reorder(List<String> characters) {
         // A not-yet-logged-in window rides in the list under its label, but has no name to be cycled by:
         // it must not land in the order, where it would be a dead entry until the character loads.
-        final var named = characters.stream().filter(name -> !name.equals(LOGGING_IN)).toList();
+        final var named = characters.stream()
+                .filter(name -> !name.equals(OverlayContent.LOGGING_IN))
+                .toList();
         log.info("New character order: {}", named);
-        settings.update(config -> config.withWindowCycleOrder(named));
+        settings.update(config -> config.withCharacterOrder(named));
         redraw();
     }
 
@@ -187,6 +184,31 @@ public final class OverlayController implements OverlayActions {
         }
 
         settings.update(config -> config.withHotkey(feature, combination));
+        redraw();
+    }
+
+    @Override
+    public void assignClass(String character, DofusClass clazz) {
+        // The login placeholder is not a character: it has no name to key a class by, and the view does
+        // not offer it one — but a stale click racing a disconnect could still arrive, so it is refused
+        // here too rather than persisting a class for a window nobody is playing.
+        if (character.equals(OverlayContent.LOGGING_IN)) {
+            return;
+        }
+
+        log.info("'{}' set to {}.", character, clazz.label());
+        settings.update(config -> config.withCharacterClass(character, clazz));
+        redraw();
+    }
+
+    @Override
+    public void assignSex(String character, Sex sex) {
+        if (character.equals(OverlayContent.LOGGING_IN)) {
+            return;
+        }
+
+        log.info("'{}' set to {}.", character, sex);
+        settings.update(config -> config.withCharacterSex(character, sex));
         redraw();
     }
 
@@ -237,17 +259,27 @@ public final class OverlayController implements OverlayActions {
             hotkeys.put(feature, feature.hotkeyIn(config));
         }
 
+        // The player's pinned characters, by name, so an on-screen window can carry its class and sex.
+        final var pinned = new java.util.HashMap<String, Character>();
+        for (final var character : config.characters()) {
+            pinned.put(character.name(), character);
+        }
+
+        // One character per window on screen, carrying whatever the player has pinned to it — none until
+        // they do, and nothing at all for a login window, which has no character to pin to. A character
+        // saved but not launched right now stays in the configuration; the panel speaks of what is here.
         final var characters = windows.orderedWindows().stream()
                 .map(this::label)
+                .map(name -> pinned.getOrDefault(name, new Character(name)))
                 .toList();
 
-        return new OverlayContent(characters, hotkeys, config.overlayScale(), config.autoPassTurn(),
-                config.autoAcceptTrade());
+        return new OverlayContent(characters, hotkeys, config.overlayScale(),
+                config.autoPassTurn(), config.autoAcceptTrade());
     }
 
     /** The character's name, or the login label for a window with none loaded yet. */
     private String label(GameWindow window) {
-        return window.hasCharacterName() ? window.name() : LOGGING_IN;
+        return window.hasCharacterName() ? window.name() : OverlayContent.LOGGING_IN;
     }
 
     /** Shows the change the player just made, without moving the panel off its character. */

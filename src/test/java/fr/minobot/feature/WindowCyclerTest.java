@@ -1,11 +1,11 @@
 package fr.minobot.feature;
 
+import fr.minobot.app.TestConfigs;
 import fr.minobot.win32.FakeWindowApi;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class WindowCyclerTest {
 
     private static final Map<String, Object> CYCLE_ORDER =
-            Map.of("window_cycle_order", List.of("Delta", "Bravo", "Alpha"));
+            Map.of("characters", TestConfigs.characters("Delta", "Bravo", "Alpha"));
 
     /** Cycling visits them as Delta (3), Bravo (2), Alpha (1). */
     private FakeWindowApi desktop() {

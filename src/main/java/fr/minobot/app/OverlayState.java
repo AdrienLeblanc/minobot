@@ -13,8 +13,9 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * The one part of the overlay's edits that outlives the process: the character order and the seven
- * keybinds, kept in {@code overlay.json} next to {@code config.json}.
+ * The one part of the overlay's edits that outlives the process: the characters — their order, and the
+ * class and sex pinned to each — and the seven keybinds, kept in {@code overlay.json} next to
+ * {@code config.json}.
  *
  * <p>There are two tiers now. {@code config.json} is the player's <strong>read-only defaults</strong> —
  * generated once, edited by hand, never rewritten by the application. {@code overlay.json} is what the
@@ -31,13 +32,18 @@ public final class OverlayState {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** The order's key in {@code config.json} — the same string as {@link Config}'s {@code @JsonProperty}. */
-    private static final String WINDOW_CYCLE_ORDER = "window_cycle_order";
+    /**
+     * The characters' key in {@code config.json} — the same string as {@link Config}'s
+     * {@code @JsonProperty}. One key now carries the order, the classes and the sexes, because one field
+     * does: a {@link Config#characters()} list rather than three parallel maps.
+     */
+    private static final String CHARACTERS = "characters";
 
     /**
-     * The keys {@code overlay.json} carries: the character order, and every feature's hotkey. The
-     * hotkeys are <em>walked</em> from {@link Feature}, not listed here by hand — so a feature added to
-     * the enum persists its keybind for free, and can never be silently left out.
+     * The keys {@code overlay.json} carries: the characters (their order and their pinned class and sex),
+     * and every feature's hotkey. The hotkeys are <em>walked</em> from {@link Feature}, not listed here by
+     * hand — so a feature added to the enum persists its keybind for free, and can never be silently left
+     * out.
      */
     private static final Set<String> PERSISTED_KEYS = persistedKeys();
 
@@ -49,7 +55,7 @@ public final class OverlayState {
 
     private static Set<String> persistedKeys() {
         final var keys = new LinkedHashSet<String>();
-        keys.add(WINDOW_CYCLE_ORDER);
+        keys.add(CHARACTERS);
         for (final var feature : Feature.values()) {
             keys.add(feature.configKey());
         }
