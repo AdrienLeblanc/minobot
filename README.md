@@ -63,6 +63,18 @@ que vous avez configuré.
 Quand un de vos personnages en arrière-plan se fait attaquer, recevoir un message ou inviter, le jeu
 affiche une notification Windows. Minobot la voit et **bascule automatiquement sur ce personnage**.
 
+### Passer les tours automatiquement — interrupteur dans l'overlay
+
+En combat, le jeu affiche une notification quand c'est au tour d'un personnage de jouer. Ouvrez
+l'overlay (`Shift+Espace`) et activez **Auto-pass turns** : à partir de là, dès qu'un personnage reçoit
+cette notification, Minobot passe son tour tout seul (touche **F1** du jeu). Idéal quand vous laissez
+une équipe de mules dans un combat pendant que vous jouez ailleurs.
+
+L'interrupteur est **très explicite** — un gros ON/OFF sur le panneau — et il passe le tour de **tous**
+les personnages, **y compris celui que vous avez à l'écran** : l'activer, c'est dire « je me suis levé
+de la table ». Il est donc **éteint par défaut**, ne s'active que depuis l'overlay, et **s'oublie au
+redémarrage** (comme tous les réglages faits dans l'overlay).
+
 ---
 
 ## Installation
@@ -125,7 +137,9 @@ Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de c
   "window_reorder_hotkey": "F9",
 
   "overlay_hotkey": "shift+space",
-  "overlay_scale": 1.5
+  "overlay_scale": 1.5,
+
+  "auto_pass_turn": false
 }
 ```
 
@@ -134,6 +148,7 @@ Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de c
 | `window_cycle_order` | Vos personnages, dans l'ordre. **Le réglage principal.** |
 | `multiclick_exclude` | Les personnages à **laisser en dehors** du clic multiple. Exemple : `["Mule", "Marchand"]` — votre mule en mode marchand ne bougera pas. |
 | `overlay_scale` | La taille du panneau (l'overlay, ouvert par `shift+space`), de `1.0` à `2.0`. Sur un grand écran, `1.5` (la valeur d'origine) se lit bien ; montez-la si le texte vous paraît petit. Le curseur en bas du panneau fait la même chose, le temps de la session. |
+| `auto_pass_turn` | Passer automatiquement les tours de combat (`true`/`false`). Se règle surtout depuis l'interrupteur **Auto-pass turns** de l'overlay ; le mettre à `true` ici le démarre déjà activé. |
 | `..._hotkey` | Les touches de chaque fonction. Voir la liste ci-dessous. |
 | `log_level` | Mettez `"DEBUG"` à la place de `"INFO"` si vous devez signaler un problème : Minobot écrira beaucoup plus de détails dans son journal. |
 

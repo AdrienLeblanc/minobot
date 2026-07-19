@@ -28,7 +28,15 @@ public record Config(
         @JsonProperty("window_cycle_prev_hotkey") String windowCyclePrevHotkey,
         @JsonProperty("window_reorder_hotkey") String windowReorderHotkey,
         @JsonProperty("overlay_hotkey") String overlayHotkey,
-        @JsonProperty("overlay_scale") double overlayScale
+        @JsonProperty("overlay_scale") double overlayScale,
+
+        /**
+         * Whether the turn-passer ends each character's turn on its own. Every other feature is turned
+         * off by a blank hotkey; this one has no hotkey to blank — it is a switch on the overlay, not a
+         * key — so it earns the one explicit flag in this record. The overlay flips it, and a restart
+         * forgets it like every other overlay change.
+         */
+        @JsonProperty("auto_pass_turn") boolean autoPassTurn
 ) {
 
     /**
@@ -55,7 +63,10 @@ public record Config(
                 "shift+space",
                 // Swing's natural sizes were laid out for a 96-DPI desktop, and the game is played on a
                 // screen twice that. Unscaled, the panel is legible and nobody wants to read it.
-                1.5
+                1.5,
+                // Off by default: it plays the characters for the player, which is a thing they switch
+                // on deliberately, never a thing they should find already running.
+                false
         );
     }
 
@@ -82,7 +93,8 @@ public record Config(
                 hotkeyOf(Feature.WINDOW_CYCLE_PREV, feature, combination),
                 hotkeyOf(Feature.WINDOW_REORDER, feature, combination),
                 hotkeyOf(Feature.OVERLAY, feature, combination),
-                overlayScale);
+                overlayScale,
+                autoPassTurn);
     }
 
     /** The new combination for the feature being rebound, the current one for every other. */
@@ -95,7 +107,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
                 order, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey, overlayHotkey,
-                overlayScale);
+                overlayScale, autoPassTurn);
     }
 
     /** The same configuration with a different set of characters left out of the multi-click. */
@@ -103,7 +115,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, excluded, resetWindowsHotkey, groupInviteHotkey,
                 windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, overlayScale);
+                overlayHotkey, overlayScale, autoPassTurn);
     }
 
     /** The same configuration with the panel drawn bigger or smaller — how its slider lands. */
@@ -111,7 +123,15 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
                 windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, scale);
+                overlayHotkey, scale, autoPassTurn);
+    }
+
+    /** The same configuration with the turn-passer switched on or off — how the overlay's toggle lands. */
+    public Config withAutoPassTurn(boolean enabled) {
+        return new Config(
+                logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
+                windowCycleOrder, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
+                overlayHotkey, overlayScale, enabled);
     }
 
     private static List<String> copyOrEmpty(List<String> value) {

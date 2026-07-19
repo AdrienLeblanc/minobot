@@ -18,8 +18,12 @@ import java.util.Map;
  * <p>The scale is how big the player wants the panel drawn — the panel covers the game, and the game
  * is played on screens of every size. It is a multiplier of the natural size of every piece of the
  * panel, and the view is the only one that knows what those natural sizes are.
+ *
+ * <p>{@code autoPassTurn} is the one feature the panel shows a state for rather than a key: it has no
+ * hotkey, so the panel draws it as an explicit on/off switch.
  */
-public record OverlayContent(List<String> characters, Map<Feature, String> hotkeys, double scale) {
+public record OverlayContent(List<String> characters, Map<Feature, String> hotkeys, double scale,
+                             boolean autoPassTurn) {
 
     public OverlayContent {
         characters = List.copyOf(characters);

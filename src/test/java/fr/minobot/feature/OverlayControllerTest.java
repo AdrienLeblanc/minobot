@@ -281,6 +281,22 @@ class OverlayControllerTest {
         }
 
         @Test
+        @DisplayName("the auto-pass switch lands in the live configuration, and the panel shows it")
+        void togglesAutoPassTurn() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+            assertThat(view.content().orElseThrow().autoPassTurn()).as("off by default").isFalse();
+
+            controller.toggleAutoPassTurn(true);
+
+            assertThat(settings.get().autoPassTurn()).isTrue();
+            assertThat(view.content().orElseThrow().autoPassTurn())
+                    .as("the view is told at once: nothing else would redraw it")
+                    .isTrue();
+        }
+
+        @Test
         @DisplayName("nothing is drawn while the panel is down")
         void doesNotRedrawAHiddenPanel() {
             controller().reorder(List.of("Bravo"));

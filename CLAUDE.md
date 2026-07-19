@@ -52,11 +52,13 @@ first thing read, and the constraint that justifies it is the comment above it.
 ### Config
 
 `Config` holds what a *player* changes: their `window_cycle_order`, their `multiclick_exclude`, their
-hotkeys, their `log_level`, their `overlay_scale`. Nothing else. A timing, a mouse button, a keyword of the game's window
+hotkeys, their `log_level`, their `overlay_scale`, their `auto_pass_turn`. Nothing else. A timing, a mouse button, a keyword of the game's window
 titles, a dry-run flag — those are dictated by Windows or by the game, not by the player, and belong
 in a constant next to the code that reads it. **Adding a field to `Config` is a claim that a player
 has a reason to change it**; a knob nobody turns is a knob that silently breaks a feature when someone
-does. An empty hotkey disables its feature; there is no `*_enabled` flag.
+does. An empty hotkey disables its feature; there is no `*_enabled` flag — save one: `auto_pass_turn`,
+the turn-passer's switch, because that feature has no hotkey to blank. It is the sole boolean here, and
+it earns its place by being a thing the player deliberately flips on the overlay.
 
 `Feature` enumerates the features that own a hotkey, and each one's slot in `Config` and cooldown. The
 hotkeys are therefore walked, not listed by hand: `MinobotApp` walks them to bind, and the overlay will
@@ -193,7 +195,9 @@ area. That is the price of covering the game rather than floating in a corner of
 whole client area, but the controls are one card centred on it, over a dimmed game. On the card: the
 application's tile at the top (it draws `logo.png` from the classpath, centred and scaled to fit; the
 `MINOBOT` wordmark stands in when no such file was shipped, so the space is never a blank), then the
-characters and their drag-to-reorder, then the size slider. **The logo is a resource, not a loose file:**
+characters and their drag-to-reorder, then the **Auto-pass turns** switch, then the size slider. That
+switch is the panel's one *state* rather than a key — an explicit ON/OFF pill, said in a word and a
+colour both, because a control that quietly ends every combat turn has to be unmistakable. **The logo is a resource, not a loose file:**
 it lives in `src/main/resources/` so it rides inside the jar — a PNG in `assets/` (where the README's
 screenshots live) is lost the moment `Minobot.exe` is unpacked elsewhere. The seven keybinds are a
 **drawer** that unfolds to the right of the card — a `Keybinds ›` button opens it — because they are
@@ -228,6 +232,25 @@ not have. And why reordering is three mouse events rather than Swing's drag-and-
 expects a focused window. Neither is a stylistic choice; both fall out of the line above.
 
 What it changes lives **for the session only** (see `Settings`): a restart goes back to `config.json`.
+
+### Auto-pass turns — no hotkey, the overlay's switch
+
+Plays a table of alts on its own. In a fight the game raises a toast for whoever's turn it is —
+`C'est à "Bravo" de jouer` — and when the switch is on, `TurnPasser` turns that toast into a keypress:
+it brings the character up and presses the game's end-turn key (`F1`, a constant — the key is the
+game's, not the player's). A background character's turn ends without the player lifting a finger.
+
+It passes **every** character's turn, the foreground one included: the switch is the player saying they
+have stepped away, not that they are playing one of the seats — so there is no "except the one I am on".
+That is why it is **off by default**, and why the switch is drawn to be unmistakable.
+
+Like the invitation relay it focuses a window and then types into it, so it holds the foreground for the
+length of that (`focus.takeOver()`): the notification auto-focus answers the same toast, and without the
+takeover its focus would land between the focus and the keypress and end a turn in the wrong window. A
+`ReentrantLock` serializes one pass against the next for the same reason. It is a **combat** feature and
+the group invitation is done **before** the fight — the two are not meant to share the screen, and do
+not. The switch lives on the overlay and only there, read live at every toast; like every overlay change
+it is **session-only** — a restart goes back to `config.json`.
 
 ### Notification auto-focus — no hotkey
 

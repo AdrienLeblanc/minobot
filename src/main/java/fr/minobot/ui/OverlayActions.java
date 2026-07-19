@@ -32,6 +32,12 @@ public interface OverlayActions {
     void rescale(double scale);
 
     /**
+     * Switches the automatic turn-passer on or off — the panel's one toggle, for the one feature with
+     * a state rather than a key. Session-only, like every edit made through the panel.
+     */
+    void toggleAutoPassTurn(boolean on);
+
+    /**
      * Waits for the player to press the key they want, and reads it back — {@code "shift+F7"}.
      *
      * <p>Empty if they pressed nothing in time. No hotkey fires while this is waiting: a key being

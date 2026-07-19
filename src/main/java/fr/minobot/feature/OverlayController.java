@@ -176,6 +176,13 @@ public final class OverlayController implements OverlayActions {
     }
 
     @Override
+    public void toggleAutoPassTurn(boolean on) {
+        log.info("Auto-pass turns switched {}.", on ? "on" : "off");
+        settings.update(config -> config.withAutoPassTurn(on));
+        redraw();
+    }
+
+    @Override
     public Optional<String> captureHotkey() {
         return keyboard.captureNext(CAPTURE_TIMEOUT);
     }
@@ -206,7 +213,7 @@ public final class OverlayController implements OverlayActions {
                 .map(GameWindow::name)
                 .toList();
 
-        return new OverlayContent(characters, hotkeys, config.overlayScale());
+        return new OverlayContent(characters, hotkeys, config.overlayScale(), config.autoPassTurn());
     }
 
     /** Shows the change the player just made, without moving the panel off its character. */

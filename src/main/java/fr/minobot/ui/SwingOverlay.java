@@ -79,6 +79,11 @@ public final class SwingOverlay implements OverlayView {
     private static final int CHARACTER_ROW_HEIGHT = 26;
     private static final int HOTKEY_ROW_HEIGHT = 26;
 
+    /** The auto-pass switch: a pill the knob slides across, wide enough to read as one and not a dot. */
+    private static final int SWITCH_WIDTH = 40;
+    private static final int SWITCH_HEIGHT = 20;
+    private static final int SWITCH_PADDING = 3;
+
     private static final float LOGO_SIZE = 17f;
     private static final float BODY_SIZE = 12f;
     private static final float SMALL_SIZE = 11f;
@@ -207,7 +212,7 @@ public final class SwingOverlay implements OverlayView {
     private void lay(OverlayContent content, double scale, Rect bounds) {
         this.scale = scale;
 
-        card = characterCard();
+        card = characterCard(content.autoPassTurn());
         keybinds = keybindsCard();
         keybinds.setVisible(keybindsOpen);
         window.setContentPane(new Sheet());
@@ -401,8 +406,8 @@ public final class SwingOverlay implements OverlayView {
 
     // ------------------------------------------------------------------ the card
 
-    /** The panel proper: the application, the characters, and how big all of it is drawn. */
-    private JPanel characterCard() {
+    /** The panel proper: the application, the characters, the turn-passer's switch, and the size. */
+    private JPanel characterCard(boolean autoPass) {
         characterList = characterList();
 
         final var card = roundedColumn(BACKGROUND);
@@ -415,8 +420,59 @@ public final class SwingOverlay implements OverlayView {
         card.add(Box.createVerticalStrut(px(GAP)));
         card.add(hint("drag to reorder"));
         card.add(Box.createVerticalStrut(px(PADDING)));
+        card.add(sectionHeading("Auto-pass turns", autoPassControl(autoPass)));
+        card.add(hint(autoPass ? "on — every character ends its own turn" : "off — turns are yours to play"));
+        card.add(Box.createVerticalStrut(px(PADDING)));
         card.add(scaleSlider());
         return card;
+    }
+
+    /**
+     * The turn-passer's switch, and the word for which way it is set — the panel's most explicit
+     * control, because it is the one that plays the game for the player. The word and the colour say
+     * the same thing twice on purpose: a switch that quietly ends every turn is a switch that has to be
+     * unmistakable.
+     */
+    private JComponent autoPassControl(boolean on) {
+        final var state = new JLabel(on ? "ON" : "OFF");
+        state.setForeground(on ? ACCENT : MUTED);
+        state.setFont(tracked(font(HEADING_SIZE, Font.BOLD), 0.14));
+
+        final var control = new JPanel(new FlowLayout(FlowLayout.RIGHT, px(GAP), 0));
+        control.setOpaque(false);
+        control.add(state);
+        control.add(switchPill(on));
+        return control;
+    }
+
+    /** The pill the knob rests in: filled and knob-right when on, hollow and knob-left when off. */
+    private JButton switchPill(boolean on) {
+        final var pill = new JButton() {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                final var canvas = smooth(graphics);
+                final var knob = getHeight() - 2 * px(SWITCH_PADDING);
+                final var x = on ? getWidth() - px(SWITCH_PADDING) - knob : px(SWITCH_PADDING);
+
+                canvas.setColor(on ? ACCENT : SURFACE);
+                canvas.fillRoundRect(0, 0, getWidth(), getHeight(), getHeight(), getHeight());
+                if (!on) {
+                    canvas.setColor(EDGE);
+                    canvas.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, getHeight(), getHeight());
+                }
+                canvas.setColor(on ? BACKGROUND : MUTED);
+                canvas.fillOval(x, px(SWITCH_PADDING), knob, knob);
+                canvas.dispose();
+            }
+        };
+
+        pill.setPreferredSize(new Dimension(px(SWITCH_WIDTH), px(SWITCH_HEIGHT)));
+        pill.setFocusable(false); // it could not take the focus anyway; do not draw as if it could
+        pill.setContentAreaFilled(false);
+        pill.setBorderPainted(false);
+        pill.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        pill.addActionListener(_ -> actions.toggleAutoPassTurn(!on));
+        return pill;
     }
 
     /**
@@ -868,8 +924,8 @@ public final class SwingOverlay implements OverlayView {
         return panel;
     }
 
-    /** A section of the card: its name, small and spaced out, and whatever button belongs to it. */
-    private JPanel sectionHeading(String text, JButton button) {
+    /** A section of the card: its name, small and spaced out, and whatever control belongs to it. */
+    private JPanel sectionHeading(String text, Component control) {
         final var row = new JPanel(new BorderLayout());
         row.setOpaque(false);
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -877,8 +933,8 @@ public final class SwingOverlay implements OverlayView {
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, px(HOTKEY_ROW_HEIGHT)));
 
         row.add(caption(text), BorderLayout.WEST);
-        if (button != null) {
-            row.add(button, BorderLayout.EAST);
+        if (control != null) {
+            row.add(control, BorderLayout.EAST);
         }
         return row;
     }

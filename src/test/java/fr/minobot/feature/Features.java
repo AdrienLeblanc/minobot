@@ -69,4 +69,8 @@ final class Features {
     NotificationListener notificationListener() {
         return new NotificationListener(windows, focus, notifications);
     }
+
+    TurnPasser turnPasser() {
+        return new TurnPasser(windows, input, focus, notifications, settings);
+    }
 }

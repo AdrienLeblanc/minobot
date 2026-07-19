@@ -75,6 +75,10 @@ public final class MinobotApp {
         // Registers itself with the notification manager; it has no hotkey of its own.
         new NotificationListener(windowManager, focusManager, notificationManager);
 
+        // Also hotkey-less: the overlay's Auto-pass switch turns it on and off, and it reads that
+        // switch at every toast rather than being rebound.
+        new TurnPasser(windowManager, inputSimulator, focusManager, notificationManager, settings);
+
         // Every change goes through the whole set again: it is one swap in the monitor, and it spares
         // us the question of which field the overlay touched.
         settings.onChange(this::bindHotkeys);
