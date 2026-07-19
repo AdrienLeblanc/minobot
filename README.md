@@ -10,6 +10,10 @@ Windows, et attend que vous appuyiez sur une touche pour vous épargner les mani
 multi-compte : cliquer neuf fois la même chose dans neuf fenêtres, inviter tout le monde en groupe un
 par un, chercher la bonne fenêtre dans la barre des tâches.
 
+Un overlay est également disponible en jeu.
+
+![overlay.png](assets/overlay.png)
+
 ---
 
 ## Ce qu'il sait faire
