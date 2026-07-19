@@ -1,0 +1,49 @@
+name: Release
+
+# A version tag like 1.1.0 is the trigger. Git tags a commit, not a branch, so this
+# fires whenever such a tag is pushed — in practice, the release commit on main.
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+# gh release create writes to the repo; the default token is read-only without this.
+permissions:
+  contents: write
+
+jobs:
+  build:
+    # jpackage bakes a Windows .exe, so the build must run on Windows.
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      # The tag is already the numeric version jpackage wants (e.g. 1.1.0). verify
+      # runs the tests too, so a broken tag never ships. -Pdist produces
+      # target/dist/Minobot/ — the exe, its cut-down runtime, and the jar.
+      - name: Build the portable app
+        shell: bash
+        run: ./mvnw -Pdist -Ddist.version=${{ github.ref_name }} verify
+
+      # The .exe is only a launcher; it needs runtime/ and app/ beside it. Zip the
+      # whole folder so it extracts as a self-contained Minobot/ directory.
+      - name: Zip the dist
+        shell: pwsh
+        run: Compress-Archive -Path target/dist/Minobot -DestinationPath Minobot-${{ github.ref_name }}.zip
+
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: >
+          gh release create "$GITHUB_REF_NAME"
+          "Minobot-${{ github.ref_name }}.zip"
+          --title "Minobot $GITHUB_REF_NAME"
+          --generate-notes

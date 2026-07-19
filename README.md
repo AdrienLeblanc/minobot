@@ -67,8 +67,9 @@ affiche une notification Windows. Minobot la voit et **bascule automatiquement s
 
 ## Installation
 
-1. Téléchargez Minobot et **décompressez le dossier où vous voulez** (sur le bureau, dans vos
-   documents, peu importe).
+1. Téléchargez le fichier `Minobot-x.y.z.zip` depuis la
+   [page des versions](https://github.com/AdrienLeblanc/minobot/releases/latest), puis
+   **décompressez le dossier où vous voulez** (sur le bureau, dans vos documents, peu importe).
 2. Lancez **`Minobot.exe`**.
 3. C'est tout. Il n'y a rien à installer, pas même Java : tout voyage dans le dossier.
 
