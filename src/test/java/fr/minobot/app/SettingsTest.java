@@ -39,7 +39,7 @@ class SettingsTest {
         }
 
         @Test
-        @DisplayName("nothing is written to disk: the overlay's changes die with the process")
+        @DisplayName("a change swaps in a new Config and never mutates the old one")
         void keepsTheChangeInMemory() {
             final var initial = TestConfigs.with(Map.of("window_cycle_order", List.of("Bravo")));
             final var settings = new Settings(initial);
@@ -47,7 +47,7 @@ class SettingsTest {
             settings.update(config -> config.withWindowCycleOrder(List.of("Alpha")));
 
             assertThat(initial.windowCycleOrder())
-                    .as("the Config that was loaded from the file is untouched")
+                    .as("the Config that was loaded is untouched — Settings swaps, never edits in place")
                     .containsExactly("Bravo");
         }
     }

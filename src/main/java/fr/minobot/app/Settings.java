@@ -17,12 +17,16 @@ import java.util.function.UnaryOperator;
  * and one field of the new — which matters, because the readers are the features, and they run on
  * their own virtual threads while the player edits the overlay.
  *
- * <p><strong>Nothing here is written to disk.</strong> What the overlay changes lives for as long as
- * the process does; a restart goes back to {@code config.json}. That is deliberate, not an oversight.
+ * <p><strong>This class writes nothing to disk.</strong> It holds the configuration and hands changes
+ * to its listeners; persistence, where there is any, is one of those listeners. Two of the overlay's
+ * edits — the character order and the keybinds — are persisted to {@code overlay.json} by such a
+ * listener wired in {@code MinobotApp} (see {@link OverlayState}); everything else the overlay changes,
+ * the scale and the two switches, lives only for the session and a restart forgets it.
  *
- * <p>A feature that must react to a change — {@code MinobotApp} re-registering the hotkeys — listens
- * through {@link #onChange}. A feature that merely reads the current value at each use — the cycler's
- * order, the multi-click's exclusions — needs nothing: it calls {@link #get()} and is always current.
+ * <p>A feature that must react to a change — {@code MinobotApp} re-registering the hotkeys, or saving
+ * the overlay state — listens through {@link #onChange}. A feature that merely reads the current value
+ * at each use — the cycler's order, the multi-click's exclusions — needs nothing: it calls {@link
+ * #get()} and is always current.
  */
 public final class Settings {
 

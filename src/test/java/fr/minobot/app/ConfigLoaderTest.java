@@ -72,4 +72,57 @@ class ConfigLoaderTest {
 
         assertThat(ConfigLoader.load(configPath)).isEqualTo(Config.defaults());
     }
+
+    @Test
+    @DisplayName("overlay.json overrides config.json — the persisted order and keybind win")
+    void overlayStateOverridesConfig(@TempDir Path dir) throws IOException {
+        Path configPath = dir.resolve("config.json");
+        Path overlayPath = dir.resolve("overlay.json");
+        Files.writeString(configPath, """
+                {
+                  "window_cycle_order": ["Alpha", "Bravo"],
+                  "group_invite_hotkey": "F8"
+                }
+                """);
+        Files.writeString(overlayPath, """
+                {
+                  "window_cycle_order": ["Bravo", "Alpha"],
+                  "group_invite_hotkey": "F7"
+                }
+                """);
+
+        Config config = ConfigLoader.load(configPath, overlayPath);
+
+        assertThat(config.windowCycleOrder()).containsExactly("Bravo", "Alpha");
+        assertThat(config.groupInviteHotkey()).isEqualTo("F7");
+    }
+
+    @Test
+    @DisplayName("with no overlay.json, config.json alone decides — the old behaviour")
+    void withoutOverlayStateConfigDecides(@TempDir Path dir) throws IOException {
+        Path configPath = dir.resolve("config.json");
+        Path overlayPath = dir.resolve("overlay.json");
+        Files.writeString(configPath, """
+                { "window_cycle_order": ["Alpha", "Bravo"] }
+                """);
+
+        Config config = ConfigLoader.load(configPath, overlayPath);
+
+        assertThat(config.windowCycleOrder()).containsExactly("Alpha", "Bravo");
+    }
+
+    @Test
+    @DisplayName("a malformed overlay.json is ignored, not fatal: config.json is kept")
+    void malformedOverlayStateKeepsConfig(@TempDir Path dir) throws IOException {
+        Path configPath = dir.resolve("config.json");
+        Path overlayPath = dir.resolve("overlay.json");
+        Files.writeString(configPath, """
+                { "window_cycle_order": ["Alpha", "Bravo"] }
+                """);
+        Files.writeString(overlayPath, "{ not json");
+
+        Config config = ConfigLoader.load(configPath, overlayPath);
+
+        assertThat(config.windowCycleOrder()).containsExactly("Alpha", "Bravo");
+    }
 }

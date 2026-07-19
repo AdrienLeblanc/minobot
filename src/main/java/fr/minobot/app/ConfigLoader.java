@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Optional;
 
 /**
  * Loads {@code config.json}, falling back to {@link Config#defaults()} and writing that file out on
@@ -35,41 +34,57 @@ public final class ConfigLoader {
                 .orElseGet(() -> Path.of("").toAbsolutePath());
     }
 
+    /** The defaults merged with {@code config.json} alone — no persisted overlay state. */
     public static Config load(Path configPath) {
-        if (!Files.exists(configPath)) {
-            log.info("No config file found. Creating {}", configPath);
-            writeDefaults(configPath);
-            return Config.defaults();
-        }
-
-        return readAndMerge(configPath).orElseGet(() -> {
-            log.info("Falling back to default configuration.");
-            return Config.defaults();
-        });
+        return load(configPath, null);
     }
 
     /**
-     * User values override defaults key by key; keys the user omitted keep their default. Without
-     * this merge, a missing key would deserialize to 0/false rather than to its default.
+     * Builds the live configuration from its two tiers: {@code config.json}, the read-only defaults,
+     * then {@code overlay.json}, the overlay's persisted overrides laid on top. Either may be absent.
      */
-    private static Optional<Config> readAndMerge(Path configPath) {
+    public static Config load(Path configPath, Path overlayPath) {
+        if (!Files.exists(configPath)) {
+            log.info("No config file found. Creating {}", configPath);
+            writeDefaults(configPath);
+        }
+
+        final var base = baseTree(configPath);
+        if (overlayPath != null) {
+            OverlayState.overlay(base, overlayPath);
+        }
+
+        try {
+            return MAPPER.treeToValue(base, Config.class);
+        } catch (IOException e) {
+            log.error("Could not build the configuration: {}", e.getMessage());
+            return Config.defaults();
+        }
+    }
+
+    /**
+     * The defaults with {@code config.json} laid over them, key by key: keys the user omitted keep
+     * their default, so a missing key never deserializes to 0/false. A missing or malformed file
+     * leaves the defaults alone.
+     */
+    private static ObjectNode baseTree(Path configPath) {
+        final ObjectNode defaults = MAPPER.valueToTree(Config.defaults());
+        if (!Files.exists(configPath)) {
+            return defaults;
+        }
+
         try {
             final var userConfig = MAPPER.readTree(Files.readString(configPath));
             if (!userConfig.isObject()) {
                 log.warn("{} is not a JSON object. Using defaults.", configPath);
-                return Optional.empty();
+                return defaults;
             }
-
-            ObjectNode merged = MAPPER.valueToTree(Config.defaults());
-            merged.setAll((ObjectNode) userConfig);
-
-            final var config = MAPPER.treeToValue(merged, Config.class);
+            defaults.setAll((ObjectNode) userConfig);
             log.info("Configuration loaded from {}", configPath);
-            return Optional.of(config);
         } catch (IOException e) {
             log.error("Could not read the configuration: {}", e.getMessage());
-            return Optional.empty();
         }
+        return defaults;
     }
 
     private static void writeDefaults(Path configPath) {

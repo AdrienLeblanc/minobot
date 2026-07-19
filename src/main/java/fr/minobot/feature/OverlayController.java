@@ -24,9 +24,12 @@ import java.util.function.Function;
  * The control panel: the characters Minobot has found, the order they are cycled in, and the key each
  * feature answers to — all of it editable, on top of the game.
  *
- * <p><strong>What it changes lives for the session and no longer.</strong> A reorder and a rebind go
- * through {@link Settings}, which never writes to disk: a restart goes back to {@code config.json}.
- * That is deliberate, and it is what makes the panel safe to play with.
+ * <p><strong>A reorder and a rebind are kept; the rest is not.</strong> The character order and the
+ * keybinds go through {@link Settings} and are persisted to {@code overlay.json} (see {@link
+ * fr.minobot.app.OverlayState}), so they survive a restart. The scale and the two switches also go
+ * through {@link Settings}, but nothing persists them: they live for the session only, the switches
+ * deliberately — an {@code Auto-pass} found already on after a restart would end turns nobody asked it
+ * to. The controller does not know which of the two happens; it just calls {@code settings.update}.
  *
  * <p>The panel <em>belongs to a character</em>. It covers their game — the client area exactly, never
  * the title bar Windows draws above it — and it <em>follows</em> it: move the window, resize it, and
@@ -216,14 +219,13 @@ public final class OverlayController implements OverlayActions {
     /**
      * The character whose window holds the screen right now, if it is one of ours.
      *
-     * <p>Empty for anything else — a browser, the desktop, a window that was closed since the last
-     * refresh.
+     * <p>Decided from the foreground window's own process, not from the tracked list: a login window
+     * the 30-second sweep has not caught is still the game, and the panel must open on it. Empty for
+     * anything else — a browser, the desktop. It may carry no character name yet (a login screen); the
+     * panel handles that with its {@link #LOGGING_IN} label.
      */
     private Optional<GameWindow> characterInForeground() {
-        final var foreground = api.foregroundWindow();
-        return windows.orderedWindows().stream()
-                .filter(character -> character.hwnd() == foreground)
-                .findFirst();
+        return windows.foregroundGameWindow();
     }
 
     /** What the panel shows, read fresh from the live configuration and the windows on screen. */

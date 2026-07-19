@@ -73,8 +73,19 @@ the new. A feature that reads it *at every use* — `WindowManager.rank()`, the 
 construction**, that is precisely what makes a setting un-editable. A feature that must *react* to a
 change (`MinobotApp` re-registering the hotkeys) listens through `Settings.onChange`.
 
-Nothing written through `Settings` reaches the disk: a change lives for as long as the process does,
-and a restart goes back to `config.json`. That is deliberate.
+The configuration has **two tiers on disk**. `config.json` is the player's **read-only defaults** —
+generated once, edited by hand, never rewritten by the application. `overlay.json` (see `OverlayState`)
+holds the two overlay edits that must survive a restart — the `window_cycle_order` and the seven
+hotkeys — and it overrides `config.json` at load, key by key, so a default the player never touched
+still shows through. It holds *only* that subset: everything else the overlay changes — the
+`overlay_scale`, the two switches — reaches no disk and a restart forgets it, the switches deliberately
+(an `auto_pass_turn` found already on would end turns nobody asked it to).
+
+`Settings` itself still writes **nothing**: persistence is one more `onChange` listener wired in
+`MinobotApp`, exactly like the hotkey rebinding, and it serializes only the persisted subset. Note the
+consequence: once a keybind is rebound on the overlay it lives in `overlay.json`, so editing it by hand
+in `config.json` no longer has any effect — the persisted choice wins. To go back to the defaults,
+delete `overlay.json`.
 
 ### Concurrency
 
@@ -233,7 +244,9 @@ It is also why **nothing in the panel is typed** — a keybind is read from the 
 not have. And why reordering is three mouse events rather than Swing's drag-and-drop stack, which
 expects a focused window. Neither is a stylistic choice; both fall out of the line above.
 
-What it changes lives **for the session only** (see `Settings`): a restart goes back to `config.json`.
+What it changes splits in two (see `Settings` and `OverlayState`): the **character order and the
+keybinds are persisted** to `overlay.json` and survive a restart; the **scale and the two switches are
+session-only** and a restart forgets them.
 
 ### Auto-pass turns — no hotkey, the overlay's switch
 
@@ -251,8 +264,9 @@ length of that (`focus.takeOver()`): the notification auto-focus answers the sam
 takeover its focus would land between the focus and the keypress and end a turn in the wrong window. A
 `ReentrantLock` serializes one pass against the next for the same reason. It is a **combat** feature and
 the group invitation is done **before** the fight — the two are not meant to share the screen, and do
-not. The switch lives on the overlay and only there, read live at every toast; like every overlay change
-it is **session-only** — a restart goes back to `config.json`.
+not. The switch lives on the overlay and only there, read live at every toast; unlike the order and the
+keybinds it is **session-only** — not persisted, so a restart forgets it and finds it off, which is the
+safe default for a feature that ends turns on its own.
 
 ### Auto-accept trades — no hotkey, the overlay's switch
 
@@ -277,7 +291,7 @@ switch and the windows, so both features decide the same without a handshake and
 nothing else, which is exactly what a real trade offer deserves. The asker's name is matched as a
 **whole word** (`SuperAlpha` is not our `Alpha`). **On by default** — passing items between one's own
 accounts is the daily bread of multi-boxing, and it only ever fires on a trade a player's own character
-asked for — and session-only like the rest.
+asked for — and session-only like the other switch (not persisted to `overlay.json`).
 
 ### Notification auto-focus — no hotkey
 

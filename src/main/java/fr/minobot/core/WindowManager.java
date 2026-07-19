@@ -143,6 +143,25 @@ public final class WindowManager {
     }
 
     /**
+     * The window in the foreground <em>if it is the game's</em> — decided live from the process, not
+     * looked up in the tracked list.
+     *
+     * <p>The overlay belongs to whatever game window the player is actually on, and that is not always
+     * a window the 30-second sweep has on file: a character just launched sits at the login screen for
+     * a while, and a login window is exactly the one the sweep may not have caught yet — or may not
+     * surface at all. Asking the foreground window's own process sidesteps the sweep entirely: if the
+     * player is looking at {@code Dofus Retro.exe}, that is where the panel goes.
+     */
+    public Optional<GameWindow> foregroundGameWindow() {
+        final var hwnd = api.foregroundWindow();
+        if (hwnd == Win32.NULL_HANDLE) {
+            return Optional.empty();
+        }
+        final var title = api.windowText(hwnd);
+        return isGameWindow(hwnd, title) ? Optional.of(new GameWindow(hwnd, title)) : Optional.empty();
+    }
+
+    /**
      * The character name a title carries — a window's, or a toast's, which the game writes the same way.
      *
      * <p>{@code "Bravo - Dofus Retro v1.48.18"} yields {@code "Bravo"}.

@@ -76,6 +76,25 @@ class OverlayControllerTest {
         }
 
         @Test
+        @DisplayName("it opens on a login window the 30s sweep has not caught, so long as it is the game")
+        void opensOnAGameWindowMissingFromTheTrackedList() {
+            final var windows = new WindowManager(api, settings);
+            windows.refresh(); // the sweep runs while only the already-connected characters are up
+
+            // A fresh account is launched and sits at the login screen — its title carries no name yet,
+            // and the sweep will not run again for 30s, so it is not in the tracked list.
+            api.withWindow(10, "Dofus Retro v1.48.18")
+                    .runningAs(10, "C:\\Users\\me\\AppData\\Local\\Ankama\\Retro\\Dofus Retro.exe")
+                    .withForeground(10);
+
+            new OverlayController(api, windows, settings, new KeyboardMonitor(api), _ -> view).toggle();
+
+            assertThat(view.isVisible())
+                    .as("the panel belongs to whatever game window the player is on, tracked or not")
+                    .isTrue();
+        }
+
+        @Test
         @DisplayName("a second press takes it away")
         void hidesItOnTheSecondPress() {
             api.withForeground(1);

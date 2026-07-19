@@ -15,25 +15,36 @@ import java.time.Duration;
  */
 public enum Feature {
 
-    MULTICLICK("Multi-window click", Duration.ofMillis(10)),
-    RESET_WINDOWS("Character reset", Duration.ofSeconds(1)),
-    GROUP_INVITE("Group invitation", Duration.ofSeconds(5)),
-    WINDOW_CYCLE_NEXT("Window cycler (next)", Duration.ofMillis(100)),
-    WINDOW_CYCLE_PREV("Window cycler (previous)", Duration.ofMillis(100)),
-    WINDOW_REORDER("Window reorder", Duration.ofSeconds(5)),
-    OVERLAY("Overlay", Duration.ofMillis(200));
+    MULTICLICK("Multi-window click", "multiclick_hotkey", Duration.ofMillis(10)),
+    RESET_WINDOWS("Character reset", "reset_windows_hotkey", Duration.ofSeconds(1)),
+    GROUP_INVITE("Group invitation", "group_invite_hotkey", Duration.ofSeconds(5)),
+    WINDOW_CYCLE_NEXT("Window cycler (next)", "window_cycle_next_hotkey", Duration.ofMillis(100)),
+    WINDOW_CYCLE_PREV("Window cycler (previous)", "window_cycle_prev_hotkey", Duration.ofMillis(100)),
+    WINDOW_REORDER("Window reorder", "window_reorder_hotkey", Duration.ofSeconds(5)),
+    OVERLAY("Overlay", "overlay_hotkey", Duration.ofMillis(200));
 
     private final String label;
+    private final String configKey;
     private final Duration cooldown;
 
-    Feature(String label, Duration cooldown) {
+    Feature(String label, String configKey, Duration cooldown) {
         this.label = label;
+        this.configKey = configKey;
         this.cooldown = cooldown;
     }
 
     /** How the feature is named to the player — in the logs, and in the overlay. */
     public String label() {
         return label;
+    }
+
+    /**
+     * The key this feature's hotkey has in {@code config.json} — the same string as the matching
+     * {@code @JsonProperty} on {@link Config}. It exists so the persisted set of keybinds is
+     * <em>walked</em> from this enum rather than listed by hand: see {@code OverlayState}.
+     */
+    public String configKey() {
+        return configKey;
     }
 
     public Duration cooldown() {

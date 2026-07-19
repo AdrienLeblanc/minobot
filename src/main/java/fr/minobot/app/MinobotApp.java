@@ -51,8 +51,9 @@ public final class MinobotApp {
     public MinobotApp(WindowApi api) {
         final var baseDirectory = ConfigLoader.baseDirectory();
         final var configPath = baseDirectory.resolve("config.json");
+        final var overlayPath = baseDirectory.resolve("overlay.json");
 
-        this.settings = new Settings(ConfigLoader.load(configPath));
+        this.settings = new Settings(ConfigLoader.load(configPath, overlayPath));
         LoggerSetup.configure(settings.get(), baseDirectory);
 
         log.info("=== Minobot starting (app dir: {}) ===", baseDirectory);
@@ -89,6 +90,12 @@ public final class MinobotApp {
         // us the question of which field the overlay touched.
         settings.onChange(this::bindHotkeys);
         bindHotkeys(settings.get());
+
+        // The character order and the keybinds outlive the session: one more listener writes them to
+        // overlay.json. It fires on every change but persists only that subset, so the scale and the
+        // two switches stay session-only — deliberately, for the switches. Settings itself still
+        // writes nothing; persistence is an observer, exactly like the rebinding above.
+        settings.onChange(config -> OverlayState.save(overlayPath, config));
     }
 
     /**

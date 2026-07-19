@@ -34,14 +34,14 @@ public record Config(
          * Whether the turn-passer ends each character's turn on its own. Every other feature is turned
          * off by a blank hotkey; this one has no hotkey to blank — it is a switch on the overlay, not a
          * key — so it earns the one explicit flag in this record. The overlay flips it, and a restart
-         * forgets it like every other overlay change.
+         * forgets it: unlike the order and the keybinds, this switch is not persisted, deliberately.
          */
         @JsonProperty("auto_pass_turn") boolean autoPassTurn,
 
         /**
          * Whether an exchange one of the player's own characters asks of another is accepted for them.
-         * The same kind of switch as {@link #autoPassTurn}: no hotkey, flipped on the overlay, forgotten
-         * on restart.
+         * The same kind of switch as {@link #autoPassTurn}: no hotkey, flipped on the overlay, and not
+         * persisted — forgotten on restart.
          */
         @JsonProperty("auto_accept_trade") boolean autoAcceptTrade
 ) {
