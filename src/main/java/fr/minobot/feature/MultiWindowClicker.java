@@ -11,10 +11,10 @@ import fr.minobot.win32.WindowApi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 /**
@@ -28,7 +28,9 @@ import java.util.stream.Collectors;
  * <p>Which is why the click is <em>posted</em> rather than simulated: it is dropped straight into each
  * window's queue, so the other characters act without their windows ever taking the screen. And why the
  * spot travels as a <em>client</em> position, not a screen one: the same client coordinates land on the
- * same in-game spot in every window, wherever they sit on the desktop.
+ * same in-game spot in every window, wherever they sit on the desktop. <em>At once</em> is literal:
+ * every character is posted on its own virtual thread, so the last window clicks a breath after the
+ * first, not a character's worth of delay later.
  *
  * <p><strong>A clicked character goes deaf, and there is no cure but the reset hotkey.</strong> The
  * game only raises its Windows toast for a character nobody is watching, and a posted click is — seen
@@ -55,12 +57,6 @@ public final class MultiWindowClicker {
 
     /** Time given to a character to settle on screen before the next one is brought up. */
     private static final int RESET_SETTLE_MILLIS = 50;
-
-    /**
-     * Breathing room between two characters: a posted click the game has not yet drained can otherwise
-     * be dropped. The whole point of the feature is speed, so this is as small as it can be.
-     */
-    private static final int CLICK_DELAY_MILLIS = 10;
 
     private final WindowApi api;
     private final WindowManager windows;
@@ -97,17 +93,49 @@ public final class MultiWindowClicker {
             return;
         }
 
-        final var clicked = new ArrayList<Long>();
-        for (final var character : clickable(characters)) {
-            if (click(character, spot.get())) {
-                clicked.add(character.hwnd());
-            }
+        // Every character is clicked at once, each on its own virtual thread — never one after another.
+        // A window is a process of its own, and a click posted to its queue is independent of the next:
+        // there is no line for them to wait in, and making them wait is precisely the decalage the
+        // player feels between the first click and the last. The old sequential loop paced itself with a
+        // breathing delay between characters; per-window threads have no "next character" to pace against,
+        // so that delay is gone with it. (If a click is ever dropped under the real game, shift+x1 remains
+        // the cure — the same one it always was for a deafened window.)
+        final var clicked = new CopyOnWriteArrayList<Long>();
+        final var clicks = clickable(characters).stream()
+                .map(character -> Thread.ofVirtual()
+                        .name("multi-click-" + character.name())
+                        .start(() -> {
+                            if (click(character, spot.get())) {
+                                clicked.add(character.hwnd());
+                            }
+                        }))
+                .toList();
+        if (!joinAll(clicks)) {
+            return;
         }
 
         // Each of these characters is about to ask Windows for the screen, be refused, and turn orange
         // in the taskbar. The suppressor clears them once that has happened — on its own thread, never
-        // on this one, which must stay as fast as it is.
+        // on this one.
         flash.watch(clicked);
+    }
+
+    /** @return whether every click finished; {@code false} means this thread was interrupted waiting */
+    private static boolean joinAll(List<Thread> clicks) {
+        return clicks.stream()
+                .parallel()
+                .map(thread ->{
+                    try {
+                        thread.join(RETRY_MILLIS);
+                        return true;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return false;
+                    }
+                })
+                .filter(it -> it.equals(false))
+                .findFirst()
+                .orElse(true);
     }
 
     /**
@@ -212,7 +240,6 @@ public final class MultiWindowClicker {
 
         for (var attempt = 0; attempt < CLICK_ATTEMPTS; attempt++) {
             if (post(character.hwnd(), spot)) {
-                sleep(CLICK_DELAY_MILLIS);
                 return true;
             }
             if (!sleep(RETRY_MILLIS)) {

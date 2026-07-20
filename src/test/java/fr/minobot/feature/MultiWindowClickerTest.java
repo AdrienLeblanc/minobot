@@ -11,7 +11,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,6 +44,15 @@ class MultiWindowClickerTest {
                 new PostedMessage(hwnd, Win32.WM_LBUTTONUP, 0, lparam));
     }
 
+    /**
+     * What a single window was posted, in order. The clicks are now fired in parallel — one virtual
+     * thread per character — so the windows interleave in the global log; only the down→up order
+     * <em>within</em> a window is fixed, and that is what each test pins down, window by window.
+     */
+    private static List<PostedMessage> messagesTo(FakeWindowApi api, long hwnd) {
+        return api.postedMessages().stream().filter(message -> message.hwnd() == hwnd).toList();
+    }
+
 
     @Nested
     class Positioning {
@@ -58,8 +66,9 @@ class MultiWindowClickerTest {
 
             // The cursor is at client (90, 90) of window 1; the others are clicked at their own
             // client (90, 90) — not at screen (100, 100), which would land somewhere else in them.
-            assertThat(api.postedMessages()).containsExactlyElementsOf(
-                    concat(leftClickOn(1, 90, 90), leftClickOn(2, 90, 90), leftClickOn(3, 90, 90)));
+            assertThat(messagesTo(api, 1)).containsExactlyElementsOf(leftClickOn(1, 90, 90));
+            assertThat(messagesTo(api, 2)).containsExactlyElementsOf(leftClickOn(2, 90, 90));
+            assertThat(messagesTo(api, 3)).containsExactlyElementsOf(leftClickOn(3, 90, 90));
         }
 
         @Test
@@ -73,8 +82,9 @@ class MultiWindowClickerTest {
             new Features(api, Map.of()).clicker().clickEveryCharacter(CURSOR);
 
             // Resolved to window 2, whose client position for the cursor is (80, 80).
-            assertThat(api.postedMessages()).containsExactlyElementsOf(
-                    concat(leftClickOn(1, 80, 80), leftClickOn(2, 80, 80), leftClickOn(3, 80, 80)));
+            assertThat(messagesTo(api, 1)).containsExactlyElementsOf(leftClickOn(1, 80, 80));
+            assertThat(messagesTo(api, 2)).containsExactlyElementsOf(leftClickOn(2, 80, 80));
+            assertThat(messagesTo(api, 3)).containsExactlyElementsOf(leftClickOn(3, 80, 80));
         }
 
         @Test
@@ -217,10 +227,5 @@ class MultiWindowClickerTest {
             assertThat(api.focusedWindows()).containsExactly(2L, 1L);
             assertThat(api.foregroundWindow()).isEqualTo(1);
         }
-    }
-
-    @SafeVarargs
-    private static List<PostedMessage> concat(List<PostedMessage>... clicks) {
-        return Stream.of(clicks).flatMap(List::stream).toList();
     }
 }
