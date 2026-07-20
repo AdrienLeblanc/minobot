@@ -10,6 +10,7 @@ public final class Win32 {
 
     // ShowWindow commands
     public static final int SW_HIDE = 0;
+    public static final int SW_MAXIMIZE = 3;
     public static final int SW_SHOW = 5;
     public static final int SW_RESTORE = 9;
 

@@ -103,10 +103,11 @@ public final class WindowReorder {
 
             api.showWindow(character.hwnd(), Win32.SW_SHOW);
 
-            // A character that was minimized comes back hidden from the taskbar otherwise.
-            if (api.isIconic(character.hwnd())) {
-                api.showWindow(character.hwnd(), Win32.SW_RESTORE);
-            }
+            // The player wants their characters enlarged as well as back in order. SW_MAXIMIZE also
+            // un-minimizes — which the taskbar needs anyway, a window left iconic comes back hidden
+            // from it — so it subsumes the SW_RESTORE this used to do. Maximizing a window already
+            // maximized is a no-op, which is the "if it is not already" the player asked for.
+            api.showWindow(character.hwnd(), Win32.SW_MAXIMIZE);
 
             Thread.sleep(BETWEEN_WINDOWS_MILLIS);
         }

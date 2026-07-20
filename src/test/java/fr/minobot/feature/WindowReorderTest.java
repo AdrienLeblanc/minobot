@@ -37,6 +37,18 @@ class WindowReorderTest {
     }
 
     @Test
+    @DisplayName("brings every character back maximized, not merely visible")
+    void maximizesEveryWindow() {
+        final var api = desktop().minimize(2);
+
+        new Features(api, CYCLE_ORDER).reorder().reorderTaskbar();
+
+        assertThat(api.isMaximized(1)).isTrue();
+        assertThat(api.isMaximized(2)).isTrue();
+        assertThat(api.isMaximized(3)).isTrue();
+    }
+
+    @Test
     @DisplayName("the first window of the order ends up focused")
     void focusesTheFirstWindow() {
         final var api = desktop();

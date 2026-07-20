@@ -41,7 +41,10 @@ public interface WindowApi {
     /** Whether the handle still designates an existing window. */
     boolean isWindow(long hwnd);
 
-    /** @param command one of {@link Win32#SW_HIDE}, {@link Win32#SW_SHOW}, {@link Win32#SW_RESTORE} */
+    /**
+     * @param command one of {@link Win32#SW_HIDE}, {@link Win32#SW_SHOW}, {@link Win32#SW_MAXIMIZE},
+     *                {@link Win32#SW_RESTORE}
+     */
     void showWindow(long hwnd, int command);
 
     /**

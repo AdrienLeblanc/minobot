@@ -21,6 +21,7 @@ public final class FakeWindowApi implements WindowApi {
     private final Map<Long, String> titles = new LinkedHashMap<>();
     private final Map<Long, String> executables = new LinkedHashMap<>();
     private final Set<Long> minimized = ConcurrentHashMap.newKeySet();
+    private final Set<Long> maximized = ConcurrentHashMap.newKeySet();
     private final Set<Long> hidden = ConcurrentHashMap.newKeySet();
     private final Map<Long, Long> monitors = new LinkedHashMap<>();
     private final Map<Long, Long> parents = new LinkedHashMap<>();
@@ -128,16 +129,30 @@ public final class FakeWindowApi implements WindowApi {
     public void showWindow(long hwnd, int command) {
         switch (command) {
             case Win32.SW_HIDE -> hidden.add(hwnd);
+            case Win32.SW_MAXIMIZE -> {
+                minimized.remove(hwnd);
+                hidden.remove(hwnd);
+                maximized.add(hwnd);
+                markShown(hwnd);
+            }
             case Win32.SW_RESTORE -> {
                 minimized.remove(hwnd);
                 hidden.remove(hwnd);
-                shown.add(hwnd);
+                markShown(hwnd);
             }
             case Win32.SW_SHOW -> {
                 hidden.remove(hwnd);
-                shown.add(hwnd);
+                markShown(hwnd);
             }
             default -> throw new IllegalArgumentException("Unsupported ShowWindow command: " + command);
+        }
+    }
+
+    /** Records the window's first appearance on screen — the reorder brings each back more than once
+     *  (a SW_SHOW then a SW_MAXIMIZE), and the taskbar order is fixed by that first showing. */
+    private void markShown(long hwnd) {
+        if (!shown.contains(hwnd)) {
+            shown.add(hwnd);
         }
     }
 
@@ -148,6 +163,10 @@ public final class FakeWindowApi implements WindowApi {
 
     public boolean isHidden(long hwnd) {
         return hidden.contains(hwnd);
+    }
+
+    public boolean isMaximized(long hwnd) {
+        return maximized.contains(hwnd);
     }
 
     @Override
