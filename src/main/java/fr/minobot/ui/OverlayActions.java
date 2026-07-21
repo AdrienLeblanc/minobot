@@ -45,6 +45,16 @@ public interface OverlayActions {
     void assignSex(String character, Sex sex);
 
     /**
+     * Drops a character from the saved roster — its class and its sex with it — so a character the player
+     * no longer runs stops taking up a row.
+     *
+     * <p>Offered on the panel only for a <em>disconnected, pinned</em> character: a connected one is on
+     * screen and would come straight back, and an unpinned one was never saved to begin with. The reverse
+     * of {@link #assignClass}/{@link #assignSex}, and persisted the same way.
+     */
+    void forget(String character);
+
+    /**
      * Draws the panel bigger or smaller — what the player has just dragged the slider to.
      *
      * <p>A value outside what the slider offers is brought back inside it: the configuration is the one

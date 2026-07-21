@@ -85,10 +85,20 @@ both live on the **`Character`** they belong to — the one entity carrying a ch
 sex (`core/domain/Character`), so the config holds one `List<Character>` rather than an order beside a
 map of classes beside a map of sexes. **A new thing a character owns is a field on `Character`, not
 another map keyed by name.** The list is keyed by name where it must merge (a reorder, a fresh pin — a
-`GameWindow` is a window, and a window is not a choice), so a reorder does not disturb the pins, and a
-character saved but not launched right now keeps its `Character` in the config though the panel — which
-speaks only of what is in front of the player — does not show it. A character with no sex set is drawn
-as male (`Character.sexOrDefault()`).
+`GameWindow` is a window, and a window is not a choice), so a reorder does not disturb the pins. A
+character with no sex set is drawn as male (`Character.sexOrDefault()`).
+
+**A pinned character does not vanish when its window closes.** The panel shows the windows on screen
+*and* the characters the player has pinned a class or a sex to (`Character.isPinned()`) but is not
+playing right now — the latter greyed-out, keeping their place in the cycle order. Each row carries a
+**status chip** (`ui/CharacterEntry`, a `Character` beside a `connected` flag — connection is window
+state, not a field the domain persists): green *connected* while the window is open, light-grey
+*disconnected* when it is not. A disconnected row also carries a **forget cross** (`OverlayActions.forget`
+→ `Config.withoutCharacter`) that drops the character from the roster, its class and sex with it — the
+one way a saved character leaves the list. An **unpinned** character is a bare name (a reorder artifact)
+and still appears only while its window is open: a login placeholder and a character nobody configured
+earn no greyed-out row. The controller builds this list in `content()`; the merge and the two rules —
+what is kept, what its position is — are covered by `OverlayControllerTest`.
 
 **Each class's logo is a resource, not a loose file:** one **SVG per class and sex** under
 `src/main/resources/classes/` (`iop_m.svg`, `iop_f.svg`, `cra_m.svg`, …, the leaf being the class's own

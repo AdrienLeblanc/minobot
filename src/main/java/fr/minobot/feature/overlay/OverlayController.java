@@ -8,6 +8,7 @@ import fr.minobot.core.domain.Character;
 import fr.minobot.core.domain.DofusClass;
 import fr.minobot.core.domain.GameWindow;
 import fr.minobot.core.domain.Sex;
+import fr.minobot.ui.CharacterEntry;
 import fr.minobot.ui.OverlayActions;
 import fr.minobot.ui.OverlayContent;
 import fr.minobot.ui.OverlayView;
@@ -17,7 +18,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -213,6 +217,20 @@ public final class OverlayController implements OverlayActions {
     }
 
     @Override
+    public void forget(String character) {
+        // The login placeholder is not a saved character; and the view offers the cross on disconnected,
+        // pinned rows only. A stale click racing something else lands here as a no-op rather than a wrong
+        // deletion.
+        if (character.equals(OverlayContent.LOGGING_IN)) {
+            return;
+        }
+
+        log.info("Forgetting '{}'.", character);
+        settings.update(config -> config.withoutCharacter(character));
+        redraw();
+    }
+
+    @Override
     public void rescale(double scale) {
         log.info("Overlay scale set to {}%.", Math.round(scale * 100));
         settings.update(config -> config.withOverlayScale(scale));
@@ -259,27 +277,49 @@ public final class OverlayController implements OverlayActions {
             hotkeys.put(feature, feature.hotkeyIn(config));
         }
 
-        // The player's pinned characters, by name, so an on-screen window can carry its class and sex.
-        final var pinned = new java.util.HashMap<String, Character>();
-        for (final var character : config.characters()) {
-            pinned.put(character.name(), character);
+        // The windows on screen right now, by the character played in each — so a saved character can be
+        // matched to its live window, and a login screen (which names no character yet) is noted apart.
+        final var liveByName = new LinkedHashMap<String, GameWindow>();
+        var loginOnScreen = false;
+        for (final var window : windows.orderedWindows()) {
+            if (window.hasCharacterName()) {
+                liveByName.put(window.name(), window);
+            } else {
+                loginOnScreen = true;
+            }
         }
 
-        // One character per window on screen, carrying whatever the player has pinned to it — none until
-        // they do, and nothing at all for a login window, which has no character to pin to. A character
-        // saved but not launched right now stays in the configuration; the panel speaks of what is here.
-        final var characters = windows.orderedWindows().stream()
-                .map(this::label)
-                .map(name -> pinned.getOrDefault(name, new Character(name)))
-                .toList();
+        final var entries = new ArrayList<CharacterEntry>();
+        final var emitted = new HashSet<String>();
 
-        return new OverlayContent(characters, hotkeys, config.overlayScale(),
+        // The saved roster first, in cycle order: a connected one carries whatever the player pinned, a
+        // disconnected one is kept greyed-out only if they pinned something to it. A bare name they never
+        // configured earns no row of its own — it reappears when its window does.
+        for (final var character : config.characters()) {
+            if (liveByName.containsKey(character.name())) {
+                entries.add(new CharacterEntry(character, true));
+                emitted.add(character.name());
+            } else if (character.isPinned()) {
+                entries.add(new CharacterEntry(character, false));
+                emitted.add(character.name());
+            }
+        }
+
+        // Then the windows the roster does not know: a character detected but never configured, in the
+        // order the cycler ranks them, connected by definition and with nothing pinned to them yet.
+        for (final var name : liveByName.keySet()) {
+            if (!emitted.contains(name)) {
+                entries.add(new CharacterEntry(new Character(name), true));
+            }
+        }
+
+        // And last, a window at the login screen: the game, but with no character to give it a name.
+        if (loginOnScreen) {
+            entries.add(new CharacterEntry(new Character(OverlayContent.LOGGING_IN), true));
+        }
+
+        return new OverlayContent(entries, hotkeys, config.overlayScale(),
                 config.autoPassTurn(), config.autoAcceptTrade());
-    }
-
-    /** The character's name, or the login label for a window with none loaded yet. */
-    private String label(GameWindow window) {
-        return window.hasCharacterName() ? window.name() : OverlayContent.LOGGING_IN;
     }
 
     /** Shows the change the player just made, without moving the panel off its character. */

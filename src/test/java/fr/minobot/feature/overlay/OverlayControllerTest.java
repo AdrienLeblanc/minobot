@@ -9,6 +9,7 @@ import fr.minobot.core.WindowManager;
 import fr.minobot.core.domain.Character;
 import fr.minobot.core.domain.DofusClass;
 import fr.minobot.core.domain.Sex;
+import fr.minobot.ui.CharacterEntry;
 import fr.minobot.ui.FakeOverlayView;
 import fr.minobot.win32.FakeWindowApi;
 import fr.minobot.win32.Rect;
@@ -41,14 +42,20 @@ class OverlayControllerTest {
 
     /** The names the panel was last handed to draw, in the order it drew them. */
     private List<String> shownNames() {
-        return view.content().orElseThrow().characters().stream().map(Character::name).toList();
+        return view.content().orElseThrow().characters().stream()
+                .map(entry -> entry.character().name()).toList();
+    }
+
+    /** The row the panel last drew under a name, if it drew one — to read its connection state off. */
+    private Optional<CharacterEntry> shownEntry(String name) {
+        return view.content().orElseThrow().characters().stream()
+                .filter(entry -> entry.character().name().equals(name))
+                .findFirst();
     }
 
     /** The character the panel last drew under a name, if it drew one — to read its class and sex off. */
     private Optional<Character> shown(String name) {
-        return view.content().orElseThrow().characters().stream()
-                .filter(character -> character.name().equals(name))
-                .findFirst();
+        return shownEntry(name).map(CharacterEntry::character);
     }
 
     /** The character the live configuration holds under a name — what an edit is expected to have saved. */
@@ -420,7 +427,7 @@ class OverlayControllerTest {
             final var controller = controller();
             controller.toggle();
             assertThat(view.content().orElseThrow().characters())
-                    .as("none to begin with").allMatch(character -> character.clazz() == null);
+                    .as("none to begin with").allMatch(entry -> entry.character().clazz() == null);
 
             controller.assignClass("Bravo", DofusClass.IOP);
 
@@ -444,19 +451,22 @@ class OverlayControllerTest {
         }
 
         @Test
-        @DisplayName("the panel shows the class only for characters on screen, keyed by name")
-        void listsClassesForShownCharactersOnly() {
+        @DisplayName("a character pinned a class but not launched is still shown, disconnected, with it")
+        void keepsPinnedCharactersWhileDisconnected() {
             api.withForeground(1);
             settings.update(config -> config
                     .withCharacterClass("Bravo", DofusClass.SRAM)
-                    // A character who is not launched right now keeps their class in the config, but the
-                    // panel speaks only of what is in front of the player.
+                    // Delta is configured but not on screen: kept and greyed-out, rather than dropped.
                     .withCharacterClass("Delta", DofusClass.XELOR));
 
             controller().toggle();
 
+            assertThat(shownEntry("Bravo").orElseThrow().connected()).isTrue();
             assertThat(shown("Bravo").orElseThrow().clazz()).isEqualTo(DofusClass.SRAM);
-            assertThat(shownNames()).doesNotContain("Delta");
+            assertThat(shownEntry("Delta").orElseThrow().connected())
+                    .as("pinned but not launched: shown, and marked disconnected")
+                    .isFalse();
+            assertThat(shown("Delta").orElseThrow().clazz()).isEqualTo(DofusClass.XELOR);
         }
 
         @Test
@@ -478,7 +488,7 @@ class OverlayControllerTest {
             final var controller = controller();
             controller.toggle();
             assertThat(view.content().orElseThrow().characters())
-                    .as("none to begin with").allMatch(character -> character.sex() == null);
+                    .as("none to begin with").allMatch(entry -> entry.character().sex() == null);
 
             controller.assignSex("Bravo", Sex.FEMALE);
 
@@ -510,6 +520,83 @@ class OverlayControllerTest {
             controller.assignSex("(logging in…)", Sex.FEMALE);
 
             assertThat(saved("(logging in…)")).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("connected and disconnected")
+    class Presence {
+
+        @Test
+        @DisplayName("a character on screen is shown connected")
+        void marksOnScreenCharactersConnected() {
+            api.withForeground(1);
+
+            controller().toggle();
+
+            assertThat(shownEntry("Alpha").orElseThrow().connected()).isTrue();
+        }
+
+        @Test
+        @DisplayName("a character with nothing pinned vanishes when its window closes")
+        void dropsUnpinnedCharactersOnDisconnect() {
+            api.withForeground(1);
+            // Delta rode into the saved order via a reorder, but the player pinned nothing to it — no
+            // class, no sex — so there is nothing to keep it once its window is gone.
+            settings.update(config ->
+                    config.withCharacterOrder(List.of("Alpha", "Bravo", "Charlie", "Delta")));
+
+            controller().toggle();
+
+            assertThat(shownNames())
+                    .as("a bare name with no window is not kept")
+                    .containsExactly("Alpha", "Bravo", "Charlie");
+        }
+
+        @Test
+        @DisplayName("a disconnected character keeps its place in the cycle order, not shoved to the end")
+        void keepsCyclePositionWhileDisconnected() {
+            api.withForeground(1);
+            settings.update(config -> config
+                    .withCharacterOrder(List.of("Alpha", "Zulu", "Bravo"))
+                    .withCharacterClass("Zulu", DofusClass.IOP)); // pinned, but never launched
+
+            controller().toggle();
+
+            assertThat(shownNames())
+                    .as("Zulu is pinned and disconnected: it holds its second-place slot")
+                    .containsExactly("Alpha", "Zulu", "Bravo", "Charlie");
+            assertThat(shownEntry("Zulu").orElseThrow().connected()).isFalse();
+        }
+
+        @Test
+        @DisplayName("forgetting a character drops it from the roster and off the panel")
+        void forgetsACharacter() {
+            api.withForeground(1);
+            settings.update(config -> config.withCharacterClass("Delta", DofusClass.IOP)); // pinned, offline
+            final var controller = controller();
+            controller.toggle();
+            assertThat(shownNames()).contains("Delta");
+
+            controller.forget("Delta");
+
+            assertThat(saved("Delta")).as("gone from the configuration").isEmpty();
+            assertThat(shownNames()).as("and off the panel").doesNotContain("Delta");
+        }
+
+        @Test
+        @DisplayName("forgetting the login placeholder does nothing: it was never a saved character")
+        void forgetIgnoresTheLoginPlaceholder() {
+            api.withForeground(1)
+                    .withWindow(10, "Dofus Retro v1.48.18")
+                    .runningAs(10, "C:\\Users\\me\\AppData\\Local\\Ankama\\Retro\\Dofus Retro.exe");
+            final var controller = controller();
+            controller.toggle();
+
+            controller.forget("(logging in…)");
+
+            assertThat(saved("(logging in…)")).isEmpty();
+            assertThat(shownNames()).contains("(logging in…)");
         }
     }
 }

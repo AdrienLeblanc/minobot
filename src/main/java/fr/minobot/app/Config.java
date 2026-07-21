@@ -208,6 +208,17 @@ public record Config(
     }
 
     /**
+     * The same configuration without a character — how the overlay's forget cross lands. Its class and
+     * sex go with it: the whole {@link Character} leaves the list. A name that is not in the list leaves
+     * the list unchanged.
+     */
+    public Config withoutCharacter(String name) {
+        return withCharacters(characters.stream()
+                .filter(character -> !character.name().equals(name))
+                .toList());
+    }
+
+    /**
      * The character list with one character changed, found by name — or added, so the first thing a
      * player pins to a character not yet cycled still lands. Everyone else keeps their place and pins.
      */

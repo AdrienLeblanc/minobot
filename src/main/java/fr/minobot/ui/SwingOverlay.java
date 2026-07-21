@@ -33,6 +33,7 @@ import java.util.function.Consumer;
 import static fr.minobot.ui.Theme.ACCENT;
 import static fr.minobot.ui.Theme.BACKDROP;
 import static fr.minobot.ui.Theme.BACKGROUND;
+import static fr.minobot.ui.Theme.CONNECTED;
 import static fr.minobot.ui.Theme.EDGE;
 import static fr.minobot.ui.Theme.HOVER;
 import static fr.minobot.ui.Theme.MUTED;
@@ -81,7 +82,7 @@ public final class SwingOverlay implements OverlayView {
      * <p>The drawer beside it has no width of its own: it takes the one its rows need. A number here
      * would be a number to keep in step with the longest feature label, and it would lose.
      */
-    private static final int CARD_WIDTH = 280;
+    private static final int CARD_WIDTH = 420;
 
     private static final int PADDING = 16;
     private static final int GAP = 8;
@@ -101,6 +102,12 @@ public final class SwingOverlay implements OverlayView {
     /** The class shown on a character's row: a small icon, and the room its cell is given at the right. */
     private static final int CLASS_ICON = 18;
     private static final int CLASS_CELL_WIDTH = 104;
+
+    /** The status chip after the name: a small dot saying whether the character's window is open. */
+    private static final int STATUS_DOT = 7;
+
+    /** The forget cross at the right of a disconnected row — the room it takes, so the class cell clears it. */
+    private static final int FORGET_SIZE = 16;
 
     /** The class picker: a grid of tiles, each a class's icon over its name, four to a row. */
     private static final int CLASS_COLUMNS = 4;
@@ -136,7 +143,7 @@ public final class SwingOverlay implements OverlayView {
      * the player scales the panel.
      */
     private Map<DofusClass, Map<Sex, SVGDocument>> classIcons;
-    private DefaultListModel<Character> characters;
+    private DefaultListModel<CharacterEntry> characters;
     private JPanel card;
     private JPanel keybinds;
     private JPanel hotkeyRows;
@@ -658,7 +665,7 @@ public final class SwingOverlay implements OverlayView {
     }
 
     private JScrollPane characterList() {
-        final var list = new JList<>(characters);
+        final JList<CharacterEntry> list = new JList<>(characters);
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setOpaque(false);
         list.setForeground(TEXT);
@@ -692,19 +699,26 @@ public final class SwingOverlay implements OverlayView {
         /** The row's character, kept apart from the numbered text, to draw their class and sex from. */
         private Character character = new Character("");
 
+        /** Whether their game window is open: a grey chip and a forget cross say when it is not. */
+        private boolean connected = true;
+
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index,
                                                       boolean selected, boolean focused) {
             super.getListCellRendererComponent(list, value, index, selected, focused);
 
-            character = (Character) value;
+            final var entry = (CharacterEntry) value;
+            character = entry.character();
+            connected = entry.connected();
             // The number is the row's rank read off the panel — 1 at the top — and no more: it is a
             // mirror of the order, not a name, so a drag that reorders the list renumbers it for free.
             setText((index + 1) + " - " + character.name());
 
             highlighted = selected;
             setOpaque(false);
-            setForeground(TEXT);
+            // A disconnected character is dimmed to the same grey as its chip: still legible, plainly not
+            // playing right now.
+            setForeground(connected ? TEXT : MUTED);
             setFont(font(BODY_SIZE, Font.PLAIN));
             setBorder(new EmptyBorder(0, px(GAP + 2), 0, px(GAP)));
             return this;
@@ -724,14 +738,73 @@ public final class SwingOverlay implements OverlayView {
                 canvas.fillRoundRect(0, inset, px(3), getHeight() - 2 * inset, px(3), px(3));
             }
 
+            // The forget cross sits at the far right of a disconnected row; the class cell stops short of
+            // it so the two never overlap. A connected row keeps its whole width for its class.
+            final var forgetRoom = connected ? 0 : px(GAP) + px(FORGET_SIZE);
+            if (!connected) {
+                paintForgetCross(canvas, getWidth() - px(GAP) - px(FORGET_SIZE),
+                        (getHeight() - px(FORGET_SIZE)) / 2, px(FORGET_SIZE));
+            }
+
+            // The status chip follows the name, whose pixel width we measure to place it after. Nothing for
+            // the login placeholder — a window with no character has no connection of its own to state.
+            if (!character.name().equals(OverlayContent.LOGGING_IN)) {
+                final var fm = canvas.getFontMetrics(font(BODY_SIZE, Font.PLAIN));
+                final var nameEnd = px(GAP + 2) + fm.stringWidth(getText());
+                paintStatusChip(canvas, connected, nameEnd + px(GAP), getHeight());
+            }
+
             // The class sits at the right of the row: its icon and name once chosen, an invitation to
             // choose one until then. Drawn before the name text (super) — the two never share the row's
             // width, the name being short and left, the class right — so neither writes over the other.
-            paintClassCell(canvas, character, getWidth(), getHeight());
+            paintClassCell(canvas, character, getWidth() - forgetRoom, getHeight());
             canvas.dispose();
 
             super.paintComponent(graphics);
         }
+    }
+
+    /**
+     * The status chip after a character's name: a coloured dot and a word, green while their window is
+     * open, light-grey while it is not. The word and the colour say the same thing twice — a disconnected
+     * character is one the player configured but is not playing right now, and the row must read so at a
+     * glance.
+     */
+    private void paintStatusChip(Graphics2D canvas, boolean connected, int x, int height) {
+        final var colour = connected ? CONNECTED : MUTED;
+        final var label = connected ? "connected" : "disconnected";
+
+        canvas.setFont(font(HEADING_SIZE, Font.PLAIN));
+        final var fm = canvas.getFontMetrics();
+        final var dot = px(STATUS_DOT);
+        final var padding = px(GAP / 2 + 1);
+        final var width = padding + dot + px(3) + fm.stringWidth(label) + padding;
+        final var chipHeight = fm.getHeight();
+        final var top = (height - chipHeight) / 2;
+
+        // A faint wash of the status colour, so the chip reads as one against the row without shouting.
+        canvas.setColor(new Color(colour.getRed(), colour.getGreen(), colour.getBlue(), 38));
+        canvas.fillRoundRect(x, top, width, chipHeight, chipHeight, chipHeight);
+
+        canvas.setColor(colour);
+        canvas.fillOval(x + padding, top + (chipHeight - dot) / 2, dot, dot);
+        canvas.drawString(label, x + padding + dot + px(3),
+                top + (chipHeight + fm.getAscent() - fm.getDescent()) / 2);
+    }
+
+    /**
+     * The forget cross at the right of a disconnected row — drop this character from the saved roster, its
+     * class and sex with it. Two strokes rather than a glyph, so it stays sharp at every scale, the same
+     * way the panel's own close cross is drawn.
+     */
+    private void paintForgetCross(Graphics2D canvas, int x, int y, int size) {
+        final var arm = size / 4;
+        final var midX = x + size / 2;
+        final var midY = y + size / 2;
+        canvas.setColor(MUTED);
+        canvas.setStroke(new BasicStroke(px(2), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        canvas.drawLine(midX - arm, midY - arm, midX + arm, midY + arm);
+        canvas.drawLine(midX - arm, midY + arm, midX + arm, midY - arm);
     }
 
     /**
@@ -776,6 +849,7 @@ public final class SwingOverlay implements OverlayView {
             return new Character(name);
         }
         return lastContent.characters().stream()
+                .map(CharacterEntry::character)
                 .filter(character -> character.name().equals(name))
                 .findFirst()
                 .orElse(new Character(name));
@@ -818,12 +892,12 @@ public final class SwingOverlay implements OverlayView {
      */
     private final class ReorderByDragging extends MouseAdapter {
 
-        private final JList<Character> list;
+        private final JList<CharacterEntry> list;
 
         private int from = -1;
         private boolean moved;
 
-        private ReorderByDragging(JList<Character> list) {
+        private ReorderByDragging(JList<CharacterEntry> list) {
             this.list = list;
         }
 
@@ -853,14 +927,37 @@ public final class SwingOverlay implements OverlayView {
             if (moved) {
                 moved = false;
                 actions.reorder(Collections.list(characters.elements()).stream()
-                        .map(Character::name)
+                        .map(entry -> entry.character().name())
                         .toList());
                 return;
             }
 
-            // A plain click is not a reorder — but a plain click on the class cell at the right of a row
-            // is a request to choose that character's class. Anywhere else it is just a selection.
-            maybeOpenClassPicker(index, event.getPoint());
+            // A plain click is not a reorder. The forget cross is tested first — it sits at the far right
+            // of a disconnected row, inside where a class cell otherwise reaches — then the class cell:
+            // a click there is a request to choose that character's class. Anywhere else, a selection.
+            final var point = event.getPoint();
+            if (!maybeForget(index, point)) {
+                maybeOpenClassPicker(index, point);
+            }
+        }
+
+        /** Forgets the character when the click landed on the cross drawn at the right of a disconnected row. */
+        private boolean maybeForget(int index, Point point) {
+            if (index < 0 || index >= characters.size()) {
+                return false;
+            }
+            final var entry = characters.get(index);
+            // The cross is drawn on disconnected characters only, and never on the login placeholder.
+            if (entry.connected() || entry.character().name().equals(OverlayContent.LOGGING_IN)) {
+                return false;
+            }
+
+            final var cell = list.getCellBounds(index, index);
+            if (cell != null && point.x >= cell.x + cell.width - px(GAP) - px(FORGET_SIZE)) {
+                actions.forget(entry.character().name());
+                return true;
+            }
+            return false;
         }
 
         /** Opens the picker when the click landed in the row's class cell, on a real character. */
@@ -868,7 +965,7 @@ public final class SwingOverlay implements OverlayView {
             if (index < 0 || index >= characters.size()) {
                 return;
             }
-            final var character = characters.get(index);
+            final var character = characters.get(index).character();
             if (character.name().equals(OverlayContent.LOGGING_IN)) {
                 return; // a not-yet-logged-in window has no character to give a class to
             }

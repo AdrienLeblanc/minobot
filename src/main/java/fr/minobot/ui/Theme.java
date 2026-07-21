@@ -44,6 +44,9 @@ public final class Theme {
     /** The one colour that is not a grey: a bound key, an on switch, the thing the eye should land on. */
     public static final Color ACCENT = new Color(122, 168, 255);
 
+    /** A character whose window is open: the green of a status chip that reads "here right now". */
+    public static final Color CONNECTED = new Color(122, 199, 140);
+
     private Theme() {
     }
 }

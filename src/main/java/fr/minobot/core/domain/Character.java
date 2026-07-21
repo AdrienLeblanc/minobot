@@ -1,5 +1,6 @@
 package fr.minobot.core.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -41,5 +42,20 @@ public record Character(
     /** The sex to draw them in: the one they were given, or {@link Sex#MALE} until they are. */
     public Sex sexOrDefault() {
         return sex == null ? Sex.MALE : sex;
+    }
+
+    /**
+     * Whether the player has pinned anything to this character — a class, or a sex.
+     *
+     * <p>A character with nothing pinned is a bare name: the panel shows it only while its window is
+     * open, and forgets it the moment the character logs out. One the player has configured is kept,
+     * shown greyed-out while disconnected, until they forget it by hand.
+     *
+     * <p>{@code @JsonIgnore}: it is derived from the class and sex, not a field of its own — Jackson would
+     * otherwise write a {@code "pinned"} key that no constructor reads back.
+     */
+    @JsonIgnore
+    public boolean isPinned() {
+        return clazz != null || sex != null;
     }
 }

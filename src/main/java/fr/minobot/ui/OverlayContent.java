@@ -1,7 +1,6 @@
 package fr.minobot.ui;
 
 import fr.minobot.app.Feature;
-import fr.minobot.core.domain.Character;
 
 import java.util.List;
 import java.util.Map;
@@ -11,9 +10,10 @@ import java.util.Map;
  * and the key each feature currently answers to.
  *
  * <p>Characters, not windows — the panel is the story the player tells, and they cycle through
- * <em>Bravo</em> and <em>Charlie</em>, not through {@code 0x000407A2}. Each {@link Character} carries its
- * own name and whatever the player has pinned to it — a class, a sex — so the panel reads one list rather
- * than a list of names beside a map of classes beside a map of sexes.
+ * <em>Bravo</em> and <em>Charlie</em>, not through {@code 0x000407A2}. Each {@link CharacterEntry} carries
+ * the character — its name and whatever the player pinned to it, a class, a sex — beside whether their
+ * window is open right now, so the panel reads one list rather than a list of names beside a map of
+ * classes beside a map of sexes beside a set of who is connected.
  *
  * <p>A blank hotkey is a feature the player has turned off; there is no separate flag for it. The
  * order of {@code hotkeys} means nothing: walk {@link Feature#values()} to lay them out.
@@ -25,12 +25,13 @@ import java.util.Map;
  * <p>{@code autoPassTurn} and {@code autoAcceptTrade} are the features the panel shows a state for
  * rather than a key: they have no hotkey, so the panel draws each as an explicit on/off switch.
  *
- * <p>The list holds only the characters on screen: one whose class the player pinned but who is not
- * launched right now stays in the configuration, but the panel speaks of what is in front of the player.
- * A character with no class has none pinned yet, and the panel offers to give it one; one with no sex is
- * drawn as male.
+ * <p>The list holds the characters on screen <em>and</em> the ones the player has pinned a class or sex
+ * to but is not playing right now — the latter drawn greyed-out, {@code connected == false}, so a
+ * configured character does not vanish the moment its window closes. An unpinned character is a bare name
+ * and appears only while its window is open. A character with no class has none pinned yet, and the panel
+ * offers to give it one; one with no sex is drawn as male.
  */
-public record OverlayContent(List<Character> characters, Map<Feature, String> hotkeys, double scale,
+public record OverlayContent(List<CharacterEntry> characters, Map<Feature, String> hotkeys, double scale,
                              boolean autoPassTurn, boolean autoAcceptTrade) {
 
     /**
