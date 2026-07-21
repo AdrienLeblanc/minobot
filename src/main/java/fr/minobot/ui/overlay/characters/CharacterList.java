@@ -125,7 +125,7 @@ public final class CharacterList {
         }
     }
 
-    /** Forgets the character when the click landed on the cross drawn at the right of a disconnected row. */
+    /** Forgets the character when the click landed on the cross drawn in a disconnected row's actions cell. */
     private boolean maybeForget(JList<CharacterEntry> list, int index, Point point) {
         if (index < 0 || index >= model.size()) {
             return false;
@@ -137,15 +137,14 @@ public final class CharacterList {
         }
 
         final var cell = list.getCellBounds(index, index);
-        if (cell != null && point.x >= cell.x + cell.width
-                - scale.px(Metrics.GAP) - scale.px(CharacterRow.FORGET_SIZE)) {
+        if (cell != null && new RowColumns(scale, cell.width).inActions(point.x - cell.x)) {
             actions.forget(entry.character().name());
             return true;
         }
         return false;
     }
 
-    /** Opens the picker when the click landed in the row's class cell, on a real character. */
+    /** Opens the picker when the click landed in the row's class column, on a real character. */
     private void maybeOpenClassPicker(JList<CharacterEntry> list, int index, Point point) {
         if (index < 0 || index >= model.size()) {
             return;
@@ -156,7 +155,7 @@ public final class CharacterList {
         }
 
         final var cell = list.getCellBounds(index, index);
-        if (cell != null && point.x >= cell.x + cell.width - scale.px(CharacterRow.CLASS_CELL_WIDTH)) {
+        if (cell != null && new RowColumns(scale, cell.width).inClass(point.x - cell.x)) {
             openPicker.accept(character.name());
         }
     }
