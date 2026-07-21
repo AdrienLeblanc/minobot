@@ -1,4 +1,4 @@
-package fr.minobot.feature;
+package fr.minobot.feature.window;
 
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.WindowManager;

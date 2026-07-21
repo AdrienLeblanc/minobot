@@ -1,7 +1,9 @@
-package fr.minobot.feature;
+package fr.minobot.feature.group;
 
 import fr.minobot.core.domain.Notification;
 import fr.minobot.core.input.FakeInput;
+import fr.minobot.feature.Features;
+import fr.minobot.feature.notification.NotificationListener;
 import fr.minobot.win32.FakeWindowApi;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

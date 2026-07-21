@@ -27,7 +27,11 @@ fr.minobot
 │   └── domain/     GameWindow (a character's window, and their name), Character (the player's part of
 │                   a character: name, class, sex), DofusClass, Sex, Notification (a toast).
 ├── ui/             OverlayView (the panel), OverlayContent, OverlayActions. Interfaces only.
-└── feature/        The user-facing features, and OverlayController.
+└── feature/        The user-facing features, split by functional domain:
+    ├── window/         multi-window click, cycler, taskbar reorder.
+    ├── group/          the invitation relay.
+    ├── overlay/        the control panel and OverlayController.
+    └── notification/   the toast-driven features (auto-focus, auto-pass, auto-accept, whisper).
 ```
 
 **Three interfaces are the only doors to the outside world:** `win32.WindowApi` (the screen),
@@ -60,9 +64,9 @@ next to the code it governs, in a `CLAUDE.md` per package that loads only when y
 - **`src/main/java/fr/minobot/core/CLAUDE.md`** — concurrency (the polling thread, the swapped hotkey
   table, virtual-thread callbacks) and **the foreground as a single resource** (`FocusManager`). Read it
   before adding any feature: they all compete for the foreground.
-- **`src/main/java/fr/minobot/feature/CLAUDE.md`** — every user-facing feature and how it must behave
-  (multi-click, group invitation, cycler, reorder, overlay, auto-pass, auto-accept, whisper toast,
-  notification auto-focus).
+- **`src/main/java/fr/minobot/feature/CLAUDE.md`** — a slim index; each feature's behaviour lives in
+  its subpackage's own `CLAUDE.md` (`window/`, `group/`, `overlay/`, `notification/`), loaded only when
+  you work there.
 - **`src/main/java/fr/minobot/ui/CLAUDE.md`** — the interface/impl seam for the screen and the
   anti-focus discipline the two Swing classes (`SwingOverlay`, `SwingToastStack`) must obey.
 

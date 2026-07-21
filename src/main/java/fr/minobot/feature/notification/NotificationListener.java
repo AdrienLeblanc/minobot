@@ -1,4 +1,4 @@
-package fr.minobot.feature;
+package fr.minobot.feature.notification;
 
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
@@ -51,8 +51,15 @@ public final class NotificationListener {
         notifications.register(this::onNotification);
     }
 
-    /** Runs on a virtual thread, one per notification, from {@link NotificationManager}. */
-    void onNotification(Notification notification) {
+    /**
+     * Runs on a virtual thread, one per notification, from {@link NotificationManager}.
+     *
+     * <p>Public where the other toast features keep theirs package-private: the auto-focus is the one
+     * every other feature is measured <em>against</em> — the invitation relay in another package must
+     * prove a toast does not pull the screen from under its keystrokes — so its handler is driven
+     * directly from those features' own tests.
+     */
+    public void onNotification(Notification notification) {
         final var title = notification.title();
         if (title == null || title.isBlank() || !WindowManager.isGameTitle(title)) {
             return; // some other application's toast

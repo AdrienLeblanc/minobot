@@ -1,4 +1,4 @@
-package fr.minobot.feature;
+package fr.minobot.feature.notification;
 
 import fr.minobot.app.Settings;
 import fr.minobot.app.TestConfigs;

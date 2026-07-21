@@ -1,4 +1,4 @@
-package fr.minobot.feature;
+package fr.minobot.feature.overlay;
 
 import fr.minobot.app.Feature;
 import fr.minobot.app.Settings;

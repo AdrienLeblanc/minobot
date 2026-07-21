@@ -1,4 +1,4 @@
-package fr.minobot.feature;
+package fr.minobot.feature.group;
 
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;

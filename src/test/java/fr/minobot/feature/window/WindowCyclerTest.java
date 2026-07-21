@@ -1,6 +1,7 @@
-package fr.minobot.feature;
+package fr.minobot.feature.window;
 
 import fr.minobot.app.TestConfigs;
+import fr.minobot.feature.Features;
 import fr.minobot.win32.FakeWindowApi;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
