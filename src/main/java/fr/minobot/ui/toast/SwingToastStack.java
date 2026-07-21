@@ -1,6 +1,14 @@
-package fr.minobot.ui;
+package fr.minobot.ui.toast;
 
+import fr.minobot.ui.Theme;
+import fr.minobot.ui.ToastActions;
+import fr.minobot.ui.ToastContent;
+import fr.minobot.ui.ToastView;
+import fr.minobot.ui.utils.Draw;
+import fr.minobot.ui.utils.Metrics;
+import fr.minobot.ui.utils.Scale;
 import fr.minobot.win32.Rect;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -8,7 +16,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
@@ -19,7 +26,6 @@ import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
@@ -29,7 +35,9 @@ import java.util.Objects;
 
 /**
  * The whisper stack, in Swing. The only class in the stack that knows Swing exists — the twin of
- * {@code SwingOverlay}, and held to the same discipline.
+ * {@code SwingOverlay}, and held to the same discipline. It shares the overlay's design system
+ * ({@link Scale} for every size, {@link Draw} for the smoothing and the close cross), so the two surfaces
+ * read at the same size on the same monitor and drift nowhere apart.
  *
  * <p><strong>It must never take the foreground.</strong> Like the panel, it would otherwise land between
  * two keystrokes of the invitation relay. Hence {@code setFocusableWindowState(false)} — a window that
@@ -43,10 +51,6 @@ import java.util.Objects;
  * routed by hand — a card opens its whisper, its cross dismisses it — rather than through Swing's button
  * or drag machinery, which expects the focus this window does not have.
  *
- * <p><strong>Every size below is a natural size, and none of them is a pixel.</strong> Each is multiplied
- * by the player's scale on its way to the screen — {@link #px} for a length, {@link #font} for a typeface
- * — the same scale the panel is drawn at, so the stack reads at the same size on the same monitor.
- *
  * <p>Two threads meet here as they do in the panel: the follow loop calls {@link #show}, {@link #moveTo}
  * and {@link #hide} from a virtual thread, and every one of them hands its work to the event dispatch
  * thread, where Swing lives.
@@ -59,12 +63,10 @@ public final class SwingToastStack implements ToastView {
     private static final int CARD_WIDTH = 240;
     private static final int CARD_HEIGHT = 66;
 
-    private static final int GAP = 8;
-
     /** The breathing room the window keeps around the stack, so a card's rounded corner is not clipped. */
     private static final int MARGIN = 10;
 
-    /** The padding inside a card, and the radius of its corners. */
+    /** The padding inside a card, and the radius of its corners — tighter than the panel's own. */
     private static final int PADDING = 11;
     private static final int RADIUS = 10;
 
@@ -86,7 +88,7 @@ public final class SwingToastStack implements ToastView {
     private Font baseFont;
 
     /** What every size on the cards was computed with, and where the stack was last hung. */
-    private double scale = 1.0;
+    private Scale scale;
     private Rect anchor;
 
     /** Read from the follow thread, so it cannot live inside Swing. */
@@ -139,7 +141,7 @@ public final class SwingToastStack implements ToastView {
             build();
         }
 
-        this.scale = content.scale();
+        this.scale = new Scale(content.scale(), baseFont);
         this.anchor = anchor;
         stack.setCards(content.cards());
 
@@ -182,7 +184,7 @@ public final class SwingToastStack implements ToastView {
     /** The box the whole stack needs: the cards, the gaps between them, and the margin around them. */
     private Dimension stackSize(int count) {
         final var height = count <= 0 ? 0
-                : count * px(CARD_HEIGHT) + (count - 1) * px(GAP) + 2 * px(MARGIN);
+                : count * px(CARD_HEIGHT) + (count - 1) * px(Metrics.GAP) + 2 * px(MARGIN);
         return new Dimension(px(CARD_WIDTH) + 2 * px(MARGIN), height);
     }
 
@@ -196,19 +198,11 @@ public final class SwingToastStack implements ToastView {
     }
 
     private int px(int natural) {
-        return (int) Math.round(natural * scale);
+        return scale.px(natural);
     }
 
     private Font font(float natural, int style) {
-        return baseFont.deriveFont(style, natural * (float) scale);
-    }
-
-    private static Graphics2D smooth(Graphics graphics) {
-        final var canvas = (Graphics2D) graphics.create();
-        canvas.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        canvas.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-                RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        return canvas;
+        return scale.font(natural, style);
     }
 
     // ------------------------------------------------------------------ the cards
@@ -245,7 +239,7 @@ public final class SwingToastStack implements ToastView {
             super.paintComponent(graphics);
             placed.clear();
 
-            final var canvas = smooth(graphics);
+            final var canvas = Draw.smooth(graphics);
             final var x = px(MARGIN);
             final var width = px(CARD_WIDTH);
             final var height = px(CARD_HEIGHT);
@@ -259,7 +253,7 @@ public final class SwingToastStack implements ToastView {
                         px(CLOSE_SIZE), px(CLOSE_SIZE));
                 paintCard(canvas, card, bounds, close);
                 placed.add(new Placed(card.id(), bounds, close));
-                y += height + px(GAP);
+                y += height + px(Metrics.GAP);
             }
             canvas.dispose();
         }
@@ -276,7 +270,7 @@ public final class SwingToastStack implements ToastView {
             canvas.setClip(clip);
 
             final var textLeft = bounds.x + px(PADDING) + px(ACCENT_BAR);
-            final var textRight = close.x - px(GAP);
+            final var textRight = close.x - px(Metrics.GAP);
 
             // Header: which of the player's characters was whispered.
             canvas.setColor(Theme.ACCENT);
@@ -309,13 +303,8 @@ public final class SwingToastStack implements ToastView {
                 canvas.fillRoundRect(close.x, close.y, close.width, close.height, px(RADIUS), px(RADIUS));
             }
 
-            final var arm = close.width / 4;
-            final var midX = close.x + close.width / 2;
-            final var midY = close.y + close.height / 2;
-            canvas.setColor(hovered ? Theme.HOVER : Theme.TEXT);
-            canvas.setStroke(new BasicStroke(Math.max(1, px(2)), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            canvas.drawLine(midX - arm, midY - arm, midX + arm, midY + arm);
-            canvas.drawLine(midX - arm, midY + arm, midX + arm, midY - arm);
+            Draw.cross(canvas, close.x, close.y, close.width,
+                    hovered ? Theme.HOVER : Theme.TEXT, Math.max(1, px(2)));
         }
 
         /** A string cut to a width with a trailing ellipsis, or whole if it already fits. */

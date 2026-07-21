@@ -1,5 +1,7 @@
 package fr.minobot.ui;
 
+import fr.minobot.ui.toast.SwingToastStack;
+
 import java.awt.Color;
 
 /**
@@ -43,6 +45,18 @@ public final class Theme {
 
     /** The one colour that is not a grey: a bound key, an on switch, the thing the eye should land on. */
     public static final Color ACCENT = new Color(122, 168, 255);
+
+    /** A primary color */
+    public static final Color PRIMARY = new Color(48, 84, 156);
+    public static final Color PRIMARY_HOVER = new Color(62, 104, 184);
+
+    /** A secondary color */
+    public static final Color SECONDARY = new Color(150, 181, 234);
+    public static final Color SECONDARY_HOVER = new Color(174, 200, 245);
+
+    /** A tertiary color */
+    public static final Color TERTIARY = new Color(242, 244, 245);
+    public static final Color TERTIARY_HOVER = new Color(167, 180, 188);
 
     /** A character whose window is open: the green of a status chip that reads "here right now". */
     public static final Color CONNECTED = new Color(122, 199, 140);

@@ -10,8 +10,8 @@ middle of the invitation relay's keystrokes.
 
 A control panel drawn over the game: the characters Minobot has found, dragged into the order the
 cycler follows, and every feature's key, rebindable on the spot. `OverlayController` decides;
-`ui/SwingOverlay` draws, and is the only class that knows Swing exists (see `ui/CLAUDE.md` for the
-Swing-only discipline that binds it).
+`ui/overlay/` draws — `SwingOverlay` and the sections it lays out, the Swing side of the panel (see
+`ui/CLAUDE.md` and `ui/overlay/CLAUDE.md` for the Swing-only discipline that binds it).
 
 It **belongs to a character**: it covers their game and pressing `shift+space` anywhere else — a browser, the
 desktop — does nothing at all. Outside the game there is no character for it to belong to, and a panel
@@ -49,8 +49,8 @@ the exact middle for one reason only — a drawer that would open past the right
 then it *slides* left by what the drawer is short of, never *shrinks*: a panel that resizes when a button
 is clicked reads as a bug.
 
-**Every size in `SwingOverlay` is a natural size, not a pixel**, and it reaches the screen multiplied by
-`overlay_scale` — `px()` for a length, `font()` for a typeface. Swing's own defaults were drawn for a
+**Every size the panel draws is a natural size, not a pixel**, and it reaches the screen multiplied by
+`overlay_scale` — through a `ui/components/Scale`: `px()` for a length, `font()` for a typeface. Swing's own defaults were drawn for a
 96-DPI desktop, which on the screen the game is actually played on is a panel nobody can read; the
 default is therefore **150%**, and the slider on the card moves it. A size that skips `px()` is a size
 that will be wrong on somebody's monitor.
