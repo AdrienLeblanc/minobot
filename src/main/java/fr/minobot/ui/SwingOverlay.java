@@ -30,6 +30,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static fr.minobot.ui.Theme.ACCENT;
+import static fr.minobot.ui.Theme.BACKDROP;
+import static fr.minobot.ui.Theme.BACKGROUND;
+import static fr.minobot.ui.Theme.EDGE;
+import static fr.minobot.ui.Theme.HOVER;
+import static fr.minobot.ui.Theme.MUTED;
+import static fr.minobot.ui.Theme.SELECTED;
+import static fr.minobot.ui.Theme.SURFACE;
+import static fr.minobot.ui.Theme.TEXT;
+
 /**
  * The panel, in Swing. The only class in Minobot that knows Swing exists.
  *
@@ -106,18 +116,6 @@ public final class SwingOverlay implements OverlayView {
     private static final float BODY_SIZE = 12f;
     private static final float SMALL_SIZE = 11f;
     private static final float HEADING_SIZE = 10f;
-
-    /** The game is dimmed, not hidden: the player must still see the character they are configuring. */
-    private static final Color BACKDROP = new Color(6, 8, 12, 150);
-
-    private static final Color BACKGROUND = new Color(22, 24, 30, 243);
-    private static final Color SURFACE = new Color(33, 36, 44);
-    private static final Color HOVER = new Color(48, 53, 64);
-    private static final Color EDGE = new Color(50, 55, 67);
-    private static final Color TEXT = new Color(232, 235, 241);
-    private static final Color MUTED = new Color(124, 131, 145);
-    private static final Color SELECTED = new Color(46, 52, 64);
-    private static final Color ACCENT = new Color(122, 168, 255);
 
     /** What a feature with no key shows, and what the player clicks to give it one back. */
     private static final String UNBOUND = "—";

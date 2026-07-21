@@ -323,15 +323,44 @@ nothing else, which is exactly what a real trade offer deserves. The asker's nam
 accounts is the daily bread of multi-boxing, and it only ever fires on a trade a player's own character
 asked for — and session-only like the other switch (not persisted to `overlay.json`).
 
+### Whisper toast — no hotkey
+
+Turns a private message into a quiet card instead of a jump. A whisper — a game toast whose message reads
+`de <sender> : <line>` — would otherwise pull the whole screen to the whispered character through the
+notification auto-focus, which is too much for one line of chat. So `feature/WhisperToaster` stands in
+front of that toast: it recognises the whisper by the **shape of its message** (a constant pattern kept
+by the feature, the French wording being the game's), and rather than move the player it shows a small
+card at the **left edge of the game**, centred top to bottom — who was whispered (`GameWindow.nameIn`
+the title), by whom, and what they said. The card lives five seconds (`TOAST_LIFETIME`), a **close cross**
+takes it down early, and a **click** on it focuses the receiver so the player can answer (on a virtual
+thread — `FocusManager` sleeps). Several whispers **stack**, newest at the bottom.
+
+It is the mirror of `ExchangeAccepter` and `TurnPasser`: a feature that registers with
+`NotificationManager`, speaks of characters, and exposes a **pure `claims(Notification)`** the auto-focus
+consults. Its one novelty is a **UI surface**, cut on the overlay's interface/impl seam so all the
+deciding stays testable with no screen: `ui/ToastContent` (the immutable snapshot), `ui/ToastActions`
+(`open`/`dismiss`), `ui/ToastView` (the narrow port), and `ui/SwingToastStack` (the only whisper class
+that knows Swing — the **same anti-focus discipline** as the overlay: `JWindow`, always-on-top,
+`setFocusableWindowState(false)`, nothing typed, clicks routed by hand; **do not add `WS_EX_NOACTIVATE`**).
+Unlike the panel the window is sized to the **stack alone**, so it blocks only a narrow band, not the
+whole game. Like the panel it **follows**: one virtual thread re-reads the foreground game window every
+30 ms and keeps the stack pinned to it, or takes it away out of the game — and the same poll is where a
+card **dies of old age**, so there is no timer thread per card. The stack is drawn at `overlay_scale`,
+the panel's, so it reads at the same size on the same monitor. It is **always active**: a whisper always
+toasts instead of focusing, so there is no `Config` field and no switch — it is a direct replacement, and
+adds nothing to the player's settings.
+
 ### Notification auto-focus — no hotkey
 
 The game raises a toast when a background character is attacked, messaged or invited; that toast pulls
 the focus to them. It is a *smart* focus: if the player is typing at that moment, their keystrokes are
 not stolen.
 
-It **stands aside**, though, for a toast another feature answers in place — see *Auto-accept trades*: a
-`Predicate<Notification>` it is built with tells it which toasts to leave alone, so it never jumps to a
-character whose exchange is being accepted silently.
+It **stands aside**, though, for a toast another feature answers in place — see *Auto-accept trades* and
+*Whisper toast*: a `Predicate<Notification>` it is built with tells it which toasts to leave alone, so it
+never jumps to a character whose exchange is being accepted silently, nor to one whose whisper is already
+a card at the edge. The predicate is the **OR** of the trade-accepter's and the whisper toaster's
+`claims`, combined in `MinobotApp`; every other toast, an attack or an invitation, it still takes.
 
 ## Conventions
 

@@ -5,6 +5,7 @@ import fr.minobot.core.KeyboardMonitor.Binding;
 import fr.minobot.core.input.InputSimulator;
 import fr.minobot.feature.*;
 import fr.minobot.ui.SwingOverlay;
+import fr.minobot.ui.SwingToastStack;
 import fr.minobot.win32.User32;
 import fr.minobot.win32.WindowApi;
 import org.slf4j.Logger;
@@ -78,9 +79,16 @@ public final class MinobotApp {
         final var exchangeAccepter = new ExchangeAccepter(
                 api, windowManager, inputSimulator, focusManager, notificationManager, settings);
 
+        // Shows a whisper as a quiet toast at the left of the game rather than pulling the screen to it.
+        // Also built before the auto-focus, which stands aside for the whispers it takes.
+        final var whisperToaster = new WhisperToaster(
+                api, windowManager, focusManager, settings, notificationManager, SwingToastStack::new);
+
         // Registers itself with the notification manager; it has no hotkey of its own. It stands aside
-        // for a toast the trade-accepter answers silently, and takes the player everywhere else.
-        new NotificationListener(windowManager, focusManager, notificationManager, exchangeAccepter::claims);
+        // for a toast answered silently elsewhere — an internal trade, a whisper — and takes the player
+        // everywhere else. The predicate is the OR of those features' claims.
+        new NotificationListener(windowManager, focusManager, notificationManager,
+                notification -> exchangeAccepter.claims(notification) || whisperToaster.claims(notification));
 
         // Also hotkey-less: the overlay's Auto-pass switch turns it on and off, and it reads that
         // switch at every toast rather than being rebound.

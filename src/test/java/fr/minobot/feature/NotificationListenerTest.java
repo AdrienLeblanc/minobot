@@ -51,4 +51,33 @@ class NotificationListenerTest {
 
         assertThat(api.focusedWindows()).isEmpty();
     }
+
+    @Test
+    @DisplayName("it stands aside for a whisper the toaster answers with a card, rather than focusing")
+    void standsAsideForAWhisper() {
+        final var api = desktop();
+        final var features = new Features(api, Map.of());
+        final var toaster = features.whisperToaster();
+        final var listener = features.notificationListener(toaster::claims);
+
+        // A whisper for Bravo: the toaster shows a card, so the auto-focus must not pull the screen over.
+        listener.onNotification(new Notification("Bravo - Dofus Retro", "de Alpha : Bonjour"));
+
+        assertThat(api.focusedWindows())
+                .as("a whisper is a card at the edge, never a jump")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("a non-whisper game toast still pulls the focus, whisper toaster or not")
+    void stillFocusesANonWhisperToast() {
+        final var api = desktop();
+        final var features = new Features(api, Map.of());
+        final var toaster = features.whisperToaster();
+        final var listener = features.notificationListener(toaster::claims);
+
+        listener.onNotification(new Notification("Bravo - Dofus Retro", "Vous êtes attaqué !"));
+
+        assertThat(api.foregroundWindow()).as("an attack is still a jump").isEqualTo(2);
+    }
 }

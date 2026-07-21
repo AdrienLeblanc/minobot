@@ -7,10 +7,15 @@ import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
 import fr.minobot.core.WindowManager;
 import fr.minobot.core.input.FakeInput;
+import fr.minobot.ui.FakeToastView;
 import fr.minobot.win32.FakeWindowApi;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Map;
+import java.util.function.Predicate;
+
+import fr.minobot.core.domain.Notification;
 
 /**
  * Wires a feature onto an in-memory desktop, the way {@code MinobotApp} wires it onto the real one.
@@ -73,6 +78,19 @@ final class Features {
     /** The auto-focus wired to stand aside for the toasts the trade-accepter answers in place. */
     NotificationListener notificationListener(ExchangeAccepter accepter) {
         return new NotificationListener(windows, focus, notifications, accepter::claims);
+    }
+
+    /** The auto-focus wired to stand aside for whatever the given predicate claims. */
+    NotificationListener notificationListener(Predicate<Notification> handledSilently) {
+        return new NotificationListener(windows, focus, notifications, handledSilently);
+    }
+
+    WhisperToaster whisperToaster() {
+        return new WhisperToaster(api, windows, focus, settings, notifications, FakeToastView::new);
+    }
+
+    WhisperToaster whisperToaster(Duration lifetime) {
+        return new WhisperToaster(api, windows, focus, settings, notifications, lifetime, FakeToastView::new);
     }
 
     TurnPasser turnPasser() {
