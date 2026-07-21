@@ -14,7 +14,7 @@ public final class Hint extends JLabel {
     public Hint(Scale scale, String text) {
         super(text);
         this.setForeground(Theme.MUTED);
-        this.setFont(scale.font(Metrics.SMALL, Metrics.PLAIN));
+        this.setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
         this.setAlignmentX(Component.LEFT_ALIGNMENT);
     }
 }

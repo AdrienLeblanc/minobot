@@ -56,7 +56,7 @@ public final class LogoTile {
         if (logo == null) {
             tile.setLayout(new GridBagLayout());
             final var wordmark = new JLabel("MINOBOT");
-            wordmark.setForeground(Theme.ACCENT);
+            wordmark.setForeground(Theme.SECONDARY);
             wordmark.setFont(scale.tracked(scale.font(Metrics.LOGO, Metrics.BOLD), WORDMARK_TRACKING));
             tile.add(wordmark);
         }

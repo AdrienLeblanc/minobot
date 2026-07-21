@@ -34,16 +34,10 @@ public final class Preferences {
         final var autoPass = content.autoPassTurn();
         card.add(new SectionHeader(scale, "Auto-pass turns",
                 Toggle.control(scale, autoPass, actions::toggleAutoPassTurn)));
-        card.add(new Hint(scale, autoPass
-                ? "on — every character ends its own turn"
-                : "off — turns are yours to play"));
 
         card.add(Box.createVerticalStrut(scale.px(Metrics.GAP)));
         final var autoAccept = content.autoAcceptTrade();
         card.add(new SectionHeader(scale, "Auto-accept trades",
                 Toggle.control(scale, autoAccept, actions::toggleAutoAcceptTrade)));
-        card.add(new Hint(scale, autoAccept
-                ? "on — my characters' trades accept themselves"
-                : "off"));
     }
 }

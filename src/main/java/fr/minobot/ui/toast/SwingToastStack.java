@@ -70,8 +70,8 @@ public final class SwingToastStack implements ToastView {
     private static final int PADDING = 11;
     private static final int RADIUS = 10;
 
-    /** The accent stripe down a card's left edge — the game's own toast wears one. */
-    private static final int ACCENT_BAR = 3;
+    /** The SECONDARY stripe down a card's left edge — the game's own toast wears one. */
+    private static final int SECONDARY_BAR = 3;
 
     /** The close cross in a card's corner: the mouse's way to take one down early. */
     private static final int CLOSE_SIZE = 15;
@@ -262,18 +262,18 @@ public final class SwingToastStack implements ToastView {
             canvas.setColor(Theme.BACKDROP);
             canvas.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, px(RADIUS), px(RADIUS));
 
-            // The accent stripe, clipped to the card's rounded left edge.
+            // The SECONDARY stripe, clipped to the card's rounded left edge.
             final var clip = canvas.getClip();
             canvas.setClip(bounds.x, bounds.y, bounds.width, bounds.height);
-            canvas.setColor(Theme.ACCENT);
-            canvas.fillRect(bounds.x, bounds.y, px(ACCENT_BAR), bounds.height);
+            canvas.setColor(Theme.SECONDARY);
+            canvas.fillRect(bounds.x, bounds.y, px(SECONDARY_BAR), bounds.height);
             canvas.setClip(clip);
 
-            final var textLeft = bounds.x + px(PADDING) + px(ACCENT_BAR);
+            final var textLeft = bounds.x + px(PADDING) + px(SECONDARY_BAR);
             final var textRight = close.x - px(Metrics.GAP);
 
             // Header: which of the player's characters was whispered.
-            canvas.setColor(Theme.ACCENT);
+            canvas.setColor(Theme.SECONDARY);
             canvas.setFont(font(HEADER_SIZE, Font.BOLD));
             canvas.drawString((card.receiver() + " · received a message").toUpperCase(Locale.ROOT),
                     textLeft, bounds.y + px(PADDING) + canvas.getFontMetrics().getAscent());
@@ -283,7 +283,7 @@ public final class SwingToastStack implements ToastView {
             final var bodyWidth = bounds.x + bounds.width - px(PADDING) - textLeft;
 
             // Sender: who it is from.
-            canvas.setColor(Theme.ACCENT);
+            canvas.setColor(Theme.SECONDARY);
             canvas.setFont(font(SENDER_SIZE, Font.BOLD));
             canvas.drawString(clip(canvas, "from " + card.sender(), senderWidth),
                     textLeft, bounds.y + px(31) + canvas.getFontMetrics().getAscent());

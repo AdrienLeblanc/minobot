@@ -70,7 +70,7 @@ public final class KeybindsDrawer {
 
         final var name = new JLabel(feature.label());
         name.setForeground(hotkey.isBlank() ? Theme.MUTED : Theme.TEXT);
-        name.setFont(scale.font(Metrics.SMALL, Metrics.PLAIN));
+        name.setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
 
         // A bound key is the emphasised one; an unbound key is the quiet invitation to give it one.
         final JButton  key = hotkey.isBlank()

@@ -27,10 +27,10 @@ public final class Toggle {
     private static final int HEIGHT = 20;
     private static final int PAD = 3;
 
-    /** The switch and its state label together — {@code ON} in the accent, {@code OFF} muted. */
+    /** The switch and its state label together — {@code ON} in the SECONDARY, {@code OFF} muted. */
     public static JComponent control(Scale scale, boolean on, Consumer<Boolean> onToggle) {
         final var state = new JLabel(on ? "ON" : "OFF");
-        state.setForeground(on ? Theme.ACCENT : Theme.MUTED);
+        state.setForeground(on ? Theme.SECONDARY : Theme.MUTED);
         state.setFont(scale.tracked(scale.font(Metrics.HEADING, Metrics.BOLD), Metrics.HEADING_TRACKING));
 
         final var control = new JPanel(new FlowLayout(FlowLayout.RIGHT, scale.px(Metrics.GAP), 0));
@@ -49,7 +49,7 @@ public final class Toggle {
                 final var knob = getHeight() - 2 * scale.px(PAD);
                 final var x = on ? getWidth() - scale.px(PAD) - knob : scale.px(PAD);
 
-                canvas.setColor(on ? Theme.ACCENT : Theme.SURFACE);
+                canvas.setColor(on ? Theme.SECONDARY : Theme.SURFACE);
                 canvas.fillRoundRect(0, 0, getWidth(), getHeight(), getHeight(), getHeight());
                 if (!on) {
                     canvas.setColor(Theme.EDGE);

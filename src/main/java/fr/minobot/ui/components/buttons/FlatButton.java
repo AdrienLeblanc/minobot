@@ -40,7 +40,7 @@ abstract class FlatButton extends JButton {
         setForeground(foreground);
         setBorder(new EmptyBorder(scale.px(4), scale.px(Metrics.GAP + 2),
                 scale.px(4), scale.px(Metrics.GAP + 2)));
-        setFont(scale.font(Metrics.SMALL, Metrics.PLAIN));
+        setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     }
 

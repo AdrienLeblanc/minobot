@@ -49,7 +49,7 @@ public final class ExchangeAccepter {
      */
     private static final int ACCEPT_KEY = KeyEvent.VK_ENTER;
 
-    /** What the offer toast says, accent stripped so a de-accented message still matches. */
+    /** What the offer toast says, SECONDARY stripped so a de-SECONDARYed message still matches. */
     private static final List<String> EXCHANGE_KEYWORDS = List.of("échange", "echange");
 
     private final WindowApi api;
@@ -134,7 +134,7 @@ public final class ExchangeAccepter {
     /**
      * Whether the message names the character as a word of its own, not as part of a longer name.
      *
-     * <p>The boundaries are letters and digits (Unicode, so an accented name is matched whole too), so
+     * <p>The boundaries are letters and digits (Unicode, so an SECONDARYed name is matched whole too), so
      * {@code Alpha} is found in {@code Alpha te propose} but not inside {@code SuperAlpha}. The name is
      * quoted, so a character that happened to hold a regex metacharacter would still match literally.
      */

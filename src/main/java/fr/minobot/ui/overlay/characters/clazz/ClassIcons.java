@@ -49,7 +49,7 @@ public final class ClassIcons {
 
         canvas.setColor(Theme.SURFACE);
         canvas.fillRoundRect(x, y, size, size, size, size);
-        canvas.setColor(Theme.ACCENT);
+        canvas.setColor(Theme.SECONDARY);
         canvas.setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
         final var initial = clazz.label().substring(0, 1).toUpperCase(Locale.ROOT);
         final var fm = canvas.getFontMetrics();

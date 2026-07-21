@@ -88,7 +88,7 @@ public final class CharacterRow extends DefaultListCellRenderer {
 
         if (highlighted) {
             // The grip: three bars where a row is taken hold of, and a hint that it can be.
-            canvas.setColor(Theme.ACCENT);
+            canvas.setColor(Theme.SECONDARY);
             canvas.fillRoundRect(0, inset, scale.px(3), getHeight() - 2 * inset, scale.px(3), scale.px(3));
         }
 
@@ -98,7 +98,7 @@ public final class CharacterRow extends DefaultListCellRenderer {
         // to pin and nothing to forget, so the three columns to the right of the name stay empty for it.
         if (!character.name().equals(OverlayContent.LOGGING_IN)) {
             Chip.paint(scale, canvas, connected ? Theme.CONNECTED : Theme.MUTED,
-                    connected ? "connected" : "disconnected", columns.statusX, getHeight());
+                    connected ? "Connected" : "Disconnected", columns.statusX, getHeight());
             paintClassCell(canvas, columns);
             paintActionsCell(canvas, columns);
         }
@@ -150,9 +150,9 @@ public final class CharacterRow extends DefaultListCellRenderer {
 
         final var clazz = character.clazz();
         if (clazz == null) {
-            canvas.setFont(scale.font(Metrics.SMALL, Metrics.PLAIN));
+            canvas.setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
             canvas.setColor(Theme.MUTED);
-            final var text = "choose class…";
+            final var text = "Pick class…";
             canvas.drawString(text, right - metrics.stringWidth(text), baseline);
             return;
         }
@@ -161,9 +161,9 @@ public final class CharacterRow extends DefaultListCellRenderer {
         final var iconX = right - size;
         classIcons.paint(scale, canvas, clazz, character.sexOrDefault(), iconX, (height - size) / 2, size);
 
-        canvas.setFont(scale.font(Metrics.SMALL, Metrics.PLAIN));
+        canvas.setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
         canvas.setColor(Theme.TEXT);
-        canvas.drawString(clazz.label(), iconX - scale.px(4) - metrics.stringWidth(clazz.label()), baseline);
+        canvas.drawString(clazz.label(), iconX - scale.px(8) - metrics.stringWidth(clazz.label()), baseline);
     }
 
     /**

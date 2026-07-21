@@ -9,8 +9,8 @@ import java.awt.Color;
  * rather than each carrying its own literals.
  *
  * <p>This is the dark control-surface theme the overlay proposed — a dim over the game, a card on top of
- * it, and one accent. It was born inside {@code SwingOverlay}; it lives here so the next surface that
- * wants the same look ({@link SwingToastStack}, and features to come) reaches for {@code Palette.ACCENT}
+ * it, and one SECONDARY. It was born inside {@code SwingOverlay}; it lives here so the next surface that
+ * wants the same look ({@link SwingToastStack}, and features to come) reaches for {@code Palette.SECONDARY}
  * instead of copying {@code new Color(122, 168, 255)} and drifting a shade off it.
  *
  * <p>A surface that is deliberately <em>not</em> this theme — the whisper card is a light one, the way the
@@ -43,16 +43,13 @@ public final class Theme {
     /** The row the player has picked out in a list. */
     public static final Color SELECTED = new Color(46, 52, 64);
 
-    /** The one colour that is not a grey: a bound key, an on switch, the thing the eye should land on. */
-    public static final Color ACCENT = new Color(122, 168, 255);
-
     /** A primary color */
     public static final Color PRIMARY = new Color(48, 84, 156);
     public static final Color PRIMARY_HOVER = new Color(62, 104, 184);
 
-    /** A secondary color */
-    public static final Color SECONDARY = new Color(150, 181, 234);
-    public static final Color SECONDARY_HOVER = new Color(174, 200, 245);
+
+    public static final Color SECONDARY = new Color(122, 168, 255);
+    public static final Color SECONDARY_HOVER = new Color(144, 188, 255);
 
     /** A tertiary color */
     public static final Color TERTIARY = new Color(242, 244, 245);

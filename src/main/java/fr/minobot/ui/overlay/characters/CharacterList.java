@@ -74,7 +74,7 @@ public final class CharacterList {
         row.setOpaque(false);
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, scale.px(Metrics.ROW)));
-        row.add(new Hint(scale, "drag to reorder"), BorderLayout.WEST);
+        row.add(new Hint(scale, "Drag to reorder"), BorderLayout.WEST);
         row.add(reloadButton(scale), BorderLayout.EAST);
         return row;
     }

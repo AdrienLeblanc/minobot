@@ -21,7 +21,7 @@ public final class Chip {
      * @param height the row's height, the chip centred vertically in it
      */
     public static void paint(Scale scale, Graphics2D canvas, Color colour, String label, int x, int height) {
-        canvas.setFont(scale.font(Metrics.HEADING, Metrics.PLAIN));
+        canvas.setFont(scale.font(Metrics.HEADING, Metrics.BOLD));
         final var fm = canvas.getFontMetrics();
         final var dot = scale.px(DOT);
         final var padding = scale.px(Metrics.GAP / 2 + 1);

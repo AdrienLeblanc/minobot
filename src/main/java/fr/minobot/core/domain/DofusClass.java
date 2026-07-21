@@ -35,7 +35,7 @@ public enum DofusClass {
         this.label = label;
     }
 
-    /** The class as the player reads it, accents and all — {@code "Crâ"}. */
+    /** The class as the player reads it, SECONDARYs and all — {@code "Crâ"}. */
     public String label() {
         return label;
     }
