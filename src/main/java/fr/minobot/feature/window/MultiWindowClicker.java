@@ -56,7 +56,7 @@ public final class MultiWindowClicker {
     private static final int MAX_PARENT_DEPTH = 10;
 
     /** Time given to a character to settle on screen before the next one is brought up. */
-    private static final int RESET_SETTLE_MILLIS = 50;
+    private static final int RESET_SETTLE_MILLIS = 5;
 
     private final WindowApi api;
     private final WindowManager windows;
@@ -187,7 +187,7 @@ public final class MultiWindowClicker {
         log.debug("Bringing '{}' up on screen.", character.name());
         focus.focus(character.hwnd());
 
-        return sleep(RESET_SETTLE_MILLIS);
+        return true;
     }
 
     /**
