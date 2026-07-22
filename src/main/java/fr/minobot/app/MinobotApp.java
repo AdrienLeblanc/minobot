@@ -4,6 +4,7 @@ import fr.minobot.core.*;
 import fr.minobot.core.KeyboardMonitor.Binding;
 import fr.minobot.core.input.InputSimulator;
 import fr.minobot.feature.group.GroupManager;
+import fr.minobot.feature.notification.AutoPassBanner;
 import fr.minobot.feature.notification.ExchangeAccepter;
 import fr.minobot.feature.notification.NotificationListener;
 import fr.minobot.feature.notification.TurnPasser;
@@ -12,6 +13,7 @@ import fr.minobot.feature.overlay.OverlayController;
 import fr.minobot.feature.window.MultiWindowClicker;
 import fr.minobot.feature.window.WindowCycler;
 import fr.minobot.feature.window.WindowReorder;
+import fr.minobot.ui.banner.SwingBanner;
 import fr.minobot.ui.overlay.SwingOverlay;
 import fr.minobot.ui.toast.SwingToastStack;
 import fr.minobot.win32.User32;
@@ -98,9 +100,13 @@ public final class MinobotApp {
         new NotificationListener(windowManager, focusManager, notificationManager,
                 notification -> exchangeAccepter.claims(notification) || whisperToaster.claims(notification));
 
-        // Also hotkey-less: the overlay's Auto-pass switch turns it on and off, and it reads that
-        // switch at every toast rather than being rebound.
+        // Ends each character's turn while the Auto-pass switch is on, reading it at every toast. The
+        // switch is flipped by the overlay or by the AUTO_PASS_TURN hotkey (bound below like any other).
         new TurnPasser(windowManager, inputSimulator, focusManager, notificationManager, settings);
+
+        // The visible half of the same switch: a standing banner over the game while auto-pass is on. It
+        // answers no toast — it watches the switch through Settings.onChange and follows the game window.
+        new AutoPassBanner(api, windowManager, settings, SwingBanner::new);
 
         // Every change goes through the whole set again: it is one swap in the monitor, and it spares
         // us the question of which field the overlay touched.
@@ -138,6 +144,7 @@ public final class MinobotApp {
                 case WINDOW_CYCLE_PREV -> Binding.of(hotkey, cooldown, windowCycler::cyclePrev);
                 case WINDOW_REORDER -> Binding.of(hotkey, cooldown, windowReorder::reorderTaskbar);
                 case OVERLAY -> Binding.of(hotkey, cooldown, overlay::toggle);
+                case AUTO_PASS_TURN -> Binding.of(hotkey, cooldown, overlay::flipAutoPassTurn);
             });
             log.debug("Feature '{}' enabled on hotkey '{}'.", feature.label(), hotkey);
         }

@@ -21,7 +21,7 @@ and nothing else.
 invitation relay in `group/` is tested directly against it (a toast must not steal the foreground from
 the relay's keystrokes), and that test lives in another package.
 
-## Auto-pass turns — no hotkey, the overlay's switch
+## Auto-pass turns — the overlay's switch, a toggle key, and a banner
 
 Plays a table of alts on its own. In a fight the game raises a toast for whoever's turn it is —
 `C'est à "Bravo" de jouer` — and when the switch is on, `TurnPasser` turns that toast into a keypress:
@@ -37,9 +37,26 @@ length of that (`focus.takeOver()`): the notification auto-focus answers the sam
 takeover its focus would land between the focus and the keypress and end a turn in the wrong window. A
 `ReentrantLock` serializes one pass against the next for the same reason. It is a **combat** feature and
 the group invitation is done **before** the fight — the two are not meant to share the screen, and do
-not. The switch lives on the overlay and only there, read live at every toast; unlike the order and the
-keybinds it is **session-only** — not persisted, so a restart forgets it and finds it off, which is the
-safe default for a feature that ends turns on its own.
+not. The switch is read live at every toast; unlike the order and the
+keybinds its **state** is **session-only** — not persisted, so a restart forgets it and finds it off,
+which is the safe default for a feature that ends turns on its own.
+
+**Two ways to flip it, and one to see it.** The overlay carries the switch, and — new — an
+`AUTO_PASS_TURN` hotkey (default `shift+middle`) toggles it too. That hotkey is the odd one in the
+`Feature` enum: its action *toggles the switch* rather than firing a one-shot, and a blank combination
+only leaves it keyless (the switch still works) instead of disabling the feature. `MinobotApp` binds it
+to `OverlayController.flipAutoPassTurn`, so a press and the panel's pill land on the same `settings.update`
+and stay in step. The *key combination* is persisted like every other keybind; the on/off *state* is not.
+
+`AutoPassBanner` is the **visible half**: while the switch is on it hangs a standing card at the
+**top-centre** of the foreground game reading *"Auto-pass turns enabled."*, so a feature that otherwise
+shows nothing but turns ending by themselves is unmistakably on. It answers **no toast** — it watches the
+switch through `Settings.onChange` and, like the panel and the whisper stack, **follows** the game window
+on a 30 ms virtual-thread loop. Its card carries a **close cross**, but the cross **only hides** the
+banner (`BannerActions.dismiss`); the turn-passer keeps running — stopping it is the switch's or the
+hotkey's job. Once dismissed it stays hidden until the switch is turned **off then on again**. Its UI is
+cut on the same interface/impl seam as the others (`ui/BannerView`, `ui/BannerContent`, `ui/BannerActions`,
+`ui/banner/SwingBanner`), so all the deciding is tested with no screen (`AutoPassBannerTest`).
 
 ## Auto-accept trades — no hotkey, the overlay's switch
 

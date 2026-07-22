@@ -34,9 +34,10 @@ fr.minobot
     └── notification/   the toast-driven features (auto-focus, auto-pass, auto-accept, whisper).
 ```
 
-**Three interfaces are the only doors to the outside world:** `win32.WindowApi` (the screen),
-`core.Input` (the keyboard and mouse), and `ui.OverlayView` (the panel we draw). Everything else is
-code that runs in a test, on any OS, with no game running — which is why there are 122 tests.
+**A handful of interfaces are the only doors to the outside world:** `win32.WindowApi` (the screen),
+`core.Input` (the keyboard and mouse), and the `ui` views we draw — `OverlayView` (the panel),
+`ToastView` (the whisper stack), `BannerView` (the auto-pass banner). Everything else is code that runs
+in a test, on any OS, with no game running — which is why there are 190 tests.
 
 **Keep it that way.** Do not call `user32.dll`, `java.awt.Robot` or Swing from anywhere but their
 implementations: a feature that reaches past `WindowApi` becomes untestable.

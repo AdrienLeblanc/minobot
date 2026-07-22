@@ -14,7 +14,7 @@ import java.util.Set;
 
 /**
  * The one part of the overlay's edits that outlives the process: the characters — their order, and the
- * class and sex pinned to each — and the seven keybinds, kept in {@code overlay.json} next to
+ * class and sex pinned to each — and the eight keybinds, kept in {@code overlay.json} next to
  * {@code config.json}.
  *
  * <p>There are two tiers now. {@code config.json} is the player's <strong>read-only defaults</strong> —

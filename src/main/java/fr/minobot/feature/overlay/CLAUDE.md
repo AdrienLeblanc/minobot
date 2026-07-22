@@ -39,9 +39,10 @@ application's tile at the top (it draws `logo.png` from the classpath, centred a
 characters and their drag-to-reorder, then the **Auto-pass turns** and **Auto-accept trades** switches,
 then the size slider. Those switches are the panel's *states* rather than keys — explicit ON/OFF pills,
 said in a word and a colour both, because a control that quietly ends every combat turn or accepts a
-trade has to be unmistakable. **The logo is a resource, not a loose file:**
+trade has to be unmistakable. Auto-pass now *also* has a key (its `shift+middle` toggle lives in the
+drawer below), so the pill and the keybind are two views of the one switch; auto-accept is switch-only. **The logo is a resource, not a loose file:**
 it lives in `src/main/resources/` so it rides inside the jar — a PNG in `assets/` (where the README's
-screenshots live) is lost the moment `Minobot.exe` is unpacked elsewhere. The seven keybinds are a
+screenshots live) is lost the moment `Minobot.exe` is unpacked elsewhere. The eight keybinds are a
 **drawer** that unfolds to the right of the card — a `Keybinds ›` button opens it — because they are
 edited once and forgotten, and left inline they made the panel twice as tall as what it is for. The
 `Sheet` is a hand-written layout, not a manager: one card centred, one card beside it. The card gives up

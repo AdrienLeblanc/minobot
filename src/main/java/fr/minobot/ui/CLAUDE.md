@@ -1,9 +1,10 @@
 # UI — the interface/impl seam for the screen
 
 `ui/` itself is **interfaces and data only**: `OverlayView` / `OverlayContent` / `OverlayActions` /
-`CharacterEntry` for the panel, `ToastView` / `ToastContent` / `ToastActions` for the whisper stack, and
+`CharacterEntry` for the panel, `ToastView` / `ToastContent` / `ToastActions` for the whisper stack,
+`BannerView` / `BannerContent` / `BannerActions` for the auto-pass banner, and
 `Theme` — the one palette every Swing surface draws from. All the deciding stays here as plain data and
-ports, testable with no screen. The Swing that draws these surfaces lives in three subpackages, each with
+ports, testable with no screen. The Swing that draws these surfaces lives in four subpackages, each with
 a `CLAUDE.md` that loads only when you work in it:
 
 - **`components/`** — the design system: reusable, theme-aware Swing pieces (a card, a flat button, a
@@ -12,8 +13,9 @@ a `CLAUDE.md` that loads only when you work in it:
 - **`overlay/`** — the control panel, `SwingOverlay` (the `OverlayView` implementation) and the sections
   it lays out (`CharacterList`, `KeybindsDrawer`, `ClassPicker`, …).
 - **`toast/`** — `SwingToastStack`, the `ToastView` implementation.
+- **`banner/`** — `SwingBanner`, the `BannerView` implementation (the auto-pass banner).
 
-**The classes under `components/`, `overlay/` and `toast/` are the only ones that know Swing exists.**
+**The classes under `components/`, `overlay/`, `toast/` and `banner/` are the only ones that know Swing exists.**
 They all share one discipline, and it is not optional:
 
 - **They must never take the foreground**, or they land between two keystrokes of the invitation relay

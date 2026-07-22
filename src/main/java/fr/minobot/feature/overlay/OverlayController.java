@@ -244,6 +244,17 @@ public final class OverlayController implements OverlayActions {
         redraw();
     }
 
+    /**
+     * Flips the turn-passer on or off — the hotkey's way in, the twin of the panel's switch. The negation
+     * is inside the update so two presses in flight cannot both read the same "off" and cancel out; the
+     * panel, if it is open, redraws to show the switch in its new state.
+     */
+    public void flipAutoPassTurn() {
+        settings.update(config -> config.withAutoPassTurn(!config.autoPassTurn()));
+        log.info("Auto-pass turns toggled to {}.", settings.get().autoPassTurn() ? "on" : "off");
+        redraw();
+    }
+
     @Override
     public void toggleAutoAcceptTrade(boolean on) {
         log.info("Auto-accept trades switched {}.", on ? "on" : "off");

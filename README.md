@@ -77,17 +77,23 @@ contente de **basculer sur la fenêtre concernée**, comme d'habitude, et vous d
 
 **Cette fonction est activée par défaut.** Vous pouvez la couper depuis l'overlay le temps de la session.
 
-### Passer les tours automatiquement — interrupteur dans l'overlay
+### Passer les tours automatiquement — interrupteur, raccourci et bandeau
 
-En combat, le jeu affiche une notification quand c'est au tour d'un personnage de jouer. Ouvrez
-l'overlay (`Shift+Espace`) et activez **Auto-pass turns** : à partir de là, dès qu'un personnage reçoit
-cette notification, Minobot passe son tour tout seul (touche **F1** du jeu). Idéal quand vous laissez
-une équipe de mules dans un combat pendant que vous jouez ailleurs.
+En combat, le jeu affiche une notification quand c'est au tour d'un personnage de jouer. Activez
+**Auto-pass turns** — depuis l'overlay (`Shift+Espace`), ou d'une pression sur le raccourci
+**`Shift+clic molette`** (réattribuable dans le tiroir Keybinds) : à partir de là, dès qu'un personnage
+reçoit cette notification, Minobot passe son tour tout seul (touche **F1** du jeu). Idéal quand vous
+laissez une équipe de mules dans un combat pendant que vous jouez ailleurs.
+
+Tant que la fonction tourne, un **bandeau** « Auto-pass turns enabled. » reste affiché en haut de la
+fenêtre de jeu, pour que rien ne se passe à votre insu. Une **petite croix** le referme — mais **ça ne
+coupe pas la fonction**, ça ne fait que cacher le bandeau (il réapparaît si vous ré-activez la fonction).
+Pour l'arrêter, rebasculez l'interrupteur ou le raccourci.
 
 L'interrupteur est **très explicite** — un gros ON/OFF sur le panneau — et il passe le tour de **tous**
 les personnages, **y compris celui que vous avez à l'écran** : l'activer, c'est dire « je me suis levé
-de la table ». Il est donc **éteint par défaut**, ne s'active que depuis l'overlay, et **s'oublie au
-redémarrage** (comme tous les réglages faits dans l'overlay).
+de la table ». Il est donc **éteint par défaut** et **s'oublie au redémarrage** (comme tous les réglages
+faits dans l'overlay).
 
 ---
 

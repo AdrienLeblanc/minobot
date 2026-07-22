@@ -27,7 +27,7 @@ class OverlayStateTest {
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     @Test
-    @DisplayName("it saves the characters and the seven keybinds, and nothing else")
+    @DisplayName("it saves the characters and the eight keybinds, and nothing else")
     void savesOnlyThePersistedSubset(@TempDir Path dir) throws IOException {
         Path overlayPath = dir.resolve("overlay.json");
         Config config = TestConfigs.with(Map.of(
@@ -50,7 +50,7 @@ class OverlayStateTest {
                 "characters",
                 "multiclick_hotkey", "reset_windows_hotkey", "group_invite_hotkey",
                 "window_cycle_next_hotkey", "window_cycle_prev_hotkey", "window_reorder_hotkey",
-                "overlay_hotkey");
+                "overlay_hotkey", "auto_pass_turn_hotkey");
         assertThat(keys).doesNotContain(
                 "overlay_scale", "auto_pass_turn", "auto_accept_trade", "log_level", "multiclick_exclude");
     }

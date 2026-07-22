@@ -21,7 +21,15 @@ public enum Feature {
     WINDOW_CYCLE_NEXT("Window cycler (next)", "window_cycle_next_hotkey", Duration.ofMillis(100)),
     WINDOW_CYCLE_PREV("Window cycler (previous)", "window_cycle_prev_hotkey", Duration.ofMillis(100)),
     WINDOW_REORDER("Window reorder", "window_reorder_hotkey", Duration.ofSeconds(5)),
-    OVERLAY("Overlay", "overlay_hotkey", Duration.ofMillis(200));
+    OVERLAY("Overlay", "overlay_hotkey", Duration.ofMillis(200)),
+
+    /**
+     * The odd one out: its key <em>toggles</em> the turn-passer's overlay switch rather than firing an
+     * action. It has a slot here so it is bound, shown in the keybinds drawer and persisted like the rest;
+     * a blank hotkey only leaves it without a key, the switch still driving it. The cooldown swallows a
+     * middle-click bounce without feeling laggy.
+     */
+    AUTO_PASS_TURN("Auto-pass turns", "auto_pass_turn_hotkey", Duration.ofMillis(300));
 
     private final String label;
     private final String configKey;
@@ -61,6 +69,7 @@ public enum Feature {
             case WINDOW_CYCLE_PREV -> config.windowCyclePrevHotkey();
             case WINDOW_REORDER -> config.windowReorderHotkey();
             case OVERLAY -> config.overlayHotkey();
+            case AUTO_PASS_TURN -> config.autoPassTurnHotkey();
         };
         return hotkey == null ? "" : hotkey;
     }

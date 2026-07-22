@@ -391,6 +391,24 @@ class OverlayControllerTest {
         }
 
         @Test
+        @DisplayName("the hotkey flips auto-pass from whatever it is — the switch's mirror")
+        void flipsAutoPassTurn() {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+            assertThat(settings.get().autoPassTurn()).as("off by default").isFalse();
+
+            controller.flipAutoPassTurn();
+            assertThat(settings.get().autoPassTurn()).as("the hotkey turned it on").isTrue();
+            assertThat(view.content().orElseThrow().autoPassTurn())
+                    .as("and the open panel shows the new state")
+                    .isTrue();
+
+            controller.flipAutoPassTurn();
+            assertThat(settings.get().autoPassTurn()).as("and off again").isFalse();
+        }
+
+        @Test
         @DisplayName("the auto-accept switch lands in the live configuration, and the panel shows it")
         void togglesAutoAcceptTrade() {
             api.withForeground(1);

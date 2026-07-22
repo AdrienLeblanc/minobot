@@ -43,6 +43,16 @@ public record Config(
         @JsonProperty("window_cycle_prev_hotkey") String windowCyclePrevHotkey,
         @JsonProperty("window_reorder_hotkey") String windowReorderHotkey,
         @JsonProperty("overlay_hotkey") String overlayHotkey,
+
+        /**
+         * The key that toggles the turn-passer. Unlike every other hotkey, a blank one does not disable
+         * the feature — it only leaves it without a key, since the {@link #autoPassTurn} switch on the
+         * overlay drives it too. So this is the one hotkey that is a <em>toggle</em> rather than an
+         * enable-by-blank. Its combination is persisted like the others (see {@code OverlayState}); the
+         * switch's on/off <em>state</em> is not.
+         */
+        @JsonProperty("auto_pass_turn_hotkey") String autoPassTurnHotkey,
+
         @JsonProperty("overlay_scale") double overlayScale,
 
         /**
@@ -85,6 +95,9 @@ public record Config(
                 "shift+x2",
                 "F9",
                 "shift+space",
+                // Shift + middle-click toggles the turn-passer. A default the player can rebind, and — unlike
+                // the others — a key that toggles rather than one whose blank turns the feature off.
+                "shift+middle",
                 // Swing's natural sizes were laid out for a 96-DPI desktop, and the game is played on a
                 // screen twice that. Unscaled, the panel is legible and nobody wants to read it.
                 1.5,
@@ -128,6 +141,7 @@ public record Config(
                 hotkeyOf(Feature.WINDOW_CYCLE_PREV, feature, combination),
                 hotkeyOf(Feature.WINDOW_REORDER, feature, combination),
                 hotkeyOf(Feature.OVERLAY, feature, combination),
+                hotkeyOf(Feature.AUTO_PASS_TURN, feature, combination),
                 overlayScale,
                 autoPassTurn,
                 autoAcceptTrade);
@@ -167,7 +181,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, excluded, resetWindowsHotkey, groupInviteHotkey,
                 characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, overlayScale, autoPassTurn, autoAcceptTrade);
+                overlayHotkey, autoPassTurnHotkey, overlayScale, autoPassTurn, autoAcceptTrade);
     }
 
     /** The same configuration with the panel drawn bigger or smaller — how its slider lands. */
@@ -175,7 +189,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
                 characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, scale, autoPassTurn, autoAcceptTrade);
+                overlayHotkey, autoPassTurnHotkey, scale, autoPassTurn, autoAcceptTrade);
     }
 
     /** The same configuration with the turn-passer switched on or off — how the overlay's toggle lands. */
@@ -183,7 +197,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
                 characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, overlayScale, enabled, autoAcceptTrade);
+                overlayHotkey, autoPassTurnHotkey, overlayScale, enabled, autoAcceptTrade);
     }
 
     /** The same configuration with the trade-accepter switched on or off — the overlay's other toggle. */
@@ -191,7 +205,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
                 characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, overlayScale, autoPassTurn, enabled);
+                overlayHotkey, autoPassTurnHotkey, overlayScale, autoPassTurn, enabled);
     }
 
     /**
@@ -243,7 +257,7 @@ public record Config(
         return new Config(
                 logLevel, multiclickHotkey, multiclickExclude, resetWindowsHotkey, groupInviteHotkey,
                 characters, windowCycleNextHotkey, windowCyclePrevHotkey, windowReorderHotkey,
-                overlayHotkey, overlayScale, autoPassTurn, autoAcceptTrade);
+                overlayHotkey, autoPassTurnHotkey, overlayScale, autoPassTurn, autoAcceptTrade);
     }
 
     private static <T> List<T> copyOrEmpty(List<T> value) {
