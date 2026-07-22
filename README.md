@@ -75,8 +75,7 @@ Minobot reconnaît que la demande vient d'**un de vos comptes** grâce au nom é
 Si c'est un **autre joueur** qui vous propose un échange, rien n'est accepté à votre place : Minobot se
 contente de **basculer sur la fenêtre concernée**, comme d'habitude, et vous décidez.
 
-**Cette fonction est activée par défaut.** Vous pouvez la couper depuis l'overlay le temps de la session ;
-pour la désactiver durablement, mettez `"auto_accept_trade": false` dans votre `config.json`.
+**Cette fonction est activée par défaut.** Vous pouvez la couper depuis l'overlay le temps de la session.
 
 ### Passer les tours automatiquement — interrupteur dans l'overlay
 
@@ -100,6 +99,25 @@ redémarrage** (comme tous les réglages faits dans l'overlay).
 2. Lancez **`Minobot.exe`**.
 3. C'est tout. Il n'y a rien à installer, pas même Java : tout voyage dans le dossier.
 
+**Important** : Minobot se basant sur le système de notifications Windows, il est **impératif** de les
+   activer.
+1. Aller dans les paramètres Windows et **activer les notifications**.
+
+![windows_settings1.png](assets/windows_settings1.png)
+
+2. Si elles vous dérangent,  **vous pouvez les rendre silencieuses**, en cochant
+   `Masquer le contenu...`
+   
+   Minobot fonctionnera tout pareil.
+
+![windows_settings2.png](assets/windows_settings2.png)
+
+> **Au premier lancement, Windows peut afficher un écran bleu « Windows a protégé votre
+> ordinateur ».** C'est normal : Minobot est un petit logiciel gratuit qui n'est pas encore connu de
+> Windows, alors il se méfie par précaution — ça ne veut pas dire qu'il y a un problème. Cliquez sur
+> **« Informations complémentaires »**, puis sur le bouton **« Exécuter quand même »** qui apparaît.
+> Windows ne vous le redemandera plus.
+
 Une **icône apparaît à côté de l'horloge**, en bas à droite de l'écran : c'est le signe que Minobot
 tourne. Pour l'arrêter, faites un clic droit dessus et choisissez **Quitter**.
 
@@ -108,115 +126,86 @@ tourne. Pour l'arrêter, faites un clic droit dessus et choisissez **Quitter**.
 
 ---
 
-## Configuration
+## L'overlay — votre tableau de bord (`Shift+Espace`)
 
-Au premier lancement, Minobot crée un fichier **`config.json`** juste à côté de `Minobot.exe`. C'est
-le seul fichier que vous aurez à toucher. Ouvrez-le avec le Bloc-notes.
+Placez-vous sur une fenêtre de jeu et appuyez sur **`Shift+Espace`** : un panneau s'affiche par-dessus
+le jeu, au centre, sur un fond assombri. **C'est là que vous réglez tout** — il n'y a aucun fichier à
+ouvrir. Réappuyez sur `Shift+Espace`, ou cliquez sur la **croix** en haut du panneau, pour le refermer.
 
-![initial_config.png](assets/initial_config.png)
+Deux choses à savoir :
 
-### La seule chose vraiment obligatoire : la liste de vos personnages
+- Le panneau **appartient à la fenêtre de jeu** : `Shift+Espace` sur le bureau ou dans un navigateur ne
+  fait rien. Il suit la fenêtre si vous la déplacez.
+- Tant qu'il est ouvert, **il occupe toute la surface du jeu** (vous ne pouvez pas jouer en même temps) :
+  refermez-le pour reprendre la main. C'est un panneau de réglages, pas un mode de jeu.
 
-Remplacez la liste `characters` par **vos personnages, dans l'ordre où vous voulez qu'ils défilent** —
-un par ligne, chacun sous la forme `{ "name": "NomDuPerso" }` :
+Sur le panneau, de haut en bas :
 
-![edited_config.png](assets/edited_config.png)
+### Vos personnages, dans l'ordre
 
-Cet ordre sert à deux choses : le défilement des fenêtres (`X2`) et le rangement de la barre des
-tâches (`F9`).
+Minobot **trouve tout seul vos fenêtres de jeu** et les affiche en liste. **Glissez-les pour les remettre
+dans l'ordre que vous voulez** : c'est ce même ordre qui sert au défilement (`X2`) et au rangement de la
+barre des tâches (`F9`). Vous n'avez rien à écrire nulle part.
 
-**Après chaque modification du fichier, quittez Minobot et relancez-le** pour qu'il en tienne compte.
+### La classe et le sexe de chaque personnage
 
-### Les autres réglages
+Cliquez sur **« pick class… »** en face d'un personnage : une grille des **douze classes** de Dofus
+Retro s'ouvre, avec une bascule **homme / femme** en haut. Choisissez, et l'icône de la classe s'affiche
+à côté du nom — de quoi repérer vos persos d'un coup d'œil.
 
-Tout le reste est facultatif. Voici le fichier au complet — il n'y a rien de caché ailleurs :
+### Connecté, déconnecté, et « oublier » un personnage
 
-```json
-{
-  "log_level": "INFO",
+Chaque ligne porte une **pastille de statut** : verte quand la fenêtre du perso est ouverte, grise quand
+elle ne l'est pas. Un personnage à qui vous avez attribué une classe ou un sexe **reste dans la liste
+même déconnecté** (grisé), pour garder sa place dans l'ordre — pratique quand vous relancez un compte.
+Une **petite croix** sur une ligne grisée le retire définitivement de la liste.
 
-  "multiclick_hotkey": "x1",
-  "multiclick_exclude": [],
-  "reset_windows_hotkey": "shift+x1",
+### Les deux interrupteurs
 
-  "group_invite_hotkey": "F8",
+**Auto-accept trades** et **Auto-pass turns**, les deux fonctions décrites plus haut, s'allument et
+s'éteignent ici d'un clic (un gros ON/OFF).
 
-  "characters": [
-    { "name": "PremierPerso" },
-    { "name": "DeuxiemePerso" },
-    { "name": "TroisiemePerso" }
-  ],
-  "window_cycle_next_hotkey": "x2",
-  "window_cycle_prev_hotkey": "shift+x2",
+### La taille du panneau
 
-  "window_reorder_hotkey": "F9",
+Un **curseur** en bas agrandit ou réduit le panneau. Sur un grand écran, montez-le si le texte vous
+paraît petit.
 
-  "overlay_hotkey": "shift+space",
-  "overlay_scale": 1.5,
+### Réattribuer les touches — le tiroir « Keybinds »
 
-  "auto_pass_turn": false,
-  "auto_accept_trade": true
-}
-```
+Le bouton **`Keybinds ›`** déplie un tiroir sur le côté, où figure **la touche de chaque fonction**. Pour
+en changer une, cliquez dessus puis **appuyez simplement sur la nouvelle touche** — Minobot la capture,
+vous n'avez rien à taper.
 
-| Réglage | À quoi ça sert |
-| --- | --- |
-| `characters` | Vos personnages, dans l'ordre — chacun `{ "name": "..." }`. **Le réglage principal.** Leur classe et leur sexe se choisissent depuis l'overlay ; inutile de les écrire ici. |
-| `multiclick_exclude` | Les personnages à **laisser en dehors** du clic multiple. Exemple : `["Mule", "Marchand"]` — votre mule en mode marchand ne bougera pas. |
-| `overlay_scale` | La taille du panneau (l'overlay, ouvert par `shift+space`), de `1.0` à `2.0`. Sur un grand écran, `1.5` (la valeur d'origine) se lit bien ; montez-la si le texte vous paraît petit. Le curseur en bas du panneau fait la même chose, le temps de la session. |
-| `auto_pass_turn` | Passer automatiquement les tours de combat (`true`/`false`). Se règle surtout depuis l'interrupteur **Auto-pass turns** de l'overlay ; le mettre à `true` ici le démarre déjà activé. |
-| `auto_accept_trade` | Accepter automatiquement les échanges entre vos comptes (`true`/`false`). **Activé par défaut.** Se règle depuis l'interrupteur **Auto-accept trades** de l'overlay le temps de la session ; mettez `false` ici pour le désactiver durablement. |
-| `..._hotkey` | Les touches de chaque fonction. Voir la liste ci-dessous. |
-| `log_level` | Mettez `"DEBUG"` à la place de `"INFO"` si vous devez signaler un problème : Minobot écrira beaucoup plus de détails dans son journal. |
+Quelques touches ne conviennent pas :
 
-Une ligne que vous supprimez du fichier reprend simplement sa valeur d'origine. Un fichier qui ne
-contiendrait que votre liste `characters` fonctionne très bien.
+- **Les lettres et les chiffres ne marchent pas** (`A`, `1`, `Ctrl+S`…). C'est volontaire : ce sont les
+  touches du chat du jeu, un raccourci posé dessus se déclencherait au milieu de vos phrases. Utilisez
+  plutôt les **touches de fonction `F1`–`F12`**, la **barre d'espace**, les **boutons latéraux de la
+  souris** (`X1`/`X2`, sous le pouce), éventuellement avec `Ctrl`, `Shift` ou `Alt`.
+- Vous pouvez aussi poser une fonction sur le **clic gauche, droit ou molette**, mais elle se déclenchera
+  alors à *chacun* de ces clics, partout — ça n'a de sens que pour le clic multiple.
+- **La combinaison la plus précise gagne** : si `X2` et `Shift+X2` servent tous les deux, `X2` maintenu
+  avec Shift ne déclenche que le second, jamais les deux à la fois.
 
-**Pour désactiver une fonction, laissez sa touche vide** : `"group_invite_hotkey": ""` et les
-invitations de groupe ne répondront plus, sans rien casser d'autre.
+> Ce que vous réglez dans l'overlay est **retenu d'une fois sur l'autre** : l'ordre des personnages,
+> leurs classes, vos touches. Seuls la taille du panneau et les deux interrupteurs repartent de zéro à
+> chaque redémarrage.
 
 ---
 
-## Les touches disponibles
+## Réglages avancés (`config.json`) — facultatif
 
-Une touche se compose d'une **touche principale**, éventuellement précédée d'un ou plusieurs
-**modificateurs**, reliés par un `+`. Les majuscules n'ont aucune importance : `shift+x1` et `SHIFT+X1`
-sont identiques.
+Tout ce qui précède se règle dans l'overlay. Il subsiste un fichier **`config.json`**, créé à côté de
+`Minobot.exe` au premier lancement, pour quelques options que l'overlay ne couvre pas. Ouvrez-le avec le
+Bloc-notes ; **après une modification, quittez Minobot et relancez-le** pour qu'il en tienne compte.
 
-**Les touches principales** — vous devez en choisir une dans cette liste, il n'y en a pas d'autres :
-
-| À écrire | La touche correspondante |
+| Réglage | À quoi ça sert |
 | --- | --- |
-| `F1` à `F12` | Les touches de fonction, en haut du clavier. |
-| `space` | La barre d'espace. |
-| `x1` | Le bouton latéral « Précédent » de la souris (sous le pouce). |
-| `x2` | Le bouton latéral « Suivant » de la souris. |
-| `left` | Le **clic gauche** de la souris. |
-| `right` | Le **clic droit** de la souris. |
-| `middle` | Le **clic molette** (appuyer sur la roulette). |
+| `multiclick_exclude` | Les personnages à **laisser en dehors** du clic multiple. Exemple : `["Mule", "Marchand"]` — votre marchand ne bougera pas quand les autres cliquent. |
+| `auto_accept_trade` / `auto_pass_turn` | L'état de départ des deux interrupteurs (`true`/`false`). L'overlay les bascule le temps de la session ; ici vous fixez leur position au démarrage. `auto_accept_trade` vaut `true` par défaut, `auto_pass_turn` vaut `false`. |
+| `log_level` | Mettez `"DEBUG"` à la place de `"INFO"` si vous devez signaler un problème : Minobot écrira beaucoup plus de détails dans son journal. |
 
-**Les modificateurs** — aucun, un, ou plusieurs : `ctrl`, `shift`, `alt`.
-
-Quelques exemples valables :
-
-```json
-"group_invite_hotkey": "F8",
-"multiclick_hotkey": "x1",
-"reset_windows_hotkey": "shift+x1",
-"window_reorder_hotkey": "ctrl+alt+F9"
-```
-
-Trois choses à savoir avant de choisir :
-
-- **Les lettres et les chiffres ne sont pas utilisables.** `a`, `1` ou `ctrl+s` ne fonctionneront pas.
-  C'est volontaire : ce sont les touches avec lesquelles vous écrivez dans le chat du jeu, et un
-  raccourci posé dessus se déclencherait au milieu de vos phrases.
-- **`left`, `right` et `middle` sont les boutons de la souris, pas les flèches du clavier.** Mettre
-  une fonction sur `left`, c'est la déclencher à **chacun de vos clics gauches**, partout. C'est
-  utilisable pour le clic multiple si vous voulez que votre clic lui-même serve de déclencheur, mais
-  c'est le seul cas où ça a du sens.
-- **La combinaison la plus précise gagne.** Si `x2` et `shift+x2` sont tous les deux utilisés, appuyer
-  sur `X2` en maintenant Shift ne déclenche que le second — jamais les deux à la fois.
+Une ligne que vous supprimez du fichier reprend simplement sa valeur d'origine.
 
 ---
 
@@ -228,8 +217,8 @@ souci.
 
 | Symptôme | Ce qu'il faut vérifier |
 | --- | --- |
-| Rien ne se passe quand j'appuie sur une touche | Minobot tourne-t-il ? Cherchez l'icône à côté de l'horloge. Et avez-vous bien **relancé** le logiciel après avoir modifié `config.json` ? |
-| Une seule fonction ne répond plus | Vous avez sans doute écrit une touche que Minobot ne connaît pas. Ouvrez `logs/minobot.log` et cherchez une ligne `Hotkey main key ... is not supported.` : les autres fonctions continuent de tourner, seule celle-là est désactivée. |
+| Rien ne se passe quand j'appuie sur une touche | Minobot tourne-t-il ? Cherchez l'icône à côté de l'horloge. Les réglages faits dans l'overlay s'appliquent tout de suite ; en revanche, si vous avez touché à `config.json`, il faut **relancer** le logiciel. |
+| Une seule fonction ne répond plus | La touche que vous lui avez donnée n'est peut-être pas reconnue. Rouvrez le tiroir **Keybinds** de l'overlay pour la réattribuer. Dans `logs/minobot.log`, une ligne `Hotkey main key ... is not supported.` le confirme : les autres fonctions continuent de tourner, seule celle-là est coupée. |
 | Les fenêtres clignotent en orange | Appuyez sur `Shift+X1`. |
-| Le défilement `X2` saute des personnages | Vérifiez l'orthographe des noms dans `characters`, et souvenez-vous que seules les fenêtres **de l'écran courant** défilent. |
+| Le défilement `X2` saute des personnages | Ouvrez l'overlay pour vérifier l'ordre de vos personnages, et souvenez-vous que seules les fenêtres **de l'écran courant** défilent. |
 | Le fichier `config.json` semble ignoré | Il doit être **à côté de `Minobot.exe`**, et rester un fichier valide : une virgule oubliée suffit à le casser. Dans ce cas Minobot repart sur ses réglages d'origine et le note dans son journal. |

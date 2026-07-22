@@ -75,7 +75,7 @@ expects a focused window. And why the class picker (below) is an **in-overlay gr
 a popup menu expects the focus too. Neither is a stylistic choice; all three fall out of the line above.
 
 Each character row also carries its **class and sex** (`DofusClass`, the twelve of Dofus Retro, and
-`Sex`, male or female). Until a class is chosen the row shows a muted `choose class…`; a click on it
+`Sex`, male or female). Until a class is chosen the row shows a muted `pick class…`; a click on it
 opens a **modal picker** — a grid of the twelve, drawn over a scrim that dims the panel and catches every
 click, so a mis-click closes the picker and touches nothing else. At the picker's head a **male/female
 toggle** sets the sex: picking a sex records it at once and leaves the picker open, so the class tiles

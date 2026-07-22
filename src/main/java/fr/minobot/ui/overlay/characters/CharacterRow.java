@@ -140,7 +140,7 @@ public final class CharacterRow extends DefaultListCellRenderer {
 
     /**
      * The class in its column, right-aligned against the column's edge: the icon and the class's label
-     * once one is pinned, a muted {@code choose class…} until then.
+     * once one is pinned, a muted {@code pick class…} until then.
      */
     private void paintClassCell(Graphics2D canvas, RowColumns columns) {
         final var height = getHeight();
