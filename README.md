@@ -63,6 +63,11 @@ que vous avez configuré.
 Quand un de vos personnages en arrière-plan se fait attaquer, recevoir un message ou inviter, le jeu
 affiche une notification Windows. Minobot la voit et **bascule automatiquement sur ce personnage**.
 
+C'est particulièrement confortable **en combat** : dès que c'est **le tour d'un de vos personnages de
+jouer**, Minobot le ramène tout seul au premier plan (sauf si vous avez activé **Auto-pass turns**, qui
+passe alors le tour à votre place — voir plus bas). Plus besoin de chercher la bonne fenêtre à l'`Alt+Tab`
+— vous êtes déjà dessus, prêt à jouer.
+
 ### Accepter les échanges entre vos comptes — interrupteur dans l'overlay
 
 Ouvrez l'overlay (`Shift+Espace`) et activez **Auto-accept trades**. À partir de là, quand un de vos
