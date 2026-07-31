@@ -3,19 +3,29 @@ package fr.minobot.core;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 
 /**
  * The notification-area icon — the counterpart of {@code system_tray.py}.
  *
- * <p>{@code java.awt.SystemTray} replaces {@code pystray} + {@code PIL}: the icon (a golden M on
- * brown) is drawn at the size the OS asks for, rather than at a fixed 64×64 that Windows would
- * downscale.
+ * <p>{@code java.awt.SystemTray} replaces {@code pystray} + {@code PIL}: the icon is rendered at the
+ * size the OS asks for, rather than at a fixed 64×64 that Windows would downscale. It shows the
+ * application's artwork when a bitmap is shipped — {@code /tray.png} for choice, a square mark made
+ * for tiny sizes, else the full {@code /logo.png} — and falls back to a drawn golden M so the tray
+ * is never empty, whatever was packaged.
  */
 public final class SystemTrayManager {
 
     private static final Logger log = LoggerFactory.getLogger(SystemTrayManager.class);
+
+    /**
+     * The icon bitmaps, most specific first. {@code /tray.png} is a square mark drawn for 16 px;
+     * {@code /logo.png} is the full portrait artwork — usable but busy once shrunk to the tray.
+     */
+    private static final String[] ICON_RESOURCES = {"/tray.png", "/logo.png"};
 
     private static final Color BROWN = new Color(0x5D4037);
     private static final Color GOLD = new Color(0xFFD700);
@@ -47,7 +57,7 @@ public final class SystemTrayManager {
             final var tray = SystemTray.getSystemTray();
             final var size = tray.getTrayIconSize();
 
-            final var trayIcon = new TrayIcon(drawIcon(size), "Minobot", buildMenu());
+            final var trayIcon = new TrayIcon(buildIcon(size), "Minobot", buildMenu());
             tray.add(trayIcon);
             icon = trayIcon;
 
@@ -78,6 +88,53 @@ public final class SystemTrayManager {
         menu.addSeparator();
         menu.add(quit);
         return menu;
+    }
+
+    /**
+     * The tray icon at the size the notification area wants: the shipped artwork when there is any,
+     * else a golden M drawn to fit.
+     */
+    private static Image buildIcon(Dimension size) {
+        final var artwork = loadArtwork();
+        return artwork != null ? fit(artwork, size) : drawIcon(size);
+    }
+
+    /** The first icon bitmap on the classpath, or {@code null} when none was packaged. */
+    private static BufferedImage loadArtwork() {
+        for (final var resource : ICON_RESOURCES) {
+            final var url = SystemTrayManager.class.getResource(resource);
+            if (url == null) {
+                continue;
+            }
+            try {
+                return ImageIO.read(url);
+            } catch (IOException e) {
+                log.warn("Could not read the tray icon {}: {}", resource, e.getMessage());
+            }
+        }
+        log.debug("No tray icon bitmap on the classpath: the tray falls back to its drawn M.");
+        return null;
+    }
+
+    /**
+     * The artwork scaled to sit inside {@code size} with its proportions kept — centred over a
+     * transparent square, smoothed rather than sampled at the nearest pixel, so a large source and a
+     * portrait one both come out clean at 16 px.
+     */
+    private static Image fit(BufferedImage artwork, Dimension size) {
+        final var canvas = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+        final var graphics = canvas.createGraphics();
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
+        final var scale = Math.min(size.width / (double) artwork.getWidth(),
+                size.height / (double) artwork.getHeight());
+        final var w = (int) Math.round(artwork.getWidth() * scale);
+        final var h = (int) Math.round(artwork.getHeight() * scale);
+        graphics.drawImage(artwork, (size.width - w) / 2, (size.height - h) / 2, w, h, null);
+
+        graphics.dispose();
+        return canvas;
     }
 
     /** A golden M on a brown square, drawn to whatever size the notification area wants. */
