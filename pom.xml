@@ -305,6 +305,14 @@
                                         <argument>--dest</argument>
                                         <argument>${project.build.directory}/dist</argument>
 
+                                        <!--
+                                          The launcher's icon. On Windows jpackage only accepts .ico,
+                                          so resources/Minobot.ico is the multi-size ICO generated from
+                                          the same tray.png the running app uses for its tray/window.
+                                        -->
+                                        <argument>--icon</argument>
+                                        <argument>${project.basedir}/src/main/resources/minobot.ico</argument>
+
                                         <!-- jpackage shells out to jlink with these. -->
                                         <argument>--add-modules</argument>
                                         <argument>${dist.modules}</argument>
