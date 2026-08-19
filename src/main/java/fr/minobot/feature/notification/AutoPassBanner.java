@@ -22,15 +22,19 @@ import java.util.function.Function;
  *
  * <p>It answers no toast, unlike its neighbours here: {@link TurnPasser} is what ends the turns, reading
  * the {@code auto_pass_turn} switch at each one. This class watches that same switch — through
- * {@link Settings#onChange} — and, while it is on, hangs a card at the top of the foreground game reading
- * that auto-pass is enabled. The card carries a close cross, but the cross <strong>only hides</strong> it:
- * stopping the feature is the overlay switch's or the hotkey's job. Once hidden it stays hidden until the
- * switch is turned off and on again — a deliberate re-enable brings it back.
+ * {@link Settings#onChange} — and, while it is on, hangs a pill at the top of the foreground game saying
+ * so.
+ *
+ * <p><strong>The banner cannot be dismissed, only obeyed.</strong> Its one button turns the feature
+ * <em>off</em>; there is no cross that hides the sign and leaves the turns ending. A player who has
+ * stepped away comes back to a game that has been playing itself, and the only thing telling them so is
+ * this pill — a version of it they could have waved away hours ago would be worse than no banner at all.
+ * The banner therefore goes when, and only when, the switch goes.
  *
  * <p>Like the panel and the whisper stack it <em>follows</em>: a single virtual thread keeps the banner
  * pinned to the foreground game window, or takes it away while the player is out of the game. The loop
- * runs only while the banner is wanted (the switch on and the card not dismissed); virtual threads are
- * daemons, so a banner still up at shutdown holds nothing up.
+ * runs only while the switch is on; virtual threads are daemons, so a banner still up at shutdown holds
+ * nothing up.
  *
  * <p>Its UI surface is cut on the same interface/impl seam as the overlay and the whisper stack
  * ({@link BannerView} and {@link BannerActions}), so all the deciding stays testable with no screen.
@@ -40,7 +44,8 @@ public final class AutoPassBanner implements BannerActions {
     private static final Logger log = LoggerFactory.getLogger(AutoPassBanner.class);
 
     /** What the banner says. UI text, so it is the controller's — the view draws what it is handed. */
-    static final String MESSAGE = "Auto-pass turn enabled.";
+    static final String HEADING = "AUTO-PASS TURNS";
+    static final String MESSAGE = "every character passes";
 
     /** How often the banner checks it is still on the foreground game window. */
     private static final Duration FOLLOW_INTERVAL = Duration.ofMillis(30);
@@ -52,9 +57,6 @@ public final class AutoPassBanner implements BannerActions {
 
     /** The switch as this last saw it, so a change listener can tell an off→on edge from any other edit. */
     private volatile boolean enabled;
-
-    /** Whether the player closed the card this time round — reset when the switch is turned on afresh. */
-    private volatile boolean dismissed;
 
     /** Whether the follow loop is running — one at a time, whoever started it. */
     private final AtomicBoolean following = new AtomicBoolean();
@@ -78,18 +80,22 @@ public final class AutoPassBanner implements BannerActions {
         final var was = enabled;
         enabled = config.autoPassTurn();
         if (enabled && !was) {
-            dismissed = false;
             startFollowing();
         }
     }
 
     /**
-     * The player clicked the close cross. This only hides the banner — {@link TurnPasser} keeps passing
-     * turns. The follow loop sees {@link #dismissed} and steps out until the switch is turned on again.
+     * The player pressed <em>Turn off</em>: the switch goes, and the banner goes with it.
+     *
+     * <p>It flips the very {@code auto_pass_turn} the overlay's pill and the hotkey flip, so the three
+     * are one switch seen from three places. The follow loop then sees {@link #enabled} drop and takes
+     * the banner down on its own — the banner is never hidden by hand, only as the consequence of the
+     * feature stopping. That is the whole point: while turns are being passed, there is a sign saying so.
      */
     @Override
-    public void dismiss() {
-        dismissed = true;
+    public void turnOff() {
+        settings.update(config -> config.withAutoPassTurn(false));
+        log.info("Auto-pass turns switched off from the banner.");
     }
 
     private void startFollowing() {
@@ -107,7 +113,7 @@ public final class AutoPassBanner implements BannerActions {
         BannerContent lastContent = null;
         Rect lastAnchor = null;
         try {
-            while (enabled && !dismissed) {
+            while (enabled) {
                 final var area = foregroundGameArea();
                 if (area.isEmpty()) {
                     // Out of the game, or minimized: the banner waits offscreen for the player to return.
@@ -138,7 +144,7 @@ public final class AutoPassBanner implements BannerActions {
             }
             // A re-enable may have landed between the loop's guard and here: do not strand the banner.
             // startFollowing uses a CAS, so if that re-enable already restarted the loop this is a no-op.
-            if (enabled && !dismissed) {
+            if (enabled) {
                 startFollowing();
             }
         }
@@ -150,9 +156,9 @@ public final class AutoPassBanner implements BannerActions {
                 .flatMap(window -> api.isIconic(window.hwnd()) ? Optional.empty() : api.clientArea(window.hwnd()));
     }
 
-    /** What the banner shows, read fresh: the message, at the scale the panel is drawn at. */
+    /** What the banner shows, read fresh: what is running, at the scale the panel is drawn at. */
     private BannerContent content() {
-        return new BannerContent(settings.get().overlayScale(), MESSAGE);
+        return new BannerContent(settings.get().overlayScale(), HEADING, MESSAGE);
     }
 
     /** @return whether the follower may go on; {@code false} means the thread was interrupted */

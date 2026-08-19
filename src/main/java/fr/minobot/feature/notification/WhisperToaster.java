@@ -3,9 +3,11 @@ package fr.minobot.feature.notification;
 import fr.minobot.app.Settings;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
+import fr.minobot.core.WhisperLog;
 import fr.minobot.core.WindowManager;
 import fr.minobot.core.domain.GameWindow;
 import fr.minobot.core.domain.Notification;
+import fr.minobot.core.domain.Whisper;
 import fr.minobot.ui.ToastActions;
 import fr.minobot.ui.ToastContent;
 import fr.minobot.ui.ToastView;
@@ -19,7 +21,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
@@ -33,6 +34,12 @@ import java.util.regex.Pattern;
  * than move the player it shows a small card at the left edge of the game — who was whispered, by whom,
  * and what they said. The card lives for {@link #TOAST_LIFETIME}, a close cross takes it down early, and
  * a click on it brings the receiver up so the player can answer. Several whispers stack.
+ *
+ * <p><strong>The card fades; the whisper does not.</strong> Every one it raises is first written to the
+ * {@link WhisperLog}, and the card is raised under the id the log minted — so the panel can list the same
+ * whisper long after its ten seconds are up, and a click there is the same jump the card offered. The two
+ * lifetimes are the reason the log is not a field of this class: a card is a thing on screen, a whisper is
+ * a thing that happened.
  *
  * <p>It is the mirror of {@link ExchangeAccepter} and {@link TurnPasser}: a feature that registers with
  * {@link NotificationManager}, speaks of <strong>characters</strong> ({@link GameWindow#name()}), and
@@ -67,31 +74,31 @@ public final class WhisperToaster implements ToastActions {
     private final WindowManager windows;
     private final FocusManager focus;
     private final Settings settings;
+    private final WhisperLog whispers;
     private final Duration lifetime;
     private final ToastView view;
 
     /** The whispers still on screen, oldest first. Snapshot-iterated, so the follow loop reads it freely. */
     private final CopyOnWriteArrayList<ActiveToast> active = new CopyOnWriteArrayList<>();
 
-    /** Names each card so the view can point back at one that was clicked. Only ever grows. */
-    private final AtomicLong ids = new AtomicLong();
-
     /** Whether the follow loop is running — one at a time, whichever whisper started it. */
     private final AtomicBoolean following = new AtomicBoolean();
 
     public WhisperToaster(WindowApi api, WindowManager windows, FocusManager focus, Settings settings,
-                          NotificationManager notifications, Function<ToastActions, ToastView> viewFactory) {
-        this(api, windows, focus, settings, notifications, TOAST_LIFETIME, viewFactory);
+                          NotificationManager notifications, WhisperLog whispers,
+                          Function<ToastActions, ToastView> viewFactory) {
+        this(api, windows, focus, settings, notifications, whispers, TOAST_LIFETIME, viewFactory);
     }
 
     /** @param lifetime how long each card stands — the shorter one the tests hand it, or the default */
     public WhisperToaster(WindowApi api, WindowManager windows, FocusManager focus, Settings settings,
-                          NotificationManager notifications, Duration lifetime,
+                          NotificationManager notifications, WhisperLog whispers, Duration lifetime,
                           Function<ToastActions, ToastView> viewFactory) {
         this.api = api;
         this.windows = windows;
         this.focus = focus;
         this.settings = settings;
+        this.whispers = whispers;
         this.lifetime = lifetime;
         this.view = viewFactory.apply(this);
 
@@ -100,15 +107,17 @@ public final class WhisperToaster implements ToastActions {
 
     /** Runs on a virtual thread, one per notification, from {@link NotificationManager}. */
     void onNotification(Notification notification) {
-        final var whisper = parse(notification);
-        if (whisper.isEmpty()) {
+        final var parsed = parse(notification);
+        if (parsed.isEmpty()) {
             return; // not a whisper: the auto-focus keeps it
         }
 
-        final var w = whisper.get();
-        active.add(new ActiveToast(Long.toString(ids.incrementAndGet()),
-                w.receiver(), w.sender(), w.message(), System.nanoTime() + lifetime.toNanos()));
-        log.info("Whisper for '{}' from '{}'.", w.receiver(), w.sender());
+        // Remembered first, and the card is raised under the id the log minted: the card and the row
+        // the panel will show once it has faded are then the same whisper, and a click on either finds it.
+        final var whisper = whispers.add(parsed.get().receiver(), parsed.get().sender(),
+                parsed.get().message());
+        active.add(new ActiveToast(whisper, System.nanoTime() + lifetime.toNanos()));
+        log.info("Whisper for '{}' from '{}'.", whisper.receiver(), whisper.sender());
         startFollowing();
     }
 
@@ -128,7 +137,7 @@ public final class WhisperToaster implements ToastActions {
             return; // it faded, or was already dismissed, between the draw and the click
         }
 
-        final var receiver = toast.get().receiver();
+        final var receiver = toast.get().whisper().receiver();
         active.removeIf(t -> t.id().equals(id)); // read; the card now sits over the very window it named
 
         // The focus sequence sleeps through its ALT dance: never on the event dispatch thread the click
@@ -151,7 +160,7 @@ public final class WhisperToaster implements ToastActions {
      * message, in the shape {@link #WHISPER} matches. A game toast whose message is anything else — an
      * attack, an invitation, a turn, a trade — does not match, and is none of this feature's business.
      */
-    private Optional<Whisper> parse(Notification notification) {
+    private Optional<Parsed> parse(Notification notification) {
         final var title = notification.title();
         if (title == null || title.isBlank() || !WindowManager.isGameTitle(title)) {
             return Optional.empty();
@@ -167,7 +176,7 @@ public final class WhisperToaster implements ToastActions {
             return Optional.empty();
         }
 
-        return Optional.of(new Whisper(GameWindow.nameIn(title), matcher.group(1), matcher.group(2).strip()));
+        return Optional.of(new Parsed(GameWindow.nameIn(title), matcher.group(1), matcher.group(2).strip()));
     }
 
     private Optional<ActiveToast> find(String id) {
@@ -245,7 +254,9 @@ public final class WhisperToaster implements ToastActions {
     /** What the stack shows, read fresh: the live cards, at the scale the panel is drawn at. */
     private ToastContent content() {
         final var cards = active.stream()
-                .map(toast -> new ToastContent.Card(toast.id(), toast.receiver(), toast.sender(), toast.message()))
+                .map(ActiveToast::whisper)
+                .map(whisper -> new ToastContent.Card(whisper.id(), whisper.receiver(),
+                        whisper.sender(), whisper.message()))
                 .toList();
         return new ToastContent(settings.get().overlayScale(), cards);
     }
@@ -261,14 +272,19 @@ public final class WhisperToaster implements ToastActions {
         }
     }
 
-    /** A whisper on screen, and the instant it is due to fade. */
-    private record ActiveToast(String id, String receiver, String sender, String message, long deadlineNanos) {
+    /** A whisper on screen, and the instant its card is due to fade — the whisper itself outlives it. */
+    private record ActiveToast(Whisper whisper, long deadlineNanos) {
+
+        String id() {
+            return whisper.id();
+        }
 
         boolean expired() {
             return System.nanoTime() >= deadlineNanos;
         }
     }
 
-    private record Whisper(String receiver, String sender, String message) {
+    /** A toast read as a whisper: who it was for, who sent it, what it said. Not yet remembered. */
+    private record Parsed(String receiver, String sender, String message) {
     }
 }

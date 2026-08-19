@@ -7,24 +7,37 @@ import fr.minobot.ui.CharacterEntry;
 import fr.minobot.ui.OverlayActions;
 import fr.minobot.ui.OverlayContent;
 import fr.minobot.ui.Theme;
-import fr.minobot.ui.components.buttons.PrimaryButton;
-import fr.minobot.ui.components.buttons.SecondaryButton;
+import fr.minobot.ui.components.buttons.Segmented;
 import fr.minobot.ui.components.containers.Card;
 import fr.minobot.ui.components.labels.SectionHeader;
 import fr.minobot.ui.utils.Draw;
+import fr.minobot.ui.utils.Fonts;
 import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Scale;
 
-import javax.swing.*;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
-import java.awt.*;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.GridBagLayout;
+import java.awt.GridLayout;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.List;
 import java.util.function.BiConsumer;
 
 /**
- * The class picker: a modal over the whole sheet, a grid of the twelve classes drawn over a scrim that
- * dims the panel and catches every click — so a mis-click closes the picker and touches nothing else.
+ * The class picker: a modal over the whole panel, the twelve classes six to a row over a scrim that dims
+ * everything and catches every click — so a mis-click closes the picker and touches nothing else.
+ *
+ * <p>Six to a row and not four, so the twelve make <strong>two rows</strong>: a player who knows which
+ * class they want finds it in one glance down two lines rather than three, and the picker stays wider
+ * than it is tall, which is the shape of the panel it opens over.
  *
  * <p>Nothing here is typed: a class is picked with the mouse, on a window that cannot take the focus,
  * which is why it is an in-overlay grid and not a {@code JPopupMenu} (a popup expects the focus too). The
@@ -32,10 +45,10 @@ import java.util.function.BiConsumer;
  */
 public final class ClassPicker {
 
-    /** A grid of tiles, each a class's icon over its name, four to a row. */
-    private static final int COLUMNS = 4;
+    /** The twelve, six to a row. */
+    private static final int COLUMNS = 6;
     private static final int TILE = 58;
-    private static final int TILE_ICON = 32;
+    private static final int TILE_ICON = 26;
 
     private final OverlayActions actions;
     private final ClassIcons classIcons;
@@ -57,7 +70,7 @@ public final class ClassPicker {
     }
 
     /**
-     * The picker over the whole sheet: a darkened backdrop with the grid of classes centred on it. A
+     * The picker over the whole panel: a darkened backdrop with the grid of classes centred on it. A
      * click on the backdrop — anywhere but the grid — closes it; the game is not touched, so a mis-click
      * costs nothing but the picker.
      */
@@ -92,13 +105,15 @@ public final class ClassPicker {
      */
     private JComponent grid(String character, OverlayContent content) {
         final var sex = resolve(character, content).sexOrDefault();
+        final var padding = scale.px(Metrics.PADDING);
 
-        final var card = Card.column(scale, Theme.BACKGROUND);
-        card.setBorder(new EmptyBorder(scale.px(Metrics.PADDING), scale.px(Metrics.PADDING),
-                scale.px(Metrics.PADDING), scale.px(Metrics.PADDING)));
-        card.add(new SectionHeader(scale, "Class · " + character, sexToggle(character, sex)));
+        // Its own strong edge: it stands on top of the panel, not on it, and must read as lifted off.
+        final var card = Card.column(scale, Theme.SURFACE, Theme.EDGE_STRONG);
+        card.setBorder(new EmptyBorder(padding, padding, padding, padding));
+        card.add(new SectionHeader(scale, "Class", character, sexToggle(character, sex)));
 
-        final var grid = new JPanel(new GridLayout(0, COLUMNS, scale.px(Metrics.GAP), scale.px(Metrics.GAP)));
+        final var grid = new JPanel(new GridLayout(0, COLUMNS, scale.px(Metrics.GAP - 2),
+                scale.px(Metrics.GAP - 2)));
         grid.setOpaque(false);
         grid.setAlignmentX(Component.LEFT_ALIGNMENT);
         for (final var clazz : DofusClass.values()) {
@@ -114,17 +129,11 @@ public final class ClassPicker {
      * is theirs in it. The sex already set is the lit one.
      */
     private JComponent sexToggle(String character, Sex current) {
-        final var row = new JPanel(new FlowLayout(FlowLayout.RIGHT, scale.px(4), 0));
-        row.setOpaque(false);
-        for (final var sex : Sex.values()) {
-            final var active = sex == current;
-            final JButton pill = active
-                    ? new PrimaryButton(scale, sex.label())
-                    : new SecondaryButton(scale, sex.label());
-            pill.addActionListener(_ -> actions.assignSex(character, sex));
-            row.add(pill);
-        }
-        return row;
+        final var sexes = Sex.values();
+        return Segmented.of(scale,
+                List.of(sexes[0].label(), sexes[1].label()),
+                current.ordinal(),
+                index -> actions.assignSex(character, sexes[index]));
     }
 
     /**
@@ -137,18 +146,23 @@ public final class ClassPicker {
             @Override
             protected void paintComponent(Graphics graphics) {
                 final var canvas = Draw.smooth(graphics);
-                canvas.setColor(getModel().isRollover() ? Theme.HOVER : Theme.SURFACE);
-                canvas.fillRoundRect(0, 0, getWidth(), getHeight(),
-                        scale.px(Metrics.RADIUS), scale.px(Metrics.RADIUS));
+                final var radius = scale.px(Metrics.RADIUS_TILE);
+                final var hovered = getModel().isRollover();
+
+                canvas.setColor(hovered ? Theme.HOVER : Theme.RAISED);
+                canvas.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
+                canvas.setColor(hovered ? Theme.EDGE_STRONG : Theme.EDGE);
+                canvas.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, radius, radius);
 
                 final var size = scale.px(TILE_ICON);
-                classIcons.paint(scale, canvas, clazz, sex, (getWidth() - size) / 2, scale.px(Metrics.GAP), size);
+                classIcons.paint(scale, canvas, clazz, sex, (getWidth() - size) / 2,
+                        scale.px(Metrics.GAP - 1), size);
 
-                canvas.setColor(Theme.TEXT);
-                canvas.setFont(scale.font(Metrics.HEADING, Metrics.PLAIN));
+                canvas.setColor(hovered ? Theme.TEXT : Theme.MUTED);
+                canvas.setFont(scale.font(Fonts.MEDIUM, Metrics.TINY));
                 final var fm = canvas.getFontMetrics();
-                canvas.drawString(clazz.label(),
-                        (getWidth() - fm.stringWidth(clazz.label())) / 2, getHeight() - scale.px(Metrics.GAP));
+                canvas.drawString(clazz.label(), (getWidth() - fm.stringWidth(clazz.label())) / 2,
+                        getHeight() - scale.px(Metrics.GAP - 1));
                 canvas.dispose();
             }
         };

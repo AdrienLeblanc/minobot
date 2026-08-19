@@ -14,6 +14,10 @@ import java.util.Map;
  * {@link #font} for a typeface. <strong>A size that skips {@code px()} is a size that will be wrong on
  * somebody's monitor.</strong>
  *
+ * <p>{@link #font} takes a <em>face</em> from {@link Fonts} and derives only its size. It does not take
+ * a style bit: {@code Font.BOLD} on a regular face is Java2D smearing the letters, and the panel ships
+ * a real Medium and a real SemiBold rather than wear that smear.
+ *
  * <p>It is an immutable value: a new scale is a new {@code Scale}, handed down at build time. The
  * surfaces above rebuild rather than patch, so a component captures the scale of the moment and never
  * has to watch it change.
@@ -21,11 +25,9 @@ import java.util.Map;
 public final class Scale {
 
     private final double factor;
-    private final Font baseFont;
 
-    public Scale(double factor, Font baseFont) {
+    public Scale(double factor) {
         this.factor = factor;
-        this.baseFont = baseFont;
     }
 
     /** The multiplier itself, for the rare caller that reads the scale rather than a size drawn at it. */
@@ -38,8 +40,13 @@ public final class Scale {
         return (int) Math.round(natural * factor);
     }
 
-    public Font font(float natural, int style) {
-        return baseFont.deriveFont(style, natural * (float) factor);
+    /**
+     * A typeface at the size the player asked for.
+     *
+     * @param face a face from {@link Fonts} — the weight is the face's, never a style bit derived here
+     */
+    public Font font(Font face, float natural) {
+        return face.deriveFont(natural * (float) factor);
     }
 
     /** Letters given room to breathe — what a heading is set apart by, rather than by a rule or a box. */

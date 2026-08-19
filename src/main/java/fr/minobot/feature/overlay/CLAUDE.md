@@ -32,23 +32,50 @@ message hook, and a hook means a message pump and a native callback for what one
 area. That is the price of covering the game rather than floating in a corner of it, and it is why
 `shift+space` is a switch and not a mode you play in.
 
-**The card sits in the middle of the game**, where the player is already looking — the window covers the
-whole client area, but the controls are one card centred on it, over a dimmed game. On the card: the
-application's tile at the top (it draws `logo.png` from the classpath, centred and scaled to fit; the
-`MINOBOT` wordmark stands in when no such file was shipped, so the space is never a blank), then the
-characters and their drag-to-reorder, then the **Auto-pass turns** and **Auto-accept trades** switches,
-then the size slider. Those switches are the panel's *states* rather than keys — explicit ON/OFF pills,
-said in a word and a colour both, because a control that quietly ends every combat turn or accepts a
-trade has to be unmistakable. Auto-pass now *also* has a key (its `shift+middle` toggle lives in the
-drawer below), so the pill and the keybind are two views of the one switch; auto-accept is switch-only. **The logo is a resource, not a loose file:**
-it lives in `src/main/resources/` so it rides inside the jar — a PNG in `assets/` (where the README's
-screenshots live) is lost the moment `Minobot.exe` is unpacked elsewhere. The eight keybinds are a
-**drawer** that unfolds to the right of the card — a `Keybinds ›` button opens it — because they are
-edited once and forgotten, and left inline they made the panel twice as tall as what it is for. The
-`Sheet` is a hand-written layout, not a manager: one card centred, one card beside it. The card gives up
-the exact middle for one reason only — a drawer that would open past the right edge of the game — and
-then it *slides* left by what the drawer is short of, never *shrinks*: a panel that resizes when a button
-is clicked reads as a bug.
+**The sheet sits in the middle of the game**, where the player is already looking — the window covers the
+whole client area, but the controls are one sheet centred on it, over a dimmed game. It is **two halves
+and one line**:
+
+- a **header line** — `logo.png` from the classpath at a line's height, the `MINOBOT` wordmark (which
+  stands alone when no such file was shipped, so the space is never a blank), and the panel's own
+  `shift+space` drawn as key chips, because a player who found the panel with the mouse learns in the same
+  glance how to open it without one. **The logo is a resource, not a loose file:** it lives in
+  `src/main/resources/` so it rides inside the jar — a PNG in `assets/` (where the README's screenshots
+  live) is lost the moment `Minobot.exe` is unpacked elsewhere.
+- the **team**, left, at a fixed width: the characters and their drag-to-reorder. Fixed so a long
+  character name never moves the half beside it.
+- the **console**, right: the **Auto-pass turns** and **Auto-accept trades** switches, and — under one
+  rule — **what those switches have been doing**. Each switch is a pill carrying its own name *and* its
+  state, said in a word and a colour both, because a control that quietly ends every combat turn or
+  accepts a trade has to be unmistakable. Auto-pass *also* has a key (its `shift+middle` toggle lives in
+  the drawer), so the pill and the keybind are two views of the one switch; auto-accept is switch-only.
+- the **size slider**, at the foot, narrow and quiet — the only way back from a panel drawn too large or
+  too small to work with.
+
+The eight keybinds are a **drawer** that unfolds to the right of the sheet — a `Keybinds ›` button at the
+end of the switch row opens it, its own close cross folds it back — because they are edited once and
+forgotten, and left inline they made the panel half as useful again as tall. The `Sheet` is a hand-written
+layout, not a manager: one sheet centred, one card beside it. The sheet gives up the exact middle for one
+reason only — a drawer that would open past the right edge of the game — and then it *slides* left by what
+the drawer is short of, never *shrinks*: a panel that resizes when a button is clicked reads as a bug.
+
+## The console: what Minobot did while the player was elsewhere
+
+Every feature acts on a window the player is not looking at. Without a record, the panel would show what
+Minobot is *set to* and never what it *did* — so `OverlayContent` carries two lists, both newest first,
+straight off `core.ActivityLog` and `core.WhisperLog` (read that `CLAUDE.md` for why they are small and
+forgetful):
+
+- **ACTIVITY** — one line per act: when, what, and about whom. Read-only, deliberately: everything on it
+  already happened, and a panel that let a player un-pass a turn would be lying about what it can do.
+- **WHISPERS** — the private messages, after the ten-second cards that carried them are long gone. Each
+  names a character, so a click on one is the same jump the card offered: `OverlayActions.openWhisper`
+  takes the panel **down** first — the player asked to go and answer, and the panel covers the whole
+  client area of the very window they are being sent to — then focuses the receiver on a virtual thread
+  (`FocusManager` sleeps through its ALT dance). `clearWhispers` empties the list; nothing on disk
+  remembers them either way.
+
+`content()` reads both logs fresh at every draw, exactly as it reads the live configuration.
 
 **Every size the panel draws is a natural size, not a pixel**, and it reaches the screen multiplied by
 `overlay_scale` — through a `ui/components/Scale`: `px()` for a length, `font()` for a typeface. Swing's own defaults were drawn for a
@@ -76,10 +103,14 @@ expects a focused window. And why the class picker (below) is an **in-overlay gr
 a popup menu expects the focus too. Neither is a stylistic choice; all three fall out of the line above.
 
 Each character row also carries its **class and sex** (`DofusClass`, the twelve of Dofus Retro, and
-`Sex`, male or female). Until a class is chosen the row shows a muted `pick class…`; a click on it
-opens a **modal picker** — a grid of the twelve, drawn over a scrim that dims the panel and catches every
-click, so a mis-click closes the picker and touches nothing else. At the picker's head a **male/female
-toggle** sets the sex: picking a sex records it at once and leaves the picker open, so the class tiles
+`Sex`, male or female). Until a class is chosen the row shows an ember **`Pick a class`** beside a dashed
+frame where the icon will go — the only ember on an otherwise finished row, which is what makes an
+unconfigured character findable in a list of eight, and the reason the frame is kept rather than left
+blank: the rows do not gain a ragged column the day one character is configured and another is not. A
+click on it opens a **modal picker** — the twelve **six to a row**, so they make two lines and the picker
+stays wider than it is tall, drawn over a scrim that dims the panel and catches every click, so a
+mis-click closes the picker and touches nothing else. At the picker's head a **Male/Female segmented
+control** sets the sex: picking a sex records it at once and leaves the picker open, so the class tiles
 redraw in that sex and the class the player then picks is theirs in it. Picking a class pins it and
 closes. Class and sex are two independent choices (`assignClass` / `assignSex`), both the player's, and
 both live on the **`Character`** they belong to — the one entity carrying a character's name, class and
@@ -91,12 +122,15 @@ character with no sex set is drawn as male (`Character.sexOrDefault()`).
 
 **A pinned character does not vanish when its window closes.** The panel shows the windows on screen
 *and* the characters the player has pinned a class or a sex to (`Character.isPinned()`) but is not
-playing right now — the latter greyed-out, keeping their place in the cycle order. Each row carries a
-**status chip** (`ui/CharacterEntry`, a `Character` beside a `connected` flag — connection is window
-state, not a field the domain persists): green *connected* while the window is open, light-grey
-*disconnected* when it is not. A disconnected row also carries a **forget cross** (`OverlayActions.forget`
-→ `Config.withoutCharacter`) that drops the character from the roster, its class and sex with it — the
-one way a saved character leaves the list. An **unpinned** character is a bare name (a reorder artifact)
+playing right now — the latter dimmed, keeping their place in the cycle order. Whether a row is on screen
+is drawn as its **ember left stripe** and confirmed by a green **dot** (`ui/CharacterEntry`, a `Character`
+beside a `connected` flag — connection is window state, not a field the domain persists); the row's fill,
+name, portrait and index all step back a shade with the stripe. A dot and not a word, because eight rows
+each labelled *connected* is eight labels nobody reads. A disconnected row carries a **forget cross** in
+the dot's place (`OverlayActions.forget` → `Config.withoutCharacter`) that drops the character from the
+roster, its class and sex with it — the one way a saved character leaves the list, and offered exactly
+where it can do no harm, since a connected character would come straight back from the list they were
+dropped from. An **unpinned** character is a bare name (a reorder artifact)
 and still appears only while its window is open: a login placeholder and a character nobody configured
 earn no greyed-out row. The controller builds this list in `content()`; the merge and the two rules —
 what is kept, what its position is — are covered by `OverlayControllerTest`.

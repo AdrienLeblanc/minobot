@@ -1,6 +1,7 @@
 package fr.minobot.feature.window;
 
 import fr.minobot.app.Settings;
+import fr.minobot.core.ActivityLog;
 import fr.minobot.core.FlashSuppressor;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.WindowManager;
@@ -63,14 +64,16 @@ public final class MultiWindowClicker {
     private final FocusManager focus;
     private final FlashSuppressor flash;
     private final Settings settings;
+    private final ActivityLog activity;
 
     public MultiWindowClicker(WindowApi api, WindowManager windows, FocusManager focus,
-                              FlashSuppressor flash, Settings settings) {
+                              FlashSuppressor flash, Settings settings, ActivityLog activity) {
         this.api = api;
         this.windows = windows;
         this.focus = focus;
         this.flash = flash;
         this.settings = settings;
+        this.activity = activity;
     }
 
     /**
@@ -113,6 +116,8 @@ public final class MultiWindowClicker {
         if (!joinAll(clicks)) {
             return;
         }
+
+        activity.record("Multi-window click", clicked.size() + " characters");
 
         // Each of these characters is about to ask Windows for the screen, be refused, and turn orange
         // in the taskbar. The suppressor clears them once that has happened — on its own thread, never
@@ -175,6 +180,7 @@ public final class MultiWindowClicker {
         }
 
         log.info("Every character has been reset.");
+        activity.record("Characters reset", characters.size() + " characters");
     }
 
     /** @return whether the sequence may go on; {@code false} means the thread was interrupted */

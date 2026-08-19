@@ -11,8 +11,8 @@ import java.awt.Graphics;
 
 /**
  * The slider Swing draws is the desktop's, at the desktop's size. This one is the card's: a thin dark
- * track, filled in the SECONDARY up to a round SECONDARY thumb, and every size taken through {@link Scale} so
- * it reads at the panel's size on the panel's monitor.
+ * track, filled in the ember up to a round ember thumb, and every size taken through {@link Scale} so it
+ * reads at the panel's size on the panel's monitor.
  */
 public final class FlatSlider extends BasicSliderUI {
 
@@ -38,9 +38,9 @@ public final class FlatSlider extends BasicSliderUI {
         final var top = trackRect.y + (trackRect.height - height) / 2;
         final var done = thumbRect.x + thumbRect.width / 2 - trackRect.x;
 
-        canvas.setColor(Theme.SURFACE);
+        canvas.setColor(Theme.RAISED);
         canvas.fillRoundRect(trackRect.x, top, trackRect.width, height, height, height);
-        canvas.setColor(Theme.SECONDARY);
+        canvas.setColor(Theme.ACCENT);
         canvas.fillRoundRect(trackRect.x, top, done, height, height, height);
         canvas.dispose();
     }
@@ -48,7 +48,7 @@ public final class FlatSlider extends BasicSliderUI {
     @Override
     public void paintThumb(Graphics graphics) {
         final var canvas = Draw.smooth(graphics);
-        canvas.setColor(Theme.SECONDARY);
+        canvas.setColor(Theme.ACCENT);
         canvas.fillOval(thumbRect.x, thumbRect.y, thumbRect.width, thumbRect.height);
         canvas.dispose();
     }

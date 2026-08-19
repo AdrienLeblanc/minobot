@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * Detects and tracks the game windows — the counterpart of {@code window_manager.py}.
@@ -38,6 +39,7 @@ public final class WindowManager {
 
     private final WindowApi api;
     private final Settings settings;
+    private final ActivityLog activity;
 
     /**
      * The last refresh, or {@code null} until the first one.
@@ -49,8 +51,14 @@ public final class WindowManager {
     private final AtomicReference<Snapshot> snapshot = new AtomicReference<>();
 
     public WindowManager(WindowApi api, Settings settings) {
+        this(api, settings, new ActivityLog());
+    }
+
+    /** @param activity where a character leaving the screen is noted, for the panel to show */
+    public WindowManager(WindowApi api, Settings settings, ActivityLog activity) {
         this.api = api;
         this.settings = settings;
+        this.activity = activity;
     }
 
     /** Re-enumerates the desktop and keeps the windows whose title carries a game keyword. */
@@ -67,12 +75,34 @@ public final class WindowManager {
         }
 
         final var fresh = List.copyOf(found);
-        snapshot.set(new Snapshot(fresh, System.nanoTime()));
+        noteWhoLeft(snapshot.getAndSet(new Snapshot(fresh, System.nanoTime())), fresh);
 
         log.debug("Detected {} game window(s).", fresh.size());
         for (final var window : fresh) {
             log.debug("  -> Found: '{}' (HWND: {})", window.title(), window.hwnd());
         }
+    }
+
+    /**
+     * Notes the characters that were on screen at the last sweep and are not at this one.
+     *
+     * <p>A character who closed their window is the one thing here the player did not do themselves, and
+     * it silently changes what every other feature will act on — the click no longer reaches them, the
+     * cycler steps over them. Their place in the order is kept, which is the reassurance the note carries.
+     *
+     * <p>The very first sweep tells nobody anything: every window is new to it, so nobody has left.
+     */
+    private void noteWhoLeft(Snapshot previous, List<GameWindow> fresh) {
+        if (previous == null) {
+            return;
+        }
+
+        final var stillHere = fresh.stream().map(GameWindow::name).collect(Collectors.toSet());
+        previous.windows().stream()
+                .filter(GameWindow::hasCharacterName)
+                .map(GameWindow::name)
+                .filter(name -> !stillHere.contains(name))
+                .forEach(name -> activity.record(name + "'s window closed", "kept in order"));
     }
 
     /** Whether a title is the game's — a window's, or a toast's, which carry the same keywords. */

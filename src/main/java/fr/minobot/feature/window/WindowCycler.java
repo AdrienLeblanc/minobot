@@ -1,5 +1,6 @@
 package fr.minobot.feature.window;
 
+import fr.minobot.core.ActivityLog;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.WindowManager;
 import fr.minobot.core.domain.GameWindow;
@@ -24,11 +25,13 @@ public final class WindowCycler {
     private final WindowApi api;
     private final WindowManager windows;
     private final FocusManager focus;
+    private final ActivityLog activity;
 
-    public WindowCycler(WindowApi api, WindowManager windows, FocusManager focus) {
+    public WindowCycler(WindowApi api, WindowManager windows, FocusManager focus, ActivityLog activity) {
         this.api = api;
         this.windows = windows;
         this.focus = focus;
+        this.activity = activity;
     }
 
     public void cycleNext() {
@@ -51,7 +54,9 @@ public final class WindowCycler {
         final var character = ring.get(direction.neighbourOf(played, ring.size()));
 
         log.debug("Cycling {} to '{}'.", direction, character.name());
-        focus.focus(character.hwnd());
+        if (focus.focus(character.hwnd())) {
+            activity.record("Switched to " + character.name(), direction.toString());
+        }
     }
 
     /** @return where the played character sits in the ring, or {@code -1} if the player is elsewhere */

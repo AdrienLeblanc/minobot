@@ -23,9 +23,11 @@ fr.minobot
 ├── app/            MinobotApp (wires everything), Config, Settings, Feature, ConfigLoader, LoggerSetup.
 ├── win32/          WindowApi (the interface), User32 (the FFM implementation), Win32, Point.
 ├── core/           The Windows mechanics: WindowManager, FocusManager, KeyboardMonitor,
-│                   NotificationManager, FlashSuppressor, SystemTrayManager, Input / InputSimulator.
+│                   NotificationManager, FlashSuppressor, SystemTrayManager, Input / InputSimulator,
+│                   and the two records the panel reads back: ActivityLog, WhisperLog.
 │   └── domain/     GameWindow (a character's window, and their name), Character (the player's part of
-│                   a character: name, class, sex), DofusClass, Sex, Notification (a toast).
+│                   a character: name, class, sex), DofusClass, Sex, Notification (a toast),
+│                   Activity (one thing Minobot did), Whisper (one message received).
 ├── ui/             OverlayView (the panel), OverlayContent, OverlayActions. Interfaces only.
 └── feature/        The user-facing features, split by functional domain:
     ├── window/         multi-window click, cycler, taskbar reorder.
@@ -37,7 +39,7 @@ fr.minobot
 **A handful of interfaces are the only doors to the outside world:** `win32.WindowApi` (the screen),
 `core.Input` (the keyboard and mouse), and the `ui` views we draw — `OverlayView` (the panel),
 `ToastView` (the whisper stack), `BannerView` (the auto-pass banner). Everything else is code that runs
-in a test, on any OS, with no game running — which is why there are 190 tests.
+in a test, on any OS, with no game running — which is why there are 210 tests.
 
 **Keep it that way.** Do not call `user32.dll`, `java.awt.Robot` or Swing from anywhere but their
 implementations: a feature that reaches past `WindowApi` becomes untestable.

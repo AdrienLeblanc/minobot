@@ -5,21 +5,17 @@ import fr.minobot.ui.ToastActions;
 import fr.minobot.ui.ToastContent;
 import fr.minobot.ui.ToastView;
 import fr.minobot.ui.utils.Draw;
+import fr.minobot.ui.utils.Fonts;
 import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Scale;
 import fr.minobot.win32.Rect;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsDevice;
@@ -28,6 +24,7 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -57,35 +54,31 @@ import java.util.Objects;
  */
 public final class SwingToastStack implements ToastView {
 
-    private static final Logger log = LoggerFactory.getLogger(SwingToastStack.class);
-
     /** One card, at scale 1: wide enough for a line of chat, tall enough for the three it carries. */
-    private static final int CARD_WIDTH = 240;
-    private static final int CARD_HEIGHT = 66;
+    private static final int CARD_WIDTH = 246;
+    private static final int CARD_HEIGHT = 70;
 
     /** The breathing room the window keeps around the stack, so a card's rounded corner is not clipped. */
     private static final int MARGIN = 10;
 
     /** The padding inside a card, and the radius of its corners — tighter than the panel's own. */
-    private static final int PADDING = 11;
+    private static final int PADDING = 12;
     private static final int RADIUS = 10;
 
-    /** The SECONDARY stripe down a card's left edge — the game's own toast wears one. */
-    private static final int SECONDARY_BAR = 3;
+    /** The stripe down a card's left edge — the game's own toast wears one. */
+    private static final int STRIPE = 3;
 
     /** The close cross in a card's corner: the mouse's way to take one down early. */
-    private static final int CLOSE_SIZE = 15;
+    private static final int CLOSE_SIZE = 14;
 
-    private static final float HEADER_SIZE = 9.5f;
-    private static final float SENDER_SIZE = 12.5f;
-    private static final float MESSAGE_SIZE = 12f;
+    /** What the header says a card is, after the name of the character it reached. */
+    private static final String HEADER_SUFFIX = " · MESSAGE";
 
     private final ToastActions actions;
 
     /** Touched on the event dispatch thread only. Built on first show: there may never be one. */
     private JWindow window;
     private Stack stack;
-    private Font baseFont;
 
     /** What every size on the cards was computed with, and where the stack was last hung. */
     private Scale scale;
@@ -141,7 +134,7 @@ public final class SwingToastStack implements ToastView {
             build();
         }
 
-        this.scale = new Scale(content.scale(), baseFont);
+        this.scale = new Scale(content.scale());
         this.anchor = anchor;
         stack.setCards(content.cards());
 
@@ -164,7 +157,6 @@ public final class SwingToastStack implements ToastView {
 
         translucentIfSupported();
 
-        baseFont = new JLabel().getFont();
         stack = new Stack();
         window.setContentPane(stack);
     }
@@ -199,10 +191,6 @@ public final class SwingToastStack implements ToastView {
 
     private int px(int natural) {
         return scale.px(natural);
-    }
-
-    private Font font(float natural, int style) {
-        return scale.font(natural, style);
     }
 
     // ------------------------------------------------------------------ the cards
@@ -259,66 +247,55 @@ public final class SwingToastStack implements ToastView {
         }
 
         private void paintCard(Graphics2D canvas, ToastContent.Card card, Rectangle bounds, Rectangle close) {
-            canvas.setColor(Theme.BACKDROP);
+            canvas.setColor(Theme.SURFACE);
             canvas.fillRoundRect(bounds.x, bounds.y, bounds.width, bounds.height, px(RADIUS), px(RADIUS));
+            canvas.setColor(Theme.EDGE);
+            canvas.drawRoundRect(bounds.x, bounds.y, bounds.width - 1, bounds.height - 1,
+                    px(RADIUS), px(RADIUS));
 
-            // The SECONDARY stripe, clipped to the card's rounded left edge.
+            // The stripe, clipped to the card's rounded left edge. Grey, not amber: the amber is spent
+            // once, on the header, and a second use of it would stop the header meaning anything.
             final var clip = canvas.getClip();
-            canvas.setClip(bounds.x, bounds.y, bounds.width, bounds.height);
-            canvas.setColor(Theme.SECONDARY);
-            canvas.fillRect(bounds.x, bounds.y, px(SECONDARY_BAR), bounds.height);
+            canvas.setClip(new RoundRectangle2D.Float(bounds.x, bounds.y, bounds.width, bounds.height,
+                    px(RADIUS), px(RADIUS)));
+            canvas.setColor(Theme.DIM);
+            canvas.fillRect(bounds.x, bounds.y, px(STRIPE), bounds.height);
             canvas.setClip(clip);
 
-            final var textLeft = bounds.x + px(PADDING) + px(SECONDARY_BAR);
+            final var textLeft = bounds.x + px(PADDING) + px(STRIPE);
             final var textRight = close.x - px(Metrics.GAP);
-
-            // Header: which of the player's characters was whispered.
-            canvas.setColor(Theme.SECONDARY);
-            canvas.setFont(font(HEADER_SIZE, Font.BOLD));
-            canvas.drawString((card.receiver() + " · received a message").toUpperCase(Locale.ROOT),
-                    textLeft, bounds.y + px(PADDING) + canvas.getFontMetrics().getAscent());
-
-            // The sender line clears the close cross; the message, below it, runs the card's full width.
-            final var senderWidth = textRight - textLeft;
             final var bodyWidth = bounds.x + bounds.width - px(PADDING) - textLeft;
 
+            // Header: which of the player's characters was whispered. The one amber on the surface —
+            // it is what says "somebody is talking to you" before a word of the card is read.
+            canvas.setColor(Theme.WHISPER);
+            canvas.setFont(scale.tracked(scale.font(Fonts.CONDENSED, Metrics.HEADING),
+                    Metrics.BADGE_TRACKING));
+            var y = bounds.y + px(PADDING) + canvas.getFontMetrics().getAscent();
+            canvas.drawString(Draw.elide(canvas.getFontMetrics(),
+                            (card.receiver() + HEADER_SUFFIX).toUpperCase(Locale.ROOT),
+                            textRight - textLeft),
+                    textLeft, y);
+
             // Sender: who it is from.
-            canvas.setColor(Theme.SECONDARY);
-            canvas.setFont(font(SENDER_SIZE, Font.BOLD));
-            canvas.drawString(clip(canvas, "from " + card.sender(), senderWidth),
-                    textLeft, bounds.y + px(31) + canvas.getFontMetrics().getAscent());
+            canvas.setColor(Theme.TEXT);
+            canvas.setFont(scale.font(Fonts.SEMIBOLD, Metrics.BODY));
+            y += px(Metrics.GAP) + canvas.getFontMetrics().getAscent();
+            canvas.drawString(Draw.elide(canvas.getFontMetrics(), card.sender(), bodyWidth), textLeft, y);
 
             // Message: the line they sent, cut to one with an ellipsis if it will not fit.
-            canvas.setColor(Theme.TEXT);
-            canvas.setFont(font(MESSAGE_SIZE, Font.PLAIN));
-            canvas.drawString(clip(canvas, "\"" + card.message() + "\"", bodyWidth),
-                    textLeft, bounds.y + px(48) + canvas.getFontMetrics().getAscent());
+            canvas.setColor(Theme.MUTED);
+            canvas.setFont(scale.font(Fonts.REGULAR, Metrics.BODY));
+            y += px(4) + canvas.getFontMetrics().getAscent();
+            canvas.drawString(Draw.elide(canvas.getFontMetrics(), "“" + card.message() + "”", bodyWidth),
+                    textLeft, y);
 
             paintClose(canvas, close, card.id().equals(hoveredClose));
         }
 
         private void paintClose(Graphics2D canvas, Rectangle close, boolean hovered) {
-            if (hovered) {
-                canvas.setColor(Theme.HOVER);
-                canvas.fillRoundRect(close.x, close.y, close.width, close.height, px(RADIUS), px(RADIUS));
-            }
-
             Draw.cross(canvas, close.x, close.y, close.width,
-                    hovered ? Theme.HOVER : Theme.TEXT, Math.max(1, px(2)));
-        }
-
-        /** A string cut to a width with a trailing ellipsis, or whole if it already fits. */
-        private String clip(Graphics2D canvas, String text, int width) {
-            final var metrics = canvas.getFontMetrics();
-            if (metrics.stringWidth(text) <= width) {
-                return text;
-            }
-            final var ellipsis = "…";
-            var end = text.length();
-            while (end > 0 && metrics.stringWidth(text.substring(0, end) + ellipsis) > width) {
-                end--;
-            }
-            return text.substring(0, end) + ellipsis;
+                    hovered ? Theme.TEXT : Theme.GHOST, Math.max(1, px(2)));
         }
 
         /** Which card a point fell in, or {@code null} — read by every mouse event. */

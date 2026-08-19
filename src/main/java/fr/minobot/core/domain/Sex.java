@@ -10,8 +10,8 @@ package fr.minobot.core.domain;
  */
 public enum Sex {
 
-    MALE("m", "M"),
-    FEMALE("f", "F");
+    MALE("m", "Male"),
+    FEMALE("f", "Female");
 
     private final String suffix;
     private final String label;
@@ -26,7 +26,12 @@ public enum Sex {
         return suffix;
     }
 
-    /** The single letter the picker's toggle shows for this sex. */
+    /**
+     * How the picker's toggle names this sex.
+     *
+     * <p>The word, not the initial: {@code M}/{@code F} needs a legend the picker has no room for, and
+     * the toggle is two segments wide either way.
+     */
     public String label() {
         return label;
     }

@@ -4,8 +4,10 @@ import fr.minobot.app.Settings;
 import fr.minobot.app.TestConfigs;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
+import fr.minobot.core.WhisperLog;
 import fr.minobot.core.WindowManager;
 import fr.minobot.core.domain.Notification;
+import fr.minobot.core.domain.Whisper;
 import fr.minobot.core.input.FakeInput;
 import fr.minobot.ui.FakeToastView;
 import fr.minobot.ui.ToastContent;
@@ -20,6 +22,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * What becomes a whisper card, what a click on one does, and how a card fades on its own.
@@ -38,6 +41,7 @@ class WhisperToasterTest {
 
     private final Settings settings = TestConfigs.settings(Map.of());
     private final NotificationManager notifications = new NotificationManager(Path.of("no-such-database.db"));
+    private final WhisperLog whispers = new WhisperLog();
 
     private FakeToastView view;
 
@@ -48,7 +52,7 @@ class WhisperToasterTest {
     private WhisperToaster toaster(Duration lifetime) {
         final var windows = new WindowManager(api, settings);
         final var focus = new FocusManager(api, new FakeInput(api::foregroundWindow));
-        return new WhisperToaster(api, windows, focus, settings, notifications, lifetime,
+        return new WhisperToaster(api, windows, focus, settings, notifications, whispers, lifetime,
                 actions -> view = new FakeToastView(actions));
     }
 
@@ -165,5 +169,37 @@ class WhisperToasterTest {
 
         assertThat(view.isVisible()).isFalse();
         assertThat(view.timesDrawn()).isZero();
+    }
+
+    @Test
+    @DisplayName("the whisper outlives its card, and under the same id the card was raised with")
+    void theWhisperOutlivesItsCard() throws InterruptedException {
+        final var toaster = toaster(Duration.ofMillis(200));
+
+        toaster.onNotification(whisper("Bravo", "Alpha", "Bonjour c'est toto"));
+        settle();
+        final var drawn = view.content().orElseThrow().cards().getFirst();
+
+        Thread.sleep(500); // well past the card's lifetime
+        assertThat(view.isVisible()).as("the card has faded").isFalse();
+
+        assertThat(whispers.recent())
+                .as("but the panel can still list it, which is the point of keeping it")
+                .extracting(Whisper::sender, Whisper::message)
+                .containsExactly(tuple("Alpha", "Bonjour c'est toto"));
+        assertThat(whispers.find(drawn.id()))
+                .as("under the very id the card carried, so a click in the panel finds it")
+                .isPresent();
+    }
+
+    @Test
+    @DisplayName("a toast that is not a whisper is not remembered either")
+    void doesNotRememberNonWhispers() throws InterruptedException {
+        final var toaster = toaster();
+
+        toaster.onNotification(new Notification("Bravo - Dofus Retro", "Vous êtes attaqué !"));
+        settle();
+
+        assertThat(whispers.recent()).isEmpty();
     }
 }

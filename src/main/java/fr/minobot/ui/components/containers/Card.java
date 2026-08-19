@@ -1,67 +1,118 @@
 package fr.minobot.ui.components.containers;
 
 import fr.minobot.ui.Theme;
-import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Draw;
+import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Scale;
 
 import javax.swing.BoxLayout;
-import javax.swing.JPanel;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Graphics;
 
 /**
  * A card: a rounded sheet, drawn rather than bordered, so its corners are not square. The base surface
- * everything on a themed panel rests on.
+ * everything on a themed panel rests on, and the column its contents stack in.
  *
- * <p>It draws its own fill and its own hairline edge at the shared {@link Metrics#RADIUS}, both from
- * {@link Theme}. Two factories cover the common shapes: {@link #column} for a rounded card that stacks
- * its children top to bottom, and {@link #plainColumn} for a transparent stack that carries no surface of
- * its own — a group of rows that sits <em>on</em> a card rather than being one.
+ * <p>Three factories cover the shapes the panel needs: {@link #sheet} for the panel's own outermost
+ * surface, drawn at the widest radius of the nesting order; {@link #column} for a card resting on it; and
+ * {@link #plainColumn} for a stack that carries no surface of its own — a group of rows that sits
+ * <em>on</em> a card rather than being one.
+ *
+ * <p>A column can be <strong>{@link #pinnedTo pinned to a width}</strong>, which is how the panel's
+ * halves keep their places: the team is as wide as a name and a class need and no wider, so a long
+ * character name never moves the console beside it. The pin holds the <em>width</em> only, and reads the
+ * height from the contents at every layout — the character list is resized under its card as the game
+ * leaves it less room, and a card that had been pinned to a height would ignore that.
  */
-public final class Card extends JPanel {
+public final class Card extends javax.swing.JPanel {
 
     private final Scale scale;
     private final Color fill;
     private final Color edge;
+    private final int radius;
 
-    public Card(Scale scale, Color fill, Color edge) {
+    /** The width this card is held to, or {@code -1} to take whatever its contents need. */
+    private int pinnedWidth = -1;
+
+    public Card(Scale scale, Color fill, Color edge, int radius) {
         this.scale = scale;
         this.fill = fill;
         this.edge = edge;
+        this.radius = radius;
         setOpaque(false);
     }
 
-    /** A rounded card of the given fill, stacking its children in a column. */
+    /** The panel's outermost surface: the widest corner, so everything on it reads as resting inside. */
+    public static Card sheet(Scale scale, Color fill) {
+        return stacking(new Card(scale, fill, Theme.EDGE, Metrics.RADIUS_SHEET));
+    }
+
+    /** A rounded card of the given fill, resting on the sheet. */
     public static Card column(Scale scale, Color fill) {
-        final var card = new Card(scale, fill, Theme.EDGE);
+        return stacking(new Card(scale, fill, Theme.EDGE, Metrics.RADIUS));
+    }
+
+    /** The same, with an edge of its own — for a card that must be seen apart, like the class picker. */
+    public static Card column(Scale scale, Color fill, Color edge) {
+        return stacking(new Card(scale, fill, edge, Metrics.RADIUS));
+    }
+
+    /** A transparent column — rows grouped together, drawing no surface of their own. */
+    public static Card plainColumn() {
+        return stacking(new Card(null, null, null, 0));
+    }
+
+    /**
+     * Holds this card to a width, its height still read from its contents.
+     *
+     * @param width in pixels — a natural size that has already been through a {@link Scale}
+     */
+    public Card pinnedTo(int width) {
+        this.pinnedWidth = width;
+        return this;
+    }
+
+    private static Card stacking(Card card) {
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
         return card;
     }
 
-    /** A transparent column — rows grouped together, drawing no surface of their own. */
-    public static JPanel plainColumn() {
-        final var panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setOpaque(false);
-        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        return panel;
+    @Override
+    public Dimension getPreferredSize() {
+        final var natural = super.getPreferredSize();
+        return pinnedWidth < 0 ? natural : new Dimension(pinnedWidth, natural.height);
+    }
+
+    @Override
+    public Dimension getMinimumSize() {
+        final var natural = super.getMinimumSize();
+        return pinnedWidth < 0 ? natural : new Dimension(pinnedWidth, natural.height);
+    }
+
+    @Override
+    public Dimension getMaximumSize() {
+        return pinnedWidth < 0
+                ? super.getMaximumSize()
+                : new Dimension(pinnedWidth, Integer.MAX_VALUE);
     }
 
     @Override
     protected void paintComponent(Graphics graphics) {
-        final var canvas = Draw.smooth(graphics);
+        if (fill != null) {
+            final var canvas = Draw.smooth(graphics);
+            final var corner = scale.px(radius);
 
-        canvas.setColor(fill);
-        canvas.fillRoundRect(0, 0, getWidth(), getHeight(), scale.px(Metrics.RADIUS), scale.px(Metrics.RADIUS));
-        if (edge != null) {
-            canvas.setColor(edge);
-            canvas.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1,
-                    scale.px(Metrics.RADIUS), scale.px(Metrics.RADIUS));
+            canvas.setColor(fill);
+            canvas.fillRoundRect(0, 0, getWidth(), getHeight(), corner, corner);
+            if (edge != null) {
+                canvas.setColor(edge);
+                canvas.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, corner, corner);
+            }
+            canvas.dispose();
         }
-        canvas.dispose();
 
         super.paintComponent(graphics);
     }

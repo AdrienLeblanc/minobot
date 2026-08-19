@@ -3,22 +3,13 @@ package fr.minobot.ui.overlay.characters;
 import fr.minobot.ui.CharacterEntry;
 import fr.minobot.ui.OverlayActions;
 import fr.minobot.ui.OverlayContent;
-import fr.minobot.ui.components.buttons.SecondaryButton;
-import fr.minobot.ui.components.labels.Hint;
 import fr.minobot.ui.components.tables.SmartTable;
 import fr.minobot.ui.overlay.characters.clazz.ClassIcons;
-import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Scale;
 
-import javax.swing.Box;
 import javax.swing.DefaultListModel;
-import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JList;
-import javax.swing.JPanel;
-import java.awt.BorderLayout;
-import java.awt.Component;
-import java.awt.Dimension;
 import java.awt.Point;
 import java.util.List;
 import java.util.function.Consumer;
@@ -35,8 +26,8 @@ import java.util.function.Consumer;
  */
 public final class CharacterList {
 
-    /** Room for about five characters; beyond that the list scrolls rather than the card growing. */
-    private static final int ROW_HEIGHT = 26;
+    /** The height of one character's tile — room for a 22-pixel class icon and its breathing space. */
+    private static final int ROW_HEIGHT = 32;
 
     private final OverlayActions actions;
     private final ClassIcons classIcons;
@@ -68,17 +59,6 @@ public final class CharacterList {
         return table;
     }
 
-    /** The line under the list: what a drag does on the left, and the button that re-reads the desktop. */
-    public JComponent footer(Scale scale) {
-        final var row = new JPanel(new BorderLayout(scale.px(Metrics.GAP), 0));
-        row.setOpaque(false);
-        row.setAlignmentX(Component.LEFT_ALIGNMENT);
-        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, scale.px(Metrics.ROW)));
-        row.add(new Hint(scale, "Drag to reorder"), BorderLayout.WEST);
-        row.add(reloadButton(scale), BorderLayout.EAST);
-        return row;
-    }
-
     /** Fills the list with the characters to show. Called after the card is assembled, as the panel does. */
     public void fill(OverlayContent content) {
         model.clear();
@@ -95,20 +75,6 @@ public final class CharacterList {
         table.resizeTo(height);
     }
 
-    /**
-     * Re-reads the desktop, for a character opened or closed since the panel went up.
-     *
-     * <p><strong>Off the event dispatch thread</strong>: the refresh enumerates every window and reads
-     * each title, and the panel must not freeze while it does — the same reason a capture leaves the EDT.
-     * The redraw it triggers hands itself back to the EDT on its own.
-     */
-    private JButton reloadButton(Scale scale) {
-        final var button = new SecondaryButton(scale, "Reload");
-        button.addActionListener(_ ->
-                Thread.ofVirtual().name("overlay-reload").start(actions::reload));
-        return button;
-    }
-
     /** The settled order, reported to the cycler as character names — the table's job was only to move rows. */
     private void reorder(List<CharacterEntry> ordered) {
         actions.reorder(ordered.stream().map(entry -> entry.character().name()).toList());
@@ -116,8 +82,9 @@ public final class CharacterList {
 
     /**
      * A plain click is not a reorder. The forget cross is tested first — it sits at the far right of a
-     * disconnected row, inside where a class cell otherwise reaches — then the class cell: a click there
-     * is a request to choose that character's class. Anywhere else, the list has already selected the row.
+     * disconnected row, where a connected one carries only its status dot — then the class cell: a click
+     * there is a request to choose that character's class. Anywhere else, the list has already selected
+     * the row.
      */
     private void onRowClick(JList<CharacterEntry> list, int index, Point point) {
         if (!maybeForget(list, index, point)) {
@@ -125,7 +92,7 @@ public final class CharacterList {
         }
     }
 
-    /** Forgets the character when the click landed on the cross drawn in a disconnected row's actions cell. */
+    /** Forgets the character when the click landed on the cross drawn in a disconnected row's status cell. */
     private boolean maybeForget(JList<CharacterEntry> list, int index, Point point) {
         if (index < 0 || index >= model.size()) {
             return false;
@@ -137,7 +104,7 @@ public final class CharacterList {
         }
 
         final var cell = list.getCellBounds(index, index);
-        if (cell != null && new RowColumns(scale, cell.width).inActions(point.x - cell.x)) {
+        if (cell != null && new RowColumns(scale, cell.width).inStatus(point.x - cell.x)) {
             actions.forget(entry.character().name());
             return true;
         }

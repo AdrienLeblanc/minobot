@@ -75,6 +75,18 @@ public interface OverlayActions {
     void toggleAutoAcceptTrade(boolean on);
 
     /**
+     * Brings up the character a whisper was sent to, so the player can answer it — the panel's version of
+     * the click the toast offered before it faded.
+     *
+     * <p>It also takes the panel down: the player asked to <em>go there</em>, and a panel left covering
+     * the window they were sent to would be in the way of the very answer they went to write.
+     */
+    void openWhisper(String whisper);
+
+    /** Empties the whisper list. They are read and then in the way; nothing on disk remembers them. */
+    void clearWhispers();
+
+    /**
      * Waits for the player to press the key they want, and reads it back — {@code "shift+F7"}.
      *
      * <p>Empty if they pressed nothing in time. No hotkey fires while this is waiting: a key being

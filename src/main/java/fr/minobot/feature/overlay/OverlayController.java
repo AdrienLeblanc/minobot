@@ -2,7 +2,10 @@ package fr.minobot.feature.overlay;
 
 import fr.minobot.app.Feature;
 import fr.minobot.app.Settings;
+import fr.minobot.core.ActivityLog;
+import fr.minobot.core.FocusManager;
 import fr.minobot.core.KeyboardMonitor;
+import fr.minobot.core.WhisperLog;
 import fr.minobot.core.WindowManager;
 import fr.minobot.core.domain.Character;
 import fr.minobot.core.domain.DofusClass;
@@ -73,6 +76,9 @@ public final class OverlayController implements OverlayActions {
     private final WindowManager windows;
     private final Settings settings;
     private final KeyboardMonitor keyboard;
+    private final FocusManager focus;
+    private final ActivityLog activity;
+    private final WhisperLog whispers;
     private final OverlayView view;
 
     /** Where the panel last was, so an edit can redraw it without asking Windows again. */
@@ -82,11 +88,16 @@ public final class OverlayController implements OverlayActions {
      * @param viewFactory hands the view its way back in, so neither has to be built before the other
      */
     public OverlayController(WindowApi api, WindowManager windows, Settings settings,
-                             KeyboardMonitor keyboard, Function<OverlayActions, OverlayView> viewFactory) {
+                             KeyboardMonitor keyboard, FocusManager focus,
+                             ActivityLog activity, WhisperLog whispers,
+                             Function<OverlayActions, OverlayView> viewFactory) {
         this.api = api;
         this.windows = windows;
         this.settings = settings;
         this.keyboard = keyboard;
+        this.focus = focus;
+        this.activity = activity;
+        this.whispers = whispers;
         this.view = viewFactory.apply(this);
     }
 
@@ -262,6 +273,36 @@ public final class OverlayController implements OverlayActions {
         redraw();
     }
 
+    /**
+     * Takes the player to the character a whisper was sent to.
+     *
+     * <p>The panel goes down first: the player asked to go and answer, and the panel covers the whole
+     * client area of the window they are being sent to. The focus sequence sleeps through its ALT dance,
+     * so it runs on a thread of its own — never on the event dispatch thread the click arrived on.
+     */
+    @Override
+    public void openWhisper(String whisper) {
+        final var found = whispers.find(whisper);
+        if (found.isEmpty()) {
+            return; // cleared between the draw and the click
+        }
+
+        final var receiver = found.get().receiver();
+        view.hide();
+
+        Thread.ofVirtual().name("overlay-whisper").start(() ->
+                windows.findWindow(receiver).ifPresentOrElse(
+                        window -> focus.focus(window.hwnd()),
+                        () -> log.warn("Clicked a whisper for '{}', but no window was found for them.",
+                                receiver)));
+    }
+
+    @Override
+    public void clearWhispers() {
+        whispers.clear();
+        redraw();
+    }
+
     @Override
     public Optional<String> captureHotkey() {
         return keyboard.captureNext(CAPTURE_TIMEOUT);
@@ -330,7 +371,8 @@ public final class OverlayController implements OverlayActions {
         }
 
         return new OverlayContent(entries, hotkeys, config.overlayScale(),
-                config.autoPassTurn(), config.autoAcceptTrade());
+                config.autoPassTurn(), config.autoAcceptTrade(),
+                activity.recent(), whispers.recent());
     }
 
     /** Shows the change the player just made, without moving the panel off its character. */

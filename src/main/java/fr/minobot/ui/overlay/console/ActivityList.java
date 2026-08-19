@@ -1,0 +1,130 @@
+package fr.minobot.ui.overlay.console;
+
+import fr.minobot.core.domain.Activity;
+import fr.minobot.ui.Theme;
+import fr.minobot.ui.components.containers.Card;
+import fr.minobot.ui.components.labels.Hint;
+import fr.minobot.ui.components.labels.SectionHeader;
+import fr.minobot.ui.utils.Draw;
+import fr.minobot.ui.utils.Fonts;
+import fr.minobot.ui.utils.Metrics;
+import fr.minobot.ui.utils.Scale;
+
+import javax.swing.JComponent;
+import javax.swing.JPanel;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+
+/**
+ * What Minobot just did: one line per act, newest at the top.
+ *
+ * <p>Three columns — <strong>when</strong>, <strong>what</strong>, <strong>about whom</strong> — and the
+ * first is monospaced so the times make a column the eye runs down rather than a ragged left edge. The
+ * detail is right-aligned against the card, so the acts read as a list on their own and the details are
+ * there for the one line that surprises.
+ *
+ * <p>It is read-only. Everything on it already happened, and there is nothing here to undo — the panel
+ * that let a player un-pass a turn would be lying about what it can do.
+ */
+public final class ActivityList {
+
+    /** The column's own width, at scale 1: a time, a sentence about a character, and a short detail. */
+    public static final int WIDTH = 372;
+
+    /** The height of one line: tight, because six of them are read as a block and not as six rows. */
+    private static final int LINE_HEIGHT = 22;
+
+    /** The time column's width, sized for {@code 00:00:00} in the monospaced face. */
+    private static final int TIME_WIDTH = 58;
+
+    /** How wide the detail may grow before it starts eliding rather than squeezing the act. */
+    private static final int DETAIL_WIDTH = 92;
+
+    /** How many lines the card shows. Beyond this the older ones are simply out of sight. */
+    private static final int VISIBLE = 8;
+
+    /** Wall-clock, to the second: the acts come seconds apart, so minutes alone would not tell them apart. */
+    private static final DateTimeFormatter CLOCK = DateTimeFormatter.ofPattern("HH:mm:ss");
+
+    /** What the column says when nothing has happened yet — never a blank, which reads as broken. */
+    private static final String NOTHING_YET = "Nothing yet — Minobot is watching.";
+
+    public JComponent build(Scale scale, List<Activity> entries) {
+        final var column = Card.plainColumn().pinnedTo(scale.px(WIDTH));
+        column.add(new SectionHeader(scale, "Activity", "what Minobot just did", null));
+
+        if (entries.isEmpty()) {
+            column.add(new Hint(scale, NOTHING_YET));
+            return column;
+        }
+
+        for (final var entry : entries.stream().limit(VISIBLE).toList()) {
+            column.add(new Line(scale, entry));
+        }
+        return column;
+    }
+
+    /** One act: its time, what it was, and the circumstance behind it. */
+    private static final class Line extends JPanel {
+
+        private final Scale scale;
+        private final Activity entry;
+
+        private Line(Scale scale, Activity entry) {
+            this.scale = scale;
+            this.entry = entry;
+            setOpaque(false);
+            setAlignmentX(Component.LEFT_ALIGNMENT);
+            setPreferredSize(new Dimension(0, scale.px(LINE_HEIGHT)));
+            setMaximumSize(new Dimension(Integer.MAX_VALUE, scale.px(LINE_HEIGHT)));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            final var canvas = Draw.smooth(graphics);
+            final var gap = scale.px(Metrics.GAP + 2);
+            final var time = scale.px(TIME_WIDTH);
+            final var detailRoom = scale.px(DETAIL_WIDTH);
+
+            canvas.setFont(scale.font(Fonts.MONO, Metrics.SMALL));
+            canvas.setColor(Theme.GHOST);
+            final var mono = canvas.getFontMetrics();
+            canvas.drawString(CLOCK.format(entry.at().atZone(ZoneId.systemDefault())), 0,
+                    baseline(mono.getAscent(), mono.getDescent()));
+
+            final var detailWidth = entry.detail().isBlank() ? 0 : detailRoom + gap;
+            final var whatX = time + gap;
+            final var whatRoom = getWidth() - whatX - detailWidth;
+
+            canvas.setFont(scale.font(Fonts.MEDIUM, Metrics.LABEL));
+            canvas.setColor(Theme.TEXT_SOFT);
+            final var text = canvas.getFontMetrics();
+            canvas.drawString(Draw.elide(text, entry.what(), whatRoom), whatX,
+                    baseline(text.getAscent(), text.getDescent()));
+
+            if (!entry.detail().isBlank()) {
+                paintDetail(canvas, detailRoom);
+            }
+            canvas.dispose();
+        }
+
+        /** The circumstance, right-aligned against the card's edge so the details line up too. */
+        private void paintDetail(Graphics2D canvas, int room) {
+            canvas.setFont(scale.font(Fonts.MEDIUM, Metrics.SMALL));
+            canvas.setColor(Theme.DIM);
+            final var metrics = canvas.getFontMetrics();
+            final var detail = Draw.elide(metrics, entry.detail(), room);
+            canvas.drawString(detail, getWidth() - metrics.stringWidth(detail),
+                    baseline(metrics.getAscent(), metrics.getDescent()));
+        }
+
+        private int baseline(int ascent, int descent) {
+            return (getHeight() + ascent - descent) / 2;
+        }
+    }
+}

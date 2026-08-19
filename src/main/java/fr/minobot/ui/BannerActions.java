@@ -5,15 +5,19 @@ package fr.minobot.ui;
  * as narrow. Implemented by the controller, so the view itself never touches the game, the focus or the
  * switch.
  *
- * <p>There is one thing to do: take the banner down. It runs on whichever thread the view calls it from —
- * Swing's — and does not block.
+ * <p>There is one thing to do, and it runs on whichever thread the view calls it from — Swing's — without
+ * blocking.
  */
 public interface BannerActions {
 
     /**
-     * The player clicked the banner's close cross: take it down. This <strong>only hides</strong> the
-     * banner — the turn-passer keeps running. Stopping the feature is the overlay switch's or the hotkey's
-     * job, never the cross's.
+     * The player pressed the banner's <em>Turn off</em>: stop passing turns.
+     *
+     * <p>This <strong>switches the feature off</strong>, and does not merely hide the banner. The banner
+     * is the only thing on screen while auto-pass is running, so its one button is the only place a
+     * player who wants it to stop is looking — a button there that hid the sign while the turns went on
+     * ending would be the worst thing this panel could do. The banner then goes because the switch went,
+     * not the other way round.
      */
-    void dismiss();
+    void turnOff();
 }

@@ -1,5 +1,6 @@
 package fr.minobot.ui.components.buttons;
 
+import fr.minobot.ui.utils.Fonts;
 import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Draw;
 import fr.minobot.ui.utils.Scale;
@@ -12,7 +13,7 @@ import java.awt.Graphics;
 
 /**
  * A flat button: a rounded fill that lights on hover, its label the only thing above it. The panel's
- * everyday control — a pill for a keybind, a word for reload, a chevron for the drawer.
+ * everyday control — reload, turn off, a sex, the drawer's switch.
  *
  * <p>It is drawn, not bordered, and it is <strong>not focusable</strong>: the surfaces it lives on never
  * take the foreground, so a focus ring would be a lie the panel cannot honour.
@@ -27,29 +28,36 @@ abstract class FlatButton extends JButton {
     private final Scale scale;
     private final Color fill;
     private final Color hover;
+    private final Color edge;
 
-    FlatButton(Scale scale, String text, Color foreground, Color fill, Color hover) {
+    FlatButton(Scale scale, String text, Color foreground, Color fill, Color hover, Color edge) {
         super(text);
         this.scale = scale;
         this.fill = fill;
         this.hover = hover;
+        this.edge = edge;
 
         setFocusable(false); // it could not take the focus anyway; do not draw as if it could
         setContentAreaFilled(false);
         setBorderPainted(false);
         setForeground(foreground);
-        setBorder(new EmptyBorder(scale.px(4), scale.px(Metrics.GAP + 2),
-                scale.px(4), scale.px(Metrics.GAP + 2)));
-        setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
+        setBorder(new EmptyBorder(scale.px(5), scale.px(Metrics.GAP + 3),
+                scale.px(5), scale.px(Metrics.GAP + 3)));
+        setFont(scale.font(Fonts.SEMIBOLD, Metrics.LABEL));
         setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     }
 
     @Override
     protected void paintComponent(Graphics graphics) {
         final var canvas = Draw.smooth(graphics);
+        final var radius = scale.px(Metrics.RADIUS_TILE);
+
         canvas.setColor(getModel().isRollover() ? hover : fill);
-        canvas.fillRoundRect(0, 0, getWidth(), getHeight(),
-                scale.px(Metrics.RADIUS), scale.px(Metrics.RADIUS));
+        canvas.fillRoundRect(0, 0, getWidth(), getHeight(), radius, radius);
+        if (edge != null) {
+            canvas.setColor(edge);
+            canvas.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, radius, radius);
+        }
         canvas.dispose();
 
         super.paintComponent(graphics);

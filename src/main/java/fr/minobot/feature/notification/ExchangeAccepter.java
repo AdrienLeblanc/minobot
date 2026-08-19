@@ -1,6 +1,7 @@
 package fr.minobot.feature.notification;
 
 import fr.minobot.app.Settings;
+import fr.minobot.core.ActivityLog;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
 import fr.minobot.core.WindowManager;
@@ -49,7 +50,7 @@ public final class ExchangeAccepter {
      */
     private static final int ACCEPT_KEY = KeyEvent.VK_ENTER;
 
-    /** What the offer toast says, SECONDARY stripped so a de-SECONDARYed message still matches. */
+    /** What the offer toast says, with and without its accent, so a de-accented message still matches. */
     private static final List<String> EXCHANGE_KEYWORDS = List.of("échange", "echange");
 
     private final WindowApi api;
@@ -57,17 +58,19 @@ public final class ExchangeAccepter {
     private final Input input;
     private final FocusManager focus;
     private final Settings settings;
+    private final ActivityLog activity;
 
     /** One accept at a time: the focus-press-restore must not interleave with the next toast's. */
     private final ReentrantLock accepting = new ReentrantLock();
 
     public ExchangeAccepter(WindowApi api, WindowManager windows, Input input, FocusManager focus,
-                            NotificationManager notifications, Settings settings) {
+                            NotificationManager notifications, Settings settings, ActivityLog activity) {
         this.api = api;
         this.windows = windows;
         this.input = input;
         this.focus = focus;
         this.settings = settings;
+        this.activity = activity;
 
         notifications.register(this::onNotification);
     }
@@ -78,15 +81,16 @@ public final class ExchangeAccepter {
             return;
         }
 
-        final var receiver = internalTradeReceiver(notification);
-        if (receiver.isEmpty()) {
+        final var trade = internalTrade(notification);
+        if (trade.isEmpty()) {
             // Not a trade, or a stranger's: the auto-focus takes it, and that is all it should do.
             return;
         }
 
-        windows.findWindow(receiver.get()).ifPresentOrElse(
-                this::accept,
-                () -> log.warn("'{}' was asked to trade, but no window was found for them.", receiver.get()));
+        windows.findWindow(trade.get().receiver()).ifPresentOrElse(
+                window -> accept(window, trade.get().asker()),
+                () -> log.warn("'{}' was asked to trade, but no window was found for them.",
+                        trade.get().receiver()));
     }
 
     /**
@@ -95,11 +99,12 @@ public final class ExchangeAccepter {
      * screen, so both features decide the same without coordinating.
      */
     public boolean claims(Notification notification) {
-        return settings.get().autoAcceptTrade() && internalTradeReceiver(notification).isPresent();
+        return settings.get().autoAcceptTrade() && internalTrade(notification).isPresent();
     }
 
     /**
-     * The receiver of a trade asked by one of the player's <em>own</em> characters, or empty otherwise.
+     * A trade asked by one of the player's <em>own</em> characters — who was asked, and who asked — or
+     * empty otherwise.
      *
      * <p>The receiver is in the title, as every toast is written; the asker is named in the message
      * ({@code Alpha te propose…}), without quotes. So a trade is internal when the message carries the
@@ -109,7 +114,7 @@ public final class ExchangeAccepter {
      * <p>The name is matched as a <strong>whole word</strong>, not a substring: a stranger named
      * {@code SuperAlpha} is not our {@code Alpha}, and their trade is a stranger's.
      */
-    private Optional<String> internalTradeReceiver(Notification notification) {
+    private Optional<Trade> internalTrade(Notification notification) {
         final var title = notification.title();
         if (title == null || title.isBlank() || !WindowManager.isGameTitle(title)) {
             return Optional.empty();
@@ -124,17 +129,21 @@ public final class ExchangeAccepter {
         }
 
         final var receiver = GameWindow.nameIn(title);
-        final var askedByOneOfOurs = windows.orderedWindows().stream()
+        return windows.orderedWindows().stream()
                 .filter(window -> !window.name().equalsIgnoreCase(receiver))
-                .anyMatch(window -> mentionsAsAWord(message, window.name()));
+                .filter(window -> mentionsAsAWord(message, window.name()))
+                .findFirst()
+                .map(asker -> new Trade(receiver, asker.name()));
+    }
 
-        return askedByOneOfOurs ? Optional.of(receiver) : Optional.empty();
+    /** One internal exchange: the character the game asked, and the character of ours that asked them. */
+    private record Trade(String receiver, String asker) {
     }
 
     /**
      * Whether the message names the character as a word of its own, not as part of a longer name.
      *
-     * <p>The boundaries are letters and digits (Unicode, so an SECONDARYed name is matched whole too), so
+     * <p>The boundaries are letters and digits (Unicode, so an accented name is matched whole too), so
      * {@code Alpha} is found in {@code Alpha te propose} but not inside {@code SuperAlpha}. The name is
      * quoted, so a character that happened to hold a regex metacharacter would still match literally.
      */
@@ -153,7 +162,7 @@ public final class ExchangeAccepter {
      * The window the player was on is read before any of this and restored after, so the accept is, from
      * the player's seat, a flicker and nothing more.
      */
-    private void accept(GameWindow receiver) {
+    private void accept(GameWindow receiver, String asker) {
         accepting.lock();
         try (final var _ = focus.takeOver()) {
             final var previous = api.foregroundWindow();
@@ -165,6 +174,7 @@ public final class ExchangeAccepter {
 
             input.pressKey(ACCEPT_KEY);
             log.info("Accepted the trade on '{}'.", receiver.name());
+            activity.record("Trade accepted on " + receiver.name(), "from " + asker);
 
             // Hand the screen back: the player never asked to leave the window they were on.
             if (previous != Win32.NULL_HANDLE && previous != receiver.hwnd()) {

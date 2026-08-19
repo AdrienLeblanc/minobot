@@ -1,6 +1,7 @@
 package fr.minobot.ui.components.tables;
 
 import fr.minobot.ui.Theme;
+import fr.minobot.ui.utils.Fonts;
 import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Scale;
 
@@ -63,7 +64,7 @@ public final class SmartTable<T> extends JScrollPane {
         list.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         list.setOpaque(false);
         list.setForeground(Theme.TEXT);
-        list.setFont(scale.font(Metrics.BODY, Metrics.PLAIN));
+        list.setFont(scale.font(Fonts.MEDIUM, Metrics.BODY));
         list.setFixedCellHeight(this.rowHeight);
         list.setCellRenderer(renderer);
         list.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));

@@ -4,13 +4,12 @@ import fr.minobot.ui.Theme;
 import fr.minobot.ui.utils.Scale;
 
 /**
- * The quieter action, in the soft blue: reload, an unbound key, an × that turns one off, the sex not
- * chosen — the everyday click that need not shout. Dark text on {@link Theme#SECONDARY}, the same fill
- * wherever it sits.
+ * The quieter action: reload, the keybinds drawer, the sex not chosen — the everyday click that need not
+ * shout. A raised tile with a hairline edge, so it reads as a control without spending the ember on one.
  */
 public final class SecondaryButton extends FlatButton {
 
     public SecondaryButton(Scale scale, String text) {
-        super(scale, text, Theme.BACKGROUND, Theme.SECONDARY, Theme.SECONDARY_HOVER);
+        super(scale, text, Theme.TEXT_SOFT, Theme.RAISED, Theme.HOVER, Theme.EDGE);
     }
 }

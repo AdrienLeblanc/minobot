@@ -4,11 +4,17 @@ import fr.minobot.app.Config;
 import fr.minobot.app.Feature;
 import fr.minobot.app.Settings;
 import fr.minobot.app.TestConfigs;
+import fr.minobot.core.ActivityLog;
+import fr.minobot.core.FocusManager;
 import fr.minobot.core.KeyboardMonitor;
+import fr.minobot.core.WhisperLog;
 import fr.minobot.core.WindowManager;
+import fr.minobot.core.domain.Activity;
 import fr.minobot.core.domain.Character;
 import fr.minobot.core.domain.DofusClass;
 import fr.minobot.core.domain.Sex;
+import fr.minobot.core.domain.Whisper;
+import fr.minobot.core.input.FakeInput;
 import fr.minobot.ui.CharacterEntry;
 import fr.minobot.ui.FakeOverlayView;
 import fr.minobot.win32.FakeWindowApi;
@@ -22,6 +28,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 /** Where the panel goes, what it shows, and what an edit through it changes. */
 class OverlayControllerTest {
@@ -34,10 +41,17 @@ class OverlayControllerTest {
 
     private final FakeOverlayView view = new FakeOverlayView();
     private final Settings settings = TestConfigs.settings(Map.of());
+    private final ActivityLog activity = new ActivityLog();
+    private final WhisperLog whispers = new WhisperLog();
 
     private OverlayController controller() {
-        return new OverlayController(api, new WindowManager(api, settings), settings,
-                new KeyboardMonitor(api), _ -> view);
+        return controller(new WindowManager(api, settings, activity));
+    }
+
+    private OverlayController controller(WindowManager windows) {
+        return new OverlayController(api, windows, settings, new KeyboardMonitor(api),
+                new FocusManager(api, new FakeInput(api::foregroundWindow)),
+                activity, whispers, _ -> view);
     }
 
     /** The names the panel was last handed to draw, in the order it drew them. */
@@ -117,7 +131,7 @@ class OverlayControllerTest {
                     .runningAs(10, "C:\\Users\\me\\AppData\\Local\\Ankama\\Retro\\Dofus Retro.exe")
                     .withForeground(10);
 
-            new OverlayController(api, windows, settings, new KeyboardMonitor(api), _ -> view).toggle();
+            controller(windows).toggle();
 
             assertThat(view.isVisible())
                     .as("the panel belongs to whatever game window the player is on, tracked or not")
@@ -615,6 +629,94 @@ class OverlayControllerTest {
 
             assertThat(saved("(logging in…)")).isEmpty();
             assertThat(shownNames()).contains("(logging in…)");
+        }
+    }
+
+    @Nested
+    @DisplayName("what it has been doing")
+    class Console {
+
+        @Test
+        @DisplayName("the panel shows what the features noted, newest first")
+        void showsTheActivity() {
+            api.withForeground(1);
+            activity.record("Taskbar reordered", "3 characters");
+            activity.record("Switched to Bravo", "next");
+
+            controller().toggle();
+
+            assertThat(view.content().orElseThrow().activity())
+                    .extracting(Activity::what)
+                    .containsExactly("Switched to Bravo", "Taskbar reordered");
+        }
+
+        @Test
+        @DisplayName("the panel shows the whispers, after the cards that carried them are long gone")
+        void showsTheWhispers() {
+            api.withForeground(1);
+            whispers.add("Bravo", "laurealy", "tu passes sur Bonta ?");
+
+            controller().toggle();
+
+            assertThat(view.content().orElseThrow().whispers())
+                    .extracting(Whisper::sender, Whisper::message)
+                    .containsExactly(tuple("laurealy", "tu passes sur Bonta ?"));
+        }
+
+        @Test
+        @DisplayName("clearing empties the list and redraws the panel without it")
+        void clearsTheWhispers() {
+            api.withForeground(1);
+            whispers.add("Bravo", "laurealy", "tu passes sur Bonta ?");
+            final var controller = controller();
+            controller.toggle();
+
+            controller.clearWhispers();
+
+            assertThat(view.content().orElseThrow().whispers()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("clicking a whisper takes the panel down, so it is not covering the answer")
+        void openingAWhisperTakesThePanelDown() {
+            api.withForeground(1);
+            final var whisper = whispers.add("Bravo", "laurealy", "tu passes sur Bonta ?");
+            final var controller = controller();
+            controller.toggle();
+            assertThat(view.isVisible()).isTrue();
+
+            controller.openWhisper(whisper.id());
+
+            assertThat(view.isVisible())
+                    .as("the player asked to go there; the panel covers the whole client area")
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("clicking a whisper that was cleared under the pointer does nothing")
+        void openingAClearedWhisperIsANoOp() {
+            api.withForeground(1);
+            final var whisper = whispers.add("Bravo", "laurealy", "tu passes sur Bonta ?");
+            final var controller = controller();
+            controller.toggle();
+            whispers.clear();
+
+            controller.openWhisper(whisper.id());
+
+            assertThat(view.isVisible()).as("nothing to go to, so nothing happens").isTrue();
+        }
+
+        @Test
+        @DisplayName("the team heading can count who is actually on screen")
+        void countsWhoIsOnline() {
+            api.withForeground(1);
+            settings.update(config -> config.withCharacterClass("Delta", DofusClass.IOP)); // pinned, offline
+
+            controller().toggle();
+
+            final var content = view.content().orElseThrow();
+            assertThat(content.characters()).hasSize(4);
+            assertThat(content.online()).as("Alpha, Bravo and Charlie are up; Delta is not").isEqualTo(3);
         }
     }
 }

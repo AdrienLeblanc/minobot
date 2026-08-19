@@ -6,6 +6,7 @@ import com.github.weisj.jsvg.view.ViewBox;
 import fr.minobot.core.domain.DofusClass;
 import fr.minobot.core.domain.Sex;
 import fr.minobot.ui.Theme;
+import fr.minobot.ui.utils.Fonts;
 import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Scale;
 
@@ -47,10 +48,10 @@ public final class ClassIcons {
             return;
         }
 
-        canvas.setColor(Theme.SURFACE);
+        canvas.setColor(Theme.RAISED);
         canvas.fillRoundRect(x, y, size, size, size, size);
-        canvas.setColor(Theme.SECONDARY);
-        canvas.setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
+        canvas.setColor(Theme.FAINT);
+        canvas.setFont(scale.font(Fonts.SEMIBOLD, Metrics.SMALL));
         final var initial = clazz.label().substring(0, 1).toUpperCase(Locale.ROOT);
         final var fm = canvas.getFontMetrics();
         canvas.drawString(initial, x + (size - fm.stringWidth(initial)) / 2,

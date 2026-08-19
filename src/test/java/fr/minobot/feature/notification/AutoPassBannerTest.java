@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * When the auto-pass banner is up, where it hangs, and what its close cross does.
+ * When the auto-pass banner is up, where it hangs, and what its one button does.
  *
  * <p>The banner is drawn by a follow thread on a 30&nbsp;ms poll, so a test lets it settle before reading
  * the view. It watches the {@code auto_pass_turn} switch through {@link Settings#onChange}, so a test flips
@@ -71,6 +71,7 @@ class AutoPassBannerTest {
         settle();
 
         assertThat(view.isVisible()).isTrue();
+        assertThat(view.content()).map(BannerContent::heading).contains(AutoPassBanner.HEADING);
         assertThat(view.content()).map(BannerContent::message).contains(AutoPassBanner.MESSAGE);
         assertThat(view.anchor()).contains(api.clientArea(1).orElseThrow());
     }
@@ -90,37 +91,35 @@ class AutoPassBannerTest {
     }
 
     @Test
-    @DisplayName("the close cross only hides it: the switch stays on and it does not come back on its own")
-    void crossHidesButLeavesTheFeatureRunning() throws InterruptedException {
+    @DisplayName("Turn off switches the feature off, and the banner goes because the switch did")
+    void turnOffStopsTheFeature() throws InterruptedException {
         banner();
         on();
         settle();
 
-        view.clickClose();
+        view.clickTurnOff();
         settle();
 
-        assertThat(view.isVisible()).as("the banner is gone").isFalse();
-        assertThat(settings.get().autoPassTurn()).as("but auto-pass is still on").isTrue();
-
-        settle(); // give the follow loop every chance to redraw it
-        assertThat(view.isVisible()).as("and it stays gone while still enabled").isFalse();
+        assertThat(settings.get().autoPassTurn())
+                .as("the button stops the turn-passer, it does not merely hide its sign")
+                .isFalse();
+        assertThat(view.isVisible()).as("and the banner follows the switch down").isFalse();
     }
 
     @Test
-    @DisplayName("turning the switch off and on again brings a dismissed banner back")
+    @DisplayName("switching auto-pass on again after Turn off brings the banner back")
     void reappearsOnReEnable() throws InterruptedException {
         banner();
         on();
         settle();
-        view.clickClose();
+        view.clickTurnOff();
         settle();
         assertThat(view.isVisible()).isFalse();
 
-        off();
         on();
         settle();
 
-        assertThat(view.isVisible()).as("a deliberate re-enable shows it again").isTrue();
+        assertThat(view.isVisible()).as("the switch is what the banner tracks, so it is back").isTrue();
     }
 
     @Test

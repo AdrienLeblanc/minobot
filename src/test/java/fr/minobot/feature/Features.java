@@ -2,9 +2,11 @@ package fr.minobot.feature;
 
 import fr.minobot.app.Settings;
 import fr.minobot.app.TestConfigs;
+import fr.minobot.core.ActivityLog;
 import fr.minobot.core.FlashSuppressor;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
+import fr.minobot.core.WhisperLog;
 import fr.minobot.core.WindowManager;
 import fr.minobot.core.input.FakeInput;
 import fr.minobot.feature.group.GroupManager;
@@ -33,6 +35,9 @@ import fr.minobot.core.domain.Notification;
  *
  * <p>The features share one {@link NotificationManager}, as they do in production — the group
  * invitation and the notification auto-focus both listen to it, and they compete for the foreground.
+ * They also share <strong>one {@link ActivityLog} and one {@link WhisperLog}</strong>, for the same
+ * reason: in production the panel reads what every feature wrote, so a test that gave each feature a log
+ * of its own would be testing a wiring nobody ships.
  */
 public final class Features {
 
@@ -42,6 +47,10 @@ public final class Features {
     private final WindowManager windows;
     private final FocusManager focus;
 
+    /** Shared, as in production, and exposed so a test can read back what a feature noted. */
+    private final ActivityLog activity = new ActivityLog();
+    private final WhisperLog whispers = new WhisperLog();
+
     /** Never started: the tests hand the notifications to the features themselves. */
     private final NotificationManager notifications = new NotificationManager(Path.of("no-such-database.db"));
 
@@ -50,7 +59,7 @@ public final class Features {
         this.api = api;
         this.settings = TestConfigs.settings(overrides);
         this.input = new FakeInput(api::foregroundWindow);
-        this.windows = new WindowManager(api, settings);
+        this.windows = new WindowManager(api, settings, activity);
         this.focus = new FocusManager(api, input);
     }
 
@@ -63,49 +72,61 @@ public final class Features {
         return settings;
     }
 
+    /** What the features have noted they did — the panel's ACTIVITY column, without a screen. */
+    public ActivityLog activity() {
+        return activity;
+    }
+
+    /** The whispers that have been remembered, cards or no cards. */
+    public WhisperLog whispers() {
+        return whispers;
+    }
+
     public WindowCycler cycler() {
-        return new WindowCycler(api, windows, focus);
+        return new WindowCycler(api, windows, focus, activity);
     }
 
     public WindowReorder reorder() {
-        return new WindowReorder(api, windows, focus);
+        return new WindowReorder(api, windows, focus, activity);
     }
 
     public MultiWindowClicker clicker() {
-        return new MultiWindowClicker(api, windows, focus, new FlashSuppressor(api), settings);
+        return new MultiWindowClicker(api, windows, focus, new FlashSuppressor(api), settings, activity);
     }
 
     public GroupManager groupManager() {
-        return new GroupManager(windows, input, focus, notifications);
+        return new GroupManager(windows, input, focus, notifications, activity);
     }
 
     public NotificationListener notificationListener() {
-        return new NotificationListener(windows, focus, notifications);
+        return new NotificationListener(windows, focus, notifications, activity);
     }
 
     /** The auto-focus wired to stand aside for the toasts the trade-accepter answers in place. */
     public NotificationListener notificationListener(ExchangeAccepter accepter) {
-        return new NotificationListener(windows, focus, notifications, accepter::claims);
+        return new NotificationListener(windows, focus, notifications, activity, accepter::claims);
     }
 
     /** The auto-focus wired to stand aside for whatever the given predicate claims. */
     public NotificationListener notificationListener(Predicate<Notification> handledSilently) {
-        return new NotificationListener(windows, focus, notifications, handledSilently);
+        return new NotificationListener(windows, focus, notifications, activity, handledSilently);
     }
 
     public WhisperToaster whisperToaster() {
-        return new WhisperToaster(api, windows, focus, settings, notifications, FakeToastView::new);
+        return new WhisperToaster(api, windows, focus, settings, notifications, whispers,
+                FakeToastView::new);
     }
 
     public WhisperToaster whisperToaster(Duration lifetime) {
-        return new WhisperToaster(api, windows, focus, settings, notifications, lifetime, FakeToastView::new);
+        return new WhisperToaster(api, windows, focus, settings, notifications, whispers, lifetime,
+                FakeToastView::new);
     }
 
     public TurnPasser turnPasser() {
-        return new TurnPasser(windows, input, focus, notifications, settings);
+        return new TurnPasser(windows, input, focus, notifications, settings, activity);
     }
 
     public ExchangeAccepter exchangeAccepter() {
-        return new ExchangeAccepter(api, windows, input, focus, notifications, settings);
+        return new ExchangeAccepter(api, windows, input, focus, notifications, settings, activity);
     }
 }

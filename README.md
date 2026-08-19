@@ -90,15 +90,16 @@ En combat, le jeu affiche une notification quand c'est au tour d'un personnage d
 reçoit cette notification, Minobot passe son tour tout seul (touche **F1** du jeu). Idéal quand vous
 laissez une équipe de mules dans un combat pendant que vous jouez ailleurs.
 
-Tant que la fonction tourne, un **bandeau** « Auto-pass turns enabled. » reste affiché en haut de la
-fenêtre de jeu, pour que rien ne se passe à votre insu. Une **petite croix** le referme — mais **ça ne
-coupe pas la fonction**, ça ne fait que cacher le bandeau (il réapparaît si vous ré-activez la fonction).
-Pour l'arrêter, rebasculez l'interrupteur ou le raccourci.
+Tant que la fonction tourne, une **pastille orange** « AUTO-PASS TURNS — every character passes » reste
+affichée en haut de la fenêtre de jeu, pour que rien ne se passe à votre insu. Son bouton **« Turn off »**
+**coupe la fonction** : la pastille disparaît parce que la fonction s'est arrêtée, pas l'inverse. Il n'y a
+volontairement **aucune croix** qui masquerait la pastille en laissant les tours continuer à se passer —
+vous ne pouvez pas vous retrouver avec la fonction active et plus rien pour vous le dire.
 
-L'interrupteur est **très explicite** — un gros ON/OFF sur le panneau — et il passe le tour de **tous**
-les personnages, **y compris celui que vous avez à l'écran** : l'activer, c'est dire « je me suis levé
-de la table ». Il est donc **éteint par défaut** et **s'oublie au redémarrage** (comme tous les réglages
-faits dans l'overlay).
+L'interrupteur est **très explicite** — une pastille qui porte son nom *et* son état (ON/OFF) sur le
+panneau — et il passe le tour de **tous** les personnages, **y compris celui que vous avez à l'écran** :
+l'activer, c'est dire « je me suis levé de la table ». Il est donc **éteint par défaut** et **s'oublie au
+redémarrage** (comme tous les réglages faits dans l'overlay).
 
 ---
 
@@ -150,31 +151,48 @@ Deux choses à savoir :
 - Tant qu'il est ouvert, **il occupe toute la surface du jeu** (vous ne pouvez pas jouer en même temps) :
   refermez-le pour reprendre la main. C'est un panneau de réglages, pas un mode de jeu.
 
-Sur le panneau, de haut en bas :
+Le panneau se lit **en deux moitiés** : à gauche **votre équipe**, la seule partie que vous modifiez ; à
+droite **la console**, vos deux interrupteurs et, sous un trait, ce que Minobot vient de faire.
 
-### Vos personnages, dans l'ordre
+### Vos personnages, dans l'ordre (à gauche)
 
-Minobot **trouve tout seul vos fenêtres de jeu** et les affiche en liste. **Glissez-les pour les remettre
-dans l'ordre que vous voulez** : c'est ce même ordre qui sert au défilement (`X2`) et au rangement de la
-barre des tâches (`F9`). Vous n'avez rien à écrire nulle part.
+Minobot **trouve tout seul vos fenêtres de jeu** et les affiche en liste, numérotées. **Glissez une ligne
+pour changer l'ordre** : c'est ce même ordre qui sert au défilement (`X2`) et au rangement de la barre des
+tâches (`F9`). Vous n'avez rien à écrire nulle part. Le bouton **`Reload`** relit les fenêtres tout de
+suite, si vous venez d'en ouvrir ou d'en fermer une.
 
 ### La classe et le sexe de chaque personnage
 
-Cliquez sur **« pick class… »** en face d'un personnage : une grille des **douze classes** de Dofus
-Retro s'ouvre, avec une bascule **homme / femme** en haut. Choisissez, et l'icône de la classe s'affiche
+Cliquez sur **« Pick a class »** en face d'un personnage : une grille des **douze classes** de Dofus
+Retro s'ouvre, avec une bascule **Male / Female** en haut. Choisissez, et l'icône de la classe s'affiche
 à côté du nom — de quoi repérer vos persos d'un coup d'œil.
 
 ### Connecté, déconnecté, et « oublier » un personnage
 
-Chaque ligne porte une **pastille de statut** : verte quand la fenêtre du perso est ouverte, grise quand
-elle ne l'est pas. Un personnage à qui vous avez attribué une classe ou un sexe **reste dans la liste
-même déconnecté** (grisé), pour garder sa place dans l'ordre — pratique quand vous relancez un compte.
-Une **petite croix** sur une ligne grisée le retire définitivement de la liste.
+Une ligne dont le personnage est à l'écran porte un **liseré orange** à gauche et un **point vert** à
+droite ; les autres sont éteintes. Un personnage à qui vous avez attribué une classe ou un sexe **reste
+dans la liste même déconnecté**, pour garder sa place dans l'ordre — pratique quand vous relancez un
+compte. Une **petite croix**, à la place du point vert, le retire définitivement de la liste.
 
-### Les deux interrupteurs
+### Les deux interrupteurs (à droite)
 
-**Auto-accept trades** et **Auto-pass turns**, les deux fonctions décrites plus haut, s'allument et
-s'éteignent ici d'un clic (un gros ON/OFF).
+**Auto-pass turns** et **Auto-accept trades**, les deux fonctions décrites plus haut, s'allument et
+s'éteignent ici d'un clic. Chacune est une pastille qui porte **son nom et son état** (`ON` / `OFF`).
+
+### Ce que Minobot vient de faire
+
+Sous le trait, deux colonnes — c'est la moitié du panneau qui répond à *« qu'est-ce qui vient de se
+passer ? »* pendant que vous regardiez ailleurs :
+
+- **ACTIVITY** : la liste des dernières actions, avec l'heure — un tour passé, un échange accepté, la
+  barre des tâches rangée, une fenêtre qui s'est fermée. C'est une trace, on n'y clique pas.
+- **WHISPERS** : les messages privés reçus, **même une fois que leur petite carte a disparu de l'écran**
+  (elle ne dure que dix secondes). **Cliquez sur un message pour aller directement sur le personnage à
+  qui il était adressé** — le panneau se referme et vous êtes en place pour répondre. **`Clear`** vide la
+  liste.
+
+Les deux listes sont courtes et volatiles : elles répondent à « qu'est-ce que ça vient de faire », pas à
+« qu'est-ce qui s'est passé aujourd'hui ». Pour ça, il y a `logs/minobot.log`.
 
 ### La taille du panneau
 

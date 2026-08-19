@@ -9,9 +9,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * The auto-pass banner, without a screen — the twin of {@link FakeToastView} and {@link FakeOverlayView}.
  *
- * <p>What the controller decides — when the banner shows, when it follows, when it hides, what its cross
- * does — is all visible here, and none of it needs Swing, a monitor, or a game. It keeps the
- * {@link BannerActions} it was built with, so a test can play a click on the close cross.
+ * <p>What the controller decides — when the banner shows, when it follows, when it hides, what its one
+ * button does — is all visible here, and none of it needs Swing, a monitor, or a game. It keeps the
+ * {@link BannerActions} it was built with, so a test can play a press on <em>Turn off</em>.
  */
 public final class FakeBannerView implements BannerView {
 
@@ -62,8 +62,8 @@ public final class FakeBannerView implements BannerView {
         return drawn.size();
     }
 
-    /** Plays a click on the banner's close cross, as the mouse would. */
-    public void clickClose() {
-        actions.dismiss();
+    /** Plays a press on the banner's <em>Turn off</em>, as the mouse would. */
+    public void clickTurnOff() {
+        actions.turnOff();
     }
 }

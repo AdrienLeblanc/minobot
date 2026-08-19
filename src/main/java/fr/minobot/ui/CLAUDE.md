@@ -8,12 +8,34 @@ ports, testable with no screen. The Swing that draws these surfaces lives in fou
 a `CLAUDE.md` that loads only when you work in it:
 
 - **`components/`** — the design system: reusable, theme-aware Swing pieces (a card, a flat button, a
-  toggle, a chip, a close cross, a slider) plus the `Scale` every size passes through and the `Draw`
-  primitives shared shapes are drawn by. **No knowledge of the game or the config** lives here.
+  state pill, a key chip, a segmented control, a close cross, a slider) plus `Scale`, `Fonts`, `Metrics`
+  and the `Draw` primitives shared shapes come from. **No knowledge of the game or the config** here.
 - **`overlay/`** — the control panel, `SwingOverlay` (the `OverlayView` implementation) and the sections
-  it lays out (`CharacterList`, `KeybindsDrawer`, `ClassPicker`, …).
+  it lays out (`HeaderBar`, `TeamCard`, `ConsoleCard`, `KeybindsDrawer`, `ClassPicker`, …).
 - **`toast/`** — `SwingToastStack`, the `ToastView` implementation.
 - **`banner/`** — `SwingBanner`, the `BannerView` implementation (the auto-pass banner).
+
+## One accent, and it is rationed
+
+`Theme` is charcoal and **one ember**, spent only on what is *live*: the character being cycled, a switch
+that is on, a class nobody has picked yet, the button that stops a running feature. Two exceptions earn
+their place by saying something no grey can — `CONNECTED` (a window open right now) and `WHISPER` (the
+amber of somebody talking to you). **A third accent is not a colour, it is a competing claim on the
+player's eye**; everything else is a rung of the grey ladder (`TEXT` → `GHOST`), and reaching for a
+literal instead is how two rows that mean the same end up a shade apart.
+
+## The typefaces are shipped, and a weight is a file
+
+The panel is set in Barlow, Barlow Semi Condensed and JetBrains Mono, loaded once by `utils/Fonts` off
+`resources/fonts/` (OFL, licences shipped beside them). Surfaces name a **weight** — `Fonts.MEDIUM`,
+`Fonts.SEMIBOLD` — never a `Font.BOLD` style bit: Java2D emboldens a regular face by smearing it, and at
+the size a hint or a key chip is drawn, that smear is what the letters read as. Hence
+`Scale.font(face, size)`, which derives the size and nothing else. A face that cannot be read falls back
+to the desktop's own, the way the logo falls back to its wordmark.
+
+**Only draw characters the shipped faces have.** Barlow's latin cut covers `U+2000`–`U+206F`, so `…`,
+`“ ”` and `›` are safe and `→` (`U+2192`) is not — Swing draws the missing-glyph box for it, which is how
+the whisper list came to say *sender ▯ receiver* before it was caught.
 
 **The classes under `components/`, `overlay/`, `toast/` and `banner/` are the only ones that know Swing exists.**
 They all share one discipline, and it is not optional:

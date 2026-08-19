@@ -1,6 +1,7 @@
 package fr.minobot.feature.notification;
 
 import fr.minobot.app.Settings;
+import fr.minobot.core.ActivityLog;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
 import fr.minobot.core.WindowManager;
@@ -55,17 +56,19 @@ public final class TurnPasser {
     private final Input input;
     private final FocusManager focus;
     private final Settings settings;
+    private final ActivityLog activity;
 
     /** One turn at a time: a focus-then-press must finish before the next toast's begins, or the key
      *  meant for one window is pressed into another. */
     private final ReentrantLock passing = new ReentrantLock();
 
     public TurnPasser(WindowManager windows, Input input, FocusManager focus,
-                      NotificationManager notifications, Settings settings) {
+                      NotificationManager notifications, Settings settings, ActivityLog activity) {
         this.windows = windows;
         this.input = input;
         this.focus = focus;
         this.settings = settings;
+        this.activity = activity;
 
         notifications.register(this::onNotification);
     }
@@ -110,6 +113,7 @@ public final class TurnPasser {
             if (focus.focus(character.hwnd())) {
                 input.pressKey(END_TURN_KEY);
                 log.info("Passed '{}'s turn.", character.name());
+                activity.record("Passed " + character.name() + "'s turn", "auto-pass");
             } else {
                 log.warn("Could not focus '{}': its turn was not passed.", character.name());
             }

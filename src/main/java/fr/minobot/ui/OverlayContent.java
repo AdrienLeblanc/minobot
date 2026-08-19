@@ -1,13 +1,16 @@
 package fr.minobot.ui;
 
 import fr.minobot.app.Feature;
+import fr.minobot.core.domain.Activity;
+import fr.minobot.core.domain.Whisper;
 
 import java.util.List;
 import java.util.Map;
 
 /**
  * What the panel shows: the characters Minobot has found, in the order the player cycles through them,
- * and the key each feature currently answers to.
+ * the key each feature currently answers to, and — the panel's other half — what Minobot has just been
+ * doing while the player was busy.
  *
  * <p>Characters, not windows — the panel is the story the player tells, and they cycle through
  * <em>Bravo</em> and <em>Charlie</em>, not through {@code 0x000407A2}. Each {@link CharacterEntry} carries
@@ -25,6 +28,11 @@ import java.util.Map;
  * <p>{@code autoPassTurn} and {@code autoAcceptTrade} are the features the panel shows a state for
  * rather than a key: they have no hotkey, so the panel draws each as an explicit on/off switch.
  *
+ * <p>{@code activity} and {@code whispers} both arrive <strong>newest first</strong>, which is the order
+ * the panel reads them in: the player opens it to see what just happened, so the last thing to have
+ * happened is the first thing drawn. They are the record of everything the features did off-screen —
+ * without them the panel would show what Minobot <em>is set to</em> and never what it <em>did</em>.
+ *
  * <p>The list holds the characters on screen <em>and</em> the ones the player has pinned a class or sex
  * to but is not playing right now — the latter drawn greyed-out, {@code connected == false}, so a
  * configured character does not vanish the moment its window closes. An unpinned character is a bare name
@@ -32,7 +40,8 @@ import java.util.Map;
  * offers to give it one; one with no sex is drawn as male.
  */
 public record OverlayContent(List<CharacterEntry> characters, Map<Feature, String> hotkeys, double scale,
-                             boolean autoPassTurn, boolean autoAcceptTrade) {
+                             boolean autoPassTurn, boolean autoAcceptTrade,
+                             List<Activity> activity, List<Whisper> whispers) {
 
     /**
      * What the panel lists a game window with no character loaded yet under — a login or selection
@@ -45,5 +54,12 @@ public record OverlayContent(List<CharacterEntry> characters, Map<Feature, Strin
     public OverlayContent {
         characters = List.copyOf(characters);
         hotkeys = Map.copyOf(hotkeys);
+        activity = List.copyOf(activity);
+        whispers = List.copyOf(whispers);
+    }
+
+    /** How many of the listed characters have their window open — what the team heading counts. */
+    public long online() {
+        return characters.stream().filter(CharacterEntry::connected).count();
     }
 }

@@ -5,11 +5,11 @@ import fr.minobot.ui.BannerContent;
 import fr.minobot.ui.BannerView;
 import fr.minobot.ui.Theme;
 import fr.minobot.ui.utils.Draw;
+import fr.minobot.ui.utils.Fonts;
 import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Scale;
 import fr.minobot.win32.Rect;
 
-import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JWindow;
 import javax.swing.SwingUtilities;
@@ -21,7 +21,6 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
-import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -29,53 +28,58 @@ import java.awt.event.MouseEvent;
 /**
  * The auto-pass banner, in Swing. The only class in the banner that knows Swing exists — a sibling of
  * {@code SwingOverlay} and {@code SwingToastStack}, held to the same discipline. It shares the design
- * system ({@link Scale} for every size, {@link Draw} for the smoothing and the close cross, {@link Theme}
- * for the dark card), so the three surfaces read at the same size on the same monitor.
+ * system ({@link Scale} for every size, {@link Draw} for the smoothing, {@link Theme} for the palette),
+ * so the three surfaces read at the same size on the same monitor.
+ *
+ * <p><strong>It is a pill, and the whisper cards are rectangles.</strong> That is not decoration: the two
+ * surfaces are on screen at the same time, over the same game, and they mean opposite things. A whisper
+ * is an <em>event</em> — it arrived, it is read, it goes — so it is a card at the left edge that stacks
+ * and expires. The banner is a <em>state</em> — it is true for as long as it is drawn — so it is one
+ * rounded pill at the top centre, in the ember, with a live dot and its own way out. A player must never
+ * have to read either one to know which it is.
  *
  * <p><strong>It must never take the foreground.</strong> Like the panel and the whisper stack, it would
  * otherwise land between two keystrokes of the invitation relay or a turn-pass — the very feature it
  * announces. Hence {@code setFocusableWindowState(false)}, and hence nothing here is typed: the banner is
- * read, or dismissed with the mouse. <strong>Do not add {@code WS_EX_NOACTIVATE} to make sure</strong>:
+ * read, or turned off with the mouse. <strong>Do not add {@code WS_EX_NOACTIVATE} to make sure</strong>:
  * Swing already does this one.
  *
- * <p>Unlike the panel it is <strong>not</strong> the whole game: it is sized to the one card and pinned to
+ * <p>Unlike the panel it is <strong>not</strong> the whole game: it is sized to the one pill and pinned to
  * the top of the game, centred left to right with a little padding below the top edge, so it blocks only a
- * narrow band. Its one click — the close cross — is routed by hand, as the whisper cards' are.
+ * narrow band. Its one click — <em>Turn off</em> — is routed by hand, as the whisper cards' are.
  *
  * <p>The follow loop calls {@link #show}, {@link #moveTo} and {@link #hide} from a virtual thread, and
  * every one of them hands its work to the event dispatch thread, where Swing lives.
  */
 public final class SwingBanner implements BannerView {
 
-    /** The card's own sizes, at scale 1 — kept next to the code, only the shared rhythm comes from Metrics. */
-    private static final int RADIUS = 11;
+    /** The room inside the pill, around its contents: {@code PAD_X} at each end, {@code PAD_Y} above and
+     *  below. The height is measured from the tallest thing on the row plus {@code PAD_Y} twice, so the
+     *  pill always clears its own text rather than being pinned to a guessed constant. */
+    private static final int PAD_X = 14;
+    private static final int PAD_Y = 6;
 
-    /** The room inside the card, around the text: {@code PAD_X} left and right, {@code PAD_Y} above and below.
-     *  The height is measured from the text plus {@code PAD_Y} twice, so the card is always taller than its
-     *  message rather than pinned to a guessed constant. */
-    private static final int PAD_X = 15;
-    private static final int PAD_Y = 12;
-
-    /** The breathing room the window keeps around the card, so a rounded corner is not clipped. */
+    /** The breathing room the window keeps around the pill, so its rounded end is not clipped. */
     private static final int MARGIN = 8;
 
-    /** How far below the game's top edge the card hangs — padding, not flush to the top. */
+    /** How far below the game's top edge the pill hangs — padding, not flush to the top. */
     private static final int TOP_PADDING = 18;
 
-    /** The close cross in the card's corner: the mouse's way to take the banner down. */
-    private static final int CLOSE_SIZE = 16;
+    /** The dot that marks the banner as a live state, in the ember — reads "running" at a glance. */
+    private static final int DOT = 7;
 
-    /** The dot that marks the banner as a live state, in the SECONDARY accent — reads "on" at a glance. */
-    private static final int DOT = 9;
+    /** The room inside the <em>Turn off</em> button, which is a pill of its own inside the pill. */
+    private static final int BUTTON_PAD_X = 11;
+    private static final int BUTTON_PAD_Y = 4;
 
-    private static final float MESSAGE_SIZE = 13f;
+    /** What the button says. The one string the view owns: it names its own click, not the feature. */
+    private static final String TURN_OFF = "Turn off";
 
     private final BannerActions actions;
 
     /** Touched on the event dispatch thread only. Built on first show: there may never be one. */
     private JWindow window;
     private Banner banner;
-    private Font baseFont;
 
     /** What every size was computed with, and where the banner was last hung. */
     private Scale scale;
@@ -127,11 +131,11 @@ public final class SwingBanner implements BannerView {
             build();
         }
 
-        this.scale = new Scale(content.scale(), baseFont);
+        this.scale = new Scale(content.scale());
         this.anchor = anchor;
-        banner.setMessage(content.message());
+        banner.setContent(content);
 
-        final var size = bannerSize(content.message());
+        final var size = bannerSize(content);
         window.setSize(size);
         banner.setPreferredSize(size);
 
@@ -150,7 +154,6 @@ public final class SwingBanner implements BannerView {
 
         translucentIfSupported();
 
-        baseFont = new JLabel().getFont();
         banner = new Banner();
         window.setContentPane(banner);
     }
@@ -167,21 +170,25 @@ public final class SwingBanner implements BannerView {
         }
     }
 
-    /** The box the card needs: the accent dot, the measured message, the close cross, padding and margin. */
-    private Dimension bannerSize(String message) {
-        final var metrics = banner.getFontMetrics(font(MESSAGE_SIZE, Font.BOLD));
+    /** The box the pill needs: the dot, the heading, the message, the button, the padding and the margin. */
+    private Dimension bannerSize(BannerContent content) {
+        final var heading = banner.getFontMetrics(headingFont());
+        final var message = banner.getFontMetrics(messageFont());
+        final var button = banner.getFontMetrics(buttonFont());
 
-        // The row's tallest thing sets the height — the text, or the close cross when it is taller — plus a
-        // full PAD_Y above and below, so the card always clears its own message rather than crowding it.
-        final var rowHeight = Math.max(metrics.getAscent() + metrics.getDescent(), px(CLOSE_SIZE));
-        final var cardHeight = rowHeight + 2 * px(PAD_Y);
+        final var buttonHeight = button.getAscent() + button.getDescent() + 2 * px(BUTTON_PAD_Y);
+        final var rowHeight = Math.max(buttonHeight,
+                Math.max(heading.getAscent() + heading.getDescent(),
+                        message.getAscent() + message.getDescent()));
+        final var pillHeight = rowHeight + 2 * px(PAD_Y);
 
-        final var cardWidth = 2 * px(PAD_X)
-                + px(DOT) + px(Metrics.GAP)
-                + metrics.stringWidth(message) + px(Metrics.GAP)
-                + px(CLOSE_SIZE);
+        final var pillWidth = 2 * px(PAD_X)
+                + px(DOT) + px(Metrics.GAP + 4)
+                + heading.stringWidth(content.heading()) + px(Metrics.GAP + 4)
+                + message.stringWidth(content.message()) + px(Metrics.GAP + 4)
+                + button.stringWidth(TURN_OFF) + 2 * px(BUTTON_PAD_X);
 
-        return new Dimension(cardWidth + 2 * px(MARGIN), cardHeight + 2 * px(MARGIN));
+        return new Dimension(pillWidth + 2 * px(MARGIN), pillHeight + 2 * px(MARGIN));
     }
 
     /** Pins the window to the top of the game, centred left to right, a little below the top edge. */
@@ -197,26 +204,34 @@ public final class SwingBanner implements BannerView {
         return scale.px(natural);
     }
 
-    private Font font(float natural, int style) {
-        return scale.font(natural, style);
+    private Font headingFont() {
+        return scale.tracked(scale.font(Fonts.CONDENSED, Metrics.SMALL), Metrics.BADGE_TRACKING);
     }
 
-    // ------------------------------------------------------------------ the card
+    private Font messageFont() {
+        return scale.font(Fonts.MEDIUM, Metrics.LABEL);
+    }
+
+    private Font buttonFont() {
+        return scale.font(Fonts.SEMIBOLD, Metrics.SMALL);
+    }
+
+    // ------------------------------------------------------------------ the pill
 
     /**
-     * The card itself: it paints the accent dot, the message and the close cross, and remembers where the
-     * cross landed so a click can be told whether it hit it. Painting and hit-testing read the same
-     * placement, so they can never disagree.
+     * The pill itself: it paints the live dot, the heading, the message and the <em>Turn off</em> button,
+     * and remembers where the button landed so a click can be told whether it hit it. Painting and
+     * hit-testing read the same rectangle, so they can never disagree.
      */
     private final class Banner extends JPanel {
 
-        private String message = "";
+        private BannerContent content = new BannerContent(1, "", "");
 
-        /** Where the close cross was last painted, for the mouse to test against; {@code null} until drawn. */
-        private Rectangle close;
+        /** Where the button was last painted, for the mouse to test against; {@code null} until drawn. */
+        private Rectangle button;
 
-        /** Whether the pointer is over the cross, so it can be lit. */
-        private boolean closeHovered;
+        /** Whether the pointer is over the button, so it can be lit. */
+        private boolean buttonHovered;
 
         private Banner() {
             setOpaque(false);
@@ -226,8 +241,8 @@ public final class SwingBanner implements BannerView {
             addMouseMotionListener(mouse);
         }
 
-        private void setMessage(String message) {
-            this.message = message;
+        private void setContent(BannerContent content) {
+            this.content = content;
         }
 
         @Override
@@ -236,62 +251,76 @@ public final class SwingBanner implements BannerView {
 
             final var canvas = Draw.smooth(graphics);
 
-            // The card fills the window less its margin — in both dimensions, so the drawn height tracks the
-            // window the same way the width does rather than a constant that could disagree with it.
+            // The pill fills the window less its margin, in both dimensions, so the drawn height tracks
+            // the window the same way the width does rather than a constant that could disagree with it.
             final var x = px(MARGIN);
             final var y = px(MARGIN);
             final var width = getWidth() - 2 * px(MARGIN);
             final var height = getHeight() - 2 * px(MARGIN);
 
-            // The card, on the dark theme, with a hairline edge.
-            canvas.setColor(Theme.BACKGROUND);
-            canvas.fillRoundRect(x, y, width, height, px(RADIUS), px(RADIUS));
-            canvas.setColor(Theme.EDGE);
-            canvas.drawRoundRect(x, y, width - 1, height - 1, px(RADIUS), px(RADIUS));
+            // Fully rounded: a radius of its own height is what makes a pill a pill at any scale.
+            canvas.setColor(Theme.ROW);
+            canvas.fillRoundRect(x, y, width, height, height, height);
+            canvas.setColor(Theme.ACCENT_EDGE);
+            canvas.drawRoundRect(x, y, width - 1, height - 1, height, height);
 
-            // The accent dot, vertically centred — the SECONDARY that says "this is on".
-            final var dotX = x + px(PAD_X);
-            final var dotY = y + (height - px(DOT)) / 2;
-            canvas.setColor(Theme.SECONDARY);
-            canvas.fillOval(dotX, dotY, px(DOT), px(DOT));
+            var cursor = x + px(PAD_X);
+            Draw.dot(canvas, cursor, getHeight(), px(DOT), Theme.ACCENT);
+            cursor += px(DOT) + px(Metrics.GAP + 4);
 
-            // The message, to the right of the dot, baseline centred in the card.
-            final var textLeft = dotX + px(DOT) + px(Metrics.GAP);
-            canvas.setColor(Theme.TEXT);
-            canvas.setFont(font(MESSAGE_SIZE, Font.BOLD));
-            final var fm = canvas.getFontMetrics();
-            final var baseline = y + (height - (fm.getAscent() + fm.getDescent())) / 2 + fm.getAscent();
-            canvas.drawString(message, textLeft, baseline);
+            cursor += drawText(canvas, headingFont(), Theme.ACCENT_HOVER, content.heading(), cursor);
+            cursor += px(Metrics.GAP + 4);
+            cursor += drawText(canvas, messageFont(), Theme.MUTED, content.message(), cursor);
+            cursor += px(Metrics.GAP + 4);
 
-            // The close cross, pinned to the card's right padding, vertically centred.
-            close = new Rectangle(
-                    x + width - px(PAD_X) - px(CLOSE_SIZE),
-                    y + (height - px(CLOSE_SIZE)) / 2,
-                    px(CLOSE_SIZE), px(CLOSE_SIZE));
-            if (closeHovered) {
-                canvas.setColor(Theme.HOVER);
-                canvas.fillRoundRect(close.x, close.y, close.width, close.height, px(RADIUS), px(RADIUS));
-            }
-            Draw.cross(canvas, close.x, close.y, close.width,
-                    closeHovered ? Theme.TEXT : Theme.MUTED, Math.max(1, px(2)));
-
+            paintButton(canvas, cursor, y, height);
             canvas.dispose();
+        }
+
+        /** One run of text, baseline-centred in the pill. @return how wide it was */
+        private int drawText(Graphics2D canvas, Font font, Color color, String text, int x) {
+            canvas.setFont(font);
+            canvas.setColor(color);
+            final var metrics = canvas.getFontMetrics();
+            canvas.drawString(text, x, baseline(metrics.getAscent(), metrics.getDescent()));
+            return metrics.stringWidth(text);
+        }
+
+        /** The way out: a filled ember pill inside the outlined one, so it reads as the thing to press. */
+        private void paintButton(Graphics2D canvas, int x, int top, int pillHeight) {
+            canvas.setFont(buttonFont());
+            final var metrics = canvas.getFontMetrics();
+            final var width = metrics.stringWidth(TURN_OFF) + 2 * px(BUTTON_PAD_X);
+            final var height = metrics.getAscent() + metrics.getDescent() + 2 * px(BUTTON_PAD_Y);
+
+            button = new Rectangle(x, top + (pillHeight - height) / 2, width, height);
+
+            canvas.setColor(buttonHovered ? Theme.ACCENT_HOVER : Theme.ACCENT);
+            canvas.fillRoundRect(button.x, button.y, button.width, button.height, height, height);
+
+            canvas.setColor(Theme.TEXT);
+            canvas.drawString(TURN_OFF, button.x + px(BUTTON_PAD_X),
+                    button.y + px(BUTTON_PAD_Y) + metrics.getAscent());
+        }
+
+        private int baseline(int ascent, int descent) {
+            return (getHeight() + ascent - descent) / 2;
         }
 
         private final class Clicks extends MouseAdapter {
 
             @Override
             public void mouseReleased(MouseEvent event) {
-                if (close != null && close.contains(event.getPoint())) {
-                    actions.dismiss();
+                if (button != null && button.contains(event.getPoint())) {
+                    actions.turnOff();
                 }
             }
 
             @Override
             public void mouseMoved(MouseEvent event) {
-                final var over = close != null && close.contains(event.getPoint());
-                if (over != closeHovered) {
-                    closeHovered = over;
+                final var over = button != null && button.contains(event.getPoint());
+                if (over != buttonHovered) {
+                    buttonHovered = over;
                     setCursor(Cursor.getPredefinedCursor(over ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
                     repaint();
                 }

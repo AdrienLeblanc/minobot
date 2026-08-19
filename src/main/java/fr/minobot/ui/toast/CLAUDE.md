@@ -5,11 +5,17 @@ discipline. What a whisper *is* and when it shows lives in `feature/notification
 this class only draws the stack and routes its clicks. See `feature/CLAUDE.md` (the whisper toast
 section) for the behaviour.
 
-It shares the design system with the overlay: **`Scale`** for every size and **`Draw`** for the smoothing
-and the close cross (`Draw.cross`, the same routine the panel's crosses use), so the two surfaces read at
-the same size on the same monitor and their shapes cannot drift apart. It keeps its own tighter card
-literals (`PADDING`, `RADIUS`, `MARGIN`) next to its own code — it is deliberately a denser surface than
-the panel, so only the shared rhythm (`Metrics.GAP`) comes from `components/`.
+It shares the design system with the overlay: **`Scale`** for every size, **`Fonts`** for its typefaces
+and **`Draw`** for the smoothing, the close cross (`Draw.cross`, the same routine the panel's crosses use)
+and the eliding, so the two surfaces read at the same size on the same monitor and their shapes cannot
+drift apart. It keeps its own tighter card literals (`PADDING`, `RADIUS`, `MARGIN`, `STRIPE`) next to its
+own code — it is deliberately a denser surface than the panel, so only the shared rhythm (`Metrics.GAP`,
+the type scale) comes from `components/`.
+
+**The amber is spent once, on the header.** `Theme.WHISPER` is what says *somebody is talking to you*
+before a word of the card is read; the stripe down the left edge is therefore grey, not amber, because a
+second use of the colour would stop the first one meaning anything. And the card is a **rectangle** where
+the auto-pass banner is a pill — see `ui/banner/CLAUDE.md`: an event and a state must not look alike.
 
 The discipline is the overlay's, and not optional:
 

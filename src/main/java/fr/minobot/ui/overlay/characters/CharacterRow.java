@@ -4,36 +4,54 @@ import fr.minobot.core.domain.Character;
 import fr.minobot.ui.CharacterEntry;
 import fr.minobot.ui.OverlayContent;
 import fr.minobot.ui.Theme;
-import fr.minobot.ui.components.labels.Chip;
 import fr.minobot.ui.overlay.characters.clazz.ClassIcons;
 import fr.minobot.ui.utils.Draw;
+import fr.minobot.ui.utils.Fonts;
 import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Scale;
 
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JList;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
 import java.awt.Component;
-import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.geom.RoundRectangle2D;
 
 /**
- * A character on a tile of their own, so a row can be picked up by eye before it is by hand: their rank
- * as read off the panel, their name, a status chip for whether their window is open, and the class they
- * are pinned to.
+ * A character on a tile of their own, so a row can be picked up by eye before it is by hand: the grip it
+ * is dragged by, its rank in the cycle, its class icon, its name, the class it is pinned to, and whether
+ * its window is open right now.
  *
- * <p>The row is divided into four columns — name, status, class, actions — by {@link RowColumns}, the one
- * layout {@link CharacterList} also reads so its click routing lands on the very cells drawn here. This
- * class draws a cell per column; how wide each column is lives in {@code RowColumns}, so the two never
- * disagree on where a cell begins.
+ * <p><strong>A character on screen wears the ember down its left edge; one who is not, does not.</strong>
+ * That stripe is the row's whole state, said before anything is read — the fill, the name, the icon and
+ * the index all step back a shade with it, so eight rows sort themselves into "playing" and "not" at a
+ * glance and the green dot only confirms it.
+ *
+ * <p>The row is divided into six columns by {@link RowColumns}, the one layout {@link CharacterList} also
+ * reads so its click routing lands on the very cells drawn here. This class draws a cell per column; how
+ * wide each column is lives in {@code RowColumns}, so the two never disagree on where a cell begins.
  */
 public final class CharacterRow extends DefaultListCellRenderer {
 
-    /** The class icon's natural side, in the class column. */
-    static final int CLASS_ICON = 18;
+    /** The ember down the left edge of a character who is on screen. */
+    private static final int STRIPE = 3;
 
-    /** The forget cross's natural side, centred in the actions column. */
-    static final int FORGET_SIZE = 16;
+    /** The status dot at the tail of a connected row. */
+    private static final int DOT = 6;
+
+    /** The forget cross at the tail of a disconnected one. */
+    private static final int FORGET_SIZE = 12;
+
+    /** The vertical breathing room between one row's tile and the next. */
+    private static final int INSET = 2;
+
+    /** What a character with no class pinned offers instead of a class. */
+    private static final String NO_CLASS = "Pick a class";
+
+    /** How much of a disconnected character's portrait is left — enough to recognise, not to read first. */
+    private static final float DIMMED = 0.45f;
 
     /** Captured at build, and never changing under a row already on screen — the surface rebuilds instead. */
     private final Scale scale;
@@ -42,13 +60,13 @@ public final class CharacterRow extends DefaultListCellRenderer {
     /** Never {@code getBackground()}: with none of its own, a component answers with its parent's. */
     private boolean highlighted;
 
-    /** The row's character, kept apart from the numbered text, to draw their class and sex from. */
+    /** The row's character, to draw their name, their rank, their class and their sex from. */
     private Character character = new Character("");
 
-    /** The rank-and-name drawn in the name cell — a mirror of the order, not stored, rebuilt each row. */
-    private String rowText = "";
+    /** The row's rank in the cycle, drawn as {@code 01} — a mirror of the order, rebuilt at each row. */
+    private String index = "";
 
-    /** Whether their game window is open: a grey chip and a forget cross say when it is not. */
+    /** Whether their game window is open: the stripe, the shade of everything, and the dot all read it. */
     private boolean connected = true;
 
     public CharacterRow(Scale scale, ClassIcons classIcons) {
@@ -57,18 +75,19 @@ public final class CharacterRow extends DefaultListCellRenderer {
     }
 
     @Override
-    public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+    public Component getListCellRendererComponent(JList<?> list, Object value, int position,
                                                   boolean selected, boolean focused) {
-        super.getListCellRendererComponent(list, value, index, selected, focused);
+        super.getListCellRendererComponent(list, value, position, selected, focused);
 
         final var entry = (CharacterEntry) value;
         character = entry.character();
         connected = entry.connected();
-        // The number is the row's rank read off the panel — 1 at the top — and no more: it is a
-        // mirror of the order, not a name, so a drag that reorders the list renumbers it for free.
-        rowText = (index + 1) + " - " + character.name();
-        // The name is drawn by hand in a fixed cell (see paintComponent), so the label paints no text
-        // of its own; only the selection state it carries is kept.
+        // The number is the row's rank read off the panel — 01 at the top — and no more: it is a
+        // mirror of the order, not a name, so a drag that reorders the list renumbers it for free. Two
+        // digits so eight rows make one column rather than a ragged edge.
+        index = String.format("%02d", position + 1);
+        // Every cell is drawn by hand below, so the label paints no text of its own; only the selection
+        // state it carries is kept.
         setText("");
 
         highlighted = selected;
@@ -79,104 +98,142 @@ public final class CharacterRow extends DefaultListCellRenderer {
     @Override
     protected void paintComponent(Graphics graphics) {
         final var canvas = Draw.smooth(graphics);
-        final var inset = scale.px(1);
         final var columns = new RowColumns(scale, getWidth());
+        final var inset = scale.px(INSET);
+        final var height = getHeight() - 2 * inset;
+        final var radius = scale.px(Metrics.RADIUS_TILE);
 
-        canvas.setColor(highlighted ? Theme.SELECTED : Theme.SURFACE);
-        canvas.fillRoundRect(0, inset, getWidth(), getHeight() - 2 * inset,
-                scale.px(Metrics.RADIUS), scale.px(Metrics.RADIUS));
+        canvas.setColor(highlighted ? Theme.HOVER : connected ? Theme.ROW : Theme.ROW_QUIET);
+        canvas.fillRoundRect(0, inset, getWidth(), height, radius, radius);
+        canvas.setColor(connected ? Theme.EDGE_STRONG : Theme.RULE);
+        canvas.drawRoundRect(0, inset, getWidth() - 1, height - 1, radius, radius);
 
-        if (highlighted) {
-            // The grip: three bars where a row is taken hold of, and a hint that it can be.
-            canvas.setColor(Theme.SECONDARY);
-            canvas.fillRoundRect(0, inset, scale.px(3), getHeight() - 2 * inset, scale.px(3), scale.px(3));
+        // The stripe, clipped to the tile's rounded left edge so it does not square the corner off.
+        final var clip = canvas.getClip();
+        canvas.setClip(new RoundRectangle2D.Float(0, inset, getWidth(), height, radius, radius));
+        canvas.setColor(connected ? Theme.ACCENT : Theme.EDGE);
+        canvas.fillRect(0, inset, scale.px(STRIPE), height);
+        canvas.setClip(clip);
+
+        Draw.grip(canvas, columns.gripX, inset, columns.gripWidth, height,
+                connected ? Theme.GHOST : Theme.EDGE_STRONG);
+        paintIndex(canvas, columns);
+
+        // The login placeholder is a window with no character yet: it has no name to give a class to, no
+        // status of its own and nothing to forget, so the columns to the right of the index stay empty.
+        if (character.name().equals(OverlayContent.LOGGING_IN)) {
+            paintName(canvas, columns, columns.iconX, columns.classX - columns.iconX);
+            canvas.dispose();
+            return;
         }
 
-        paintNameCell(canvas, columns);
-
-        // The login placeholder is a window with no character yet: it has no status of its own, no class
-        // to pin and nothing to forget, so the three columns to the right of the name stay empty for it.
-        if (!character.name().equals(OverlayContent.LOGGING_IN)) {
-            Chip.paint(scale, canvas, connected ? Theme.CONNECTED : Theme.MUTED,
-                    connected ? "Connected" : "Disconnected", columns.statusX, getHeight());
-            paintClassCell(canvas, columns);
-            paintActionsCell(canvas, columns);
-        }
+        paintIcon(canvas, columns);
+        paintName(canvas, columns, columns.nameX, columns.nameWidth);
+        paintClass(canvas, columns);
+        paintStatus(canvas, columns);
 
         canvas.dispose();
     }
 
     /**
-     * The rank and name, in the name column, elided if too long so it stays inside its cell instead of
-     * running into the status chip. A disconnected character is dimmed to the same grey as its chip —
-     * still legible, plainly not playing right now.
+     * The class icon — or, until a class is pinned, the empty frame where one will go.
+     *
+     * <p>The frame is dashed and holds a {@code +}: the row keeps its shape either way, so a list of
+     * eight does not gain a ragged column the day one character is configured and another is not.
      */
-    private void paintNameCell(Graphics2D canvas, RowColumns columns) {
-        final var pad = scale.px(Metrics.GAP + 2);
-        final var font = scale.font(Metrics.BODY, Metrics.PLAIN);
-        final var fm = canvas.getFontMetrics(font);
-        canvas.setFont(font);
-        canvas.setColor(connected ? Theme.TEXT : Theme.MUTED);
-        final var room = columns.nameWidth - pad - scale.px(Metrics.GAP);
-        canvas.drawString(elide(fm, rowText, room),
-                columns.nameX + pad, (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
-    }
-
-    /**
-     * The text, cut with a trailing ellipsis if it does not fit {@code maxWidth}, so a long name stays
-     * inside its cell instead of spilling into the chip that opens the next column.
-     */
-    private static String elide(FontMetrics fm, String text, int maxWidth) {
-        if (fm.stringWidth(text) <= maxWidth) {
-            return text;
-        }
-        final var room = maxWidth - fm.stringWidth("…");
-        var end = text.length();
-        while (end > 0 && fm.stringWidth(text.substring(0, end)) > room) {
-            end--;
-        }
-        return text.substring(0, end) + "…";
-    }
-
-    /**
-     * The class in its column, right-aligned against the column's edge: the icon and the class's label
-     * once one is pinned, a muted {@code pick class…} until then.
-     */
-    private void paintClassCell(Graphics2D canvas, RowColumns columns) {
-        final var height = getHeight();
-        final var right = columns.classX + columns.classWidth - scale.px(Metrics.GAP);
-        final var metrics = canvas.getFontMetrics(scale.font(Metrics.SMALL, Metrics.PLAIN));
-        final var baseline = (height + metrics.getAscent() - metrics.getDescent()) / 2;
+    private void paintIcon(Graphics2D canvas, RowColumns columns) {
+        final var size = columns.iconWidth;
+        final var top = (getHeight() - size) / 2;
 
         final var clazz = character.clazz();
-        if (clazz == null) {
-            canvas.setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
-            canvas.setColor(Theme.MUTED);
-            final var text = "Pick class…";
-            canvas.drawString(text, right - metrics.stringWidth(text), baseline);
+        if (clazz != null) {
+            // A character who is not on screen has their portrait faded with everything else on the row:
+            // the icon is the loudest thing on it, and left at full strength it would be the one part of
+            // a sleeping row still shouting.
+            final var faded = (Graphics2D) canvas.create();
+            if (!connected) {
+                faded.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, DIMMED));
+            }
+            classIcons.paint(scale, faded, clazz, character.sexOrDefault(), columns.iconX, top, size);
+            faded.dispose();
             return;
         }
 
-        final var size = scale.px(CLASS_ICON);
-        final var iconX = right - size;
-        classIcons.paint(scale, canvas, clazz, character.sexOrDefault(), iconX, (height - size) / 2, size);
+        final var dash = scale.px(3);
+        final var radius = scale.px(Metrics.RADIUS_CHIP);
+        canvas.setColor(Theme.EDGE_STRONG);
+        canvas.setStroke(new BasicStroke(Math.max(1, scale.px(1)), BasicStroke.CAP_BUTT,
+                BasicStroke.JOIN_MITER, 1f, new float[]{dash, dash}, 0f));
+        canvas.drawRoundRect(columns.iconX, top, size - 1, size - 1, radius, radius);
 
-        canvas.setFont(scale.font(Metrics.SMALL, Metrics.BOLD));
-        canvas.setColor(Theme.TEXT);
-        canvas.drawString(clazz.label(), iconX - scale.px(8) - metrics.stringWidth(clazz.label()), baseline);
+        canvas.setFont(scale.font(Fonts.MEDIUM, Metrics.BODY));
+        canvas.setColor(Theme.FAINT);
+        final var fm = canvas.getFontMetrics();
+        canvas.drawString("+", columns.iconX + (size - fm.stringWidth("+")) / 2,
+                baseline(fm.getAscent(), fm.getDescent()));
+    }
+
+    /** The rank, monospaced so eight of them line up, in the ember while the character is on screen. */
+    private void paintIndex(Graphics2D canvas, RowColumns columns) {
+        final var font = scale.font(connected ? Fonts.MONO_BOLD : Fonts.MONO, Metrics.SMALL);
+        canvas.setFont(font);
+        canvas.setColor(connected ? Theme.ACCENT_HOVER : Theme.GHOST);
+        final var fm = canvas.getFontMetrics();
+        canvas.drawString(index, columns.indexX, baseline(fm.getAscent(), fm.getDescent()));
     }
 
     /**
-     * The actions column: the forget cross, centred, for a disconnected character; empty for a connected
-     * one. The cell is kept either way (see {@link RowColumns}), so the class column to its left does not
-     * shift as a character connects or drops.
+     * The name, elided if too long so it stays inside its cell instead of running into the class beside
+     * it. A disconnected character is dimmed — still legible, plainly not playing right now.
      */
-    private void paintActionsCell(Graphics2D canvas, RowColumns columns) {
+    private void paintName(Graphics2D canvas, RowColumns columns, int x, int width) {
+        final var font = scale.font(connected ? Fonts.SEMIBOLD : Fonts.MEDIUM, Metrics.BODY);
+        canvas.setFont(font);
+        canvas.setColor(connected ? Theme.TEXT : Theme.FAINT);
+        final var fm = canvas.getFontMetrics();
+        canvas.drawString(Draw.elide(fm, character.name(), width), x,
+                baseline(fm.getAscent(), fm.getDescent()));
+    }
+
+    /**
+     * The class in its column: its name once one is pinned, and the ember invitation to pick one until
+     * then. The invitation is the only ember on an otherwise finished row, which is what makes an
+     * unconfigured character findable in a list of eight.
+     */
+    private void paintClass(Graphics2D canvas, RowColumns columns) {
+        final var clazz = character.clazz();
+        final var font = scale.font(clazz == null ? Fonts.SEMIBOLD : Fonts.MEDIUM, Metrics.SMALL);
+        canvas.setFont(font);
+        canvas.setColor(clazz == null ? Theme.ACCENT_HOVER : connected ? Theme.FAINT : Theme.GHOST);
+
+        final var fm = canvas.getFontMetrics();
+        final var text = clazz == null ? NO_CLASS : clazz.label();
+        canvas.drawString(Draw.elide(fm, text, columns.classWidth), columns.classX,
+                baseline(fm.getAscent(), fm.getDescent()));
+    }
+
+    /**
+     * The tail of the row: a green dot for a character on screen, a forget cross for one who is not.
+     *
+     * <p>The two never both appear, and that is the point — the cross is offered exactly where it can do
+     * no harm. A connected character would come straight back from the list they were dropped from, so
+     * there is nothing to forget while the dot is lit.
+     */
+    private void paintStatus(Graphics2D canvas, RowColumns columns) {
         if (connected) {
+            final var size = scale.px(DOT);
+            Draw.dot(canvas, columns.statusX + (columns.statusWidth - size) / 2, getHeight(), size,
+                    Theme.CONNECTED);
             return;
         }
+
         final var size = scale.px(FORGET_SIZE);
-        Draw.cross(canvas, columns.actionsX + (columns.actionsWidth - size) / 2,
-                (getHeight() - size) / 2, size, Theme.MUTED, scale.px(2));
+        Draw.cross(canvas, columns.statusX + (columns.statusWidth - size) / 2,
+                (getHeight() - size) / 2, size, Theme.GHOST, Math.max(1, scale.px(2)));
+    }
+
+    /** The baseline that centres a line of text in the row, whatever the typeface's own metrics. */
+    private int baseline(int ascent, int descent) {
+        return (getHeight() + ascent - descent) / 2;
     }
 }

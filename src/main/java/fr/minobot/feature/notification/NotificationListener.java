@@ -1,5 +1,6 @@
 package fr.minobot.feature.notification;
 
+import fr.minobot.core.ActivityLog;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
 import fr.minobot.core.WindowManager;
@@ -32,20 +33,22 @@ public final class NotificationListener {
 
     private final WindowManager windows;
     private final FocusManager focus;
+    private final ActivityLog activity;
 
     /** Whether a toast is being handled silently elsewhere, in which case this listener does not focus. */
     private final Predicate<Notification> handledSilently;
 
     public NotificationListener(WindowManager windows, FocusManager focus,
-                                NotificationManager notifications) {
-        this(windows, focus, notifications, _ -> false);
+                                NotificationManager notifications, ActivityLog activity) {
+        this(windows, focus, notifications, activity, _ -> false);
     }
 
     public NotificationListener(WindowManager windows, FocusManager focus,
-                                NotificationManager notifications,
+                                NotificationManager notifications, ActivityLog activity,
                                 Predicate<Notification> handledSilently) {
         this.windows = windows;
         this.focus = focus;
+        this.activity = activity;
         this.handledSilently = handledSilently;
 
         notifications.register(this::onNotification);
@@ -79,7 +82,7 @@ public final class NotificationListener {
         }
 
         windows.findWindow(character).ifPresentOrElse(
-                this::goTo,
+                window -> goTo(window, notification.message()),
                 () -> log.warn("No window found for the character '{}'.", character));
     }
 
@@ -89,8 +92,13 @@ public final class NotificationListener {
      * <p>A toast is a convenience, and the group invitation relay waits on these very toasts: taking
      * the screen in the middle of one would send the rest of its {@code /invite} to this character's
      * window.
+     *
+     * <p>Only a move that actually happened is noted: one that stood aside moved nobody, and a panel
+     * claiming otherwise would be a panel the player stops believing.
      */
-    private void goTo(GameWindow character) {
-        focus.focusIfIdle(character.hwnd());
+    private void goTo(GameWindow character, String reason) {
+        if (focus.focusIfIdle(character.hwnd())) {
+            activity.record("Switched to " + character.name(), reason);
+        }
     }
 }

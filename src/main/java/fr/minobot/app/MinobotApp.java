@@ -46,6 +46,14 @@ public final class MinobotApp {
     private final NotificationManager notificationManager;
     private final FlashSuppressor flashSuppressor;
 
+    /**
+     * What every feature writes to and the panel reads back — the two records of what happened while the
+     * player was looking elsewhere. One instance each, shared: a feature with a log of its own would be a
+     * feature the panel cannot show.
+     */
+    private final ActivityLog activityLog;
+    private final WhisperLog whisperLog;
+
     private final MultiWindowClicker multiClicker;
     private final WindowCycler windowCycler;
     private final WindowReorder windowReorder;
@@ -70,39 +78,47 @@ public final class MinobotApp {
         log.info("=== Minobot starting (app dir: {}) ===", baseDirectory);
         log.info("Using config: {}", configPath);
 
+        this.activityLog = new ActivityLog();
+        this.whisperLog = new WhisperLog();
+
         this.systemTray = new SystemTrayManager(this::stop);
-        this.windowManager = new WindowManager(api, settings);
+        this.windowManager = new WindowManager(api, settings, activityLog);
         this.inputSimulator = new InputSimulator();
         this.keyboardMonitor = new KeyboardMonitor(api);
         this.focusManager = new FocusManager(api, inputSimulator);
         this.notificationManager = new NotificationManager();
         this.flashSuppressor = new FlashSuppressor(api);
 
-        this.multiClicker = new MultiWindowClicker(api, windowManager, focusManager, flashSuppressor, settings);
-        this.windowCycler = new WindowCycler(api, windowManager, focusManager);
-        this.windowReorder = new WindowReorder(api, windowManager, focusManager);
-        this.groupManager = new GroupManager(windowManager, inputSimulator, focusManager, notificationManager);
-        this.overlay = new OverlayController(api, windowManager, settings, keyboardMonitor, SwingOverlay::new);
+        this.multiClicker = new MultiWindowClicker(
+                api, windowManager, focusManager, flashSuppressor, settings, activityLog);
+        this.windowCycler = new WindowCycler(api, windowManager, focusManager, activityLog);
+        this.windowReorder = new WindowReorder(api, windowManager, focusManager, activityLog);
+        this.groupManager = new GroupManager(
+                windowManager, inputSimulator, focusManager, notificationManager, activityLog);
+        this.overlay = new OverlayController(api, windowManager, settings, keyboardMonitor, focusManager,
+                activityLog, whisperLog, SwingOverlay::new);
 
         // Answers a trade between two of the player's own characters in place. Built before the
         // auto-focus so the auto-focus can consult it and stand aside for the toasts it takes.
-        final var exchangeAccepter = new ExchangeAccepter(
-                api, windowManager, inputSimulator, focusManager, notificationManager, settings);
+        final var exchangeAccepter = new ExchangeAccepter(api, windowManager, inputSimulator,
+                focusManager, notificationManager, settings, activityLog);
 
-        // Shows a whisper as a quiet toast at the left of the game rather than pulling the screen to it.
-        // Also built before the auto-focus, which stands aside for the whispers it takes.
-        final var whisperToaster = new WhisperToaster(
-                api, windowManager, focusManager, settings, notificationManager, SwingToastStack::new);
+        // Shows a whisper as a quiet toast at the left of the game rather than pulling the screen to it,
+        // and writes it to the whisper log so the panel can still list it once the card has faded. Also
+        // built before the auto-focus, which stands aside for the whispers it takes.
+        final var whisperToaster = new WhisperToaster(api, windowManager, focusManager, settings,
+                notificationManager, whisperLog, SwingToastStack::new);
 
         // Registers itself with the notification manager; it has no hotkey of its own. It stands aside
         // for a toast answered silently elsewhere — an internal trade, a whisper — and takes the player
         // everywhere else. The predicate is the OR of those features' claims.
-        new NotificationListener(windowManager, focusManager, notificationManager,
+        new NotificationListener(windowManager, focusManager, notificationManager, activityLog,
                 notification -> exchangeAccepter.claims(notification) || whisperToaster.claims(notification));
 
         // Ends each character's turn while the Auto-pass switch is on, reading it at every toast. The
         // switch is flipped by the overlay or by the AUTO_PASS_TURN hotkey (bound below like any other).
-        new TurnPasser(windowManager, inputSimulator, focusManager, notificationManager, settings);
+        new TurnPasser(windowManager, inputSimulator, focusManager, notificationManager, settings,
+                activityLog);
 
         // The visible half of the same switch: a standing banner over the game while auto-pass is on. It
         // answers no toast — it watches the switch through Settings.onChange and follows the game window.

@@ -10,28 +10,42 @@ import fr.minobot.ui.components.buttons.CloseCross;
 import fr.minobot.ui.components.buttons.PrimaryButton;
 import fr.minobot.ui.components.buttons.SecondaryButton;
 import fr.minobot.ui.components.containers.Card;
-import fr.minobot.ui.components.labels.SectionHeader;
-import fr.minobot.ui.overlay.characters.CharacterList;
+import fr.minobot.ui.overlay.characters.TeamCard;
 import fr.minobot.ui.overlay.characters.clazz.ClassIcons;
 import fr.minobot.ui.overlay.characters.clazz.ClassPicker;
+import fr.minobot.ui.overlay.console.ConsoleCard;
 import fr.minobot.ui.overlay.keybinds.KeybindsDrawer;
-import fr.minobot.ui.overlay.preferences.Preferences;
 import fr.minobot.ui.utils.Metrics;
 import fr.minobot.ui.utils.Scale;
 import fr.minobot.win32.Rect;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import javax.swing.*;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JComponent;
+import javax.swing.JPanel;
+import javax.swing.JWindow;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GraphicsDevice;
+import java.awt.GraphicsEnvironment;
 
 /**
  * The panel, in Swing — the orchestrator that owns the window and lays the sections out on it. The
- * drawing of each part lives in its own class ({@link LogoTile}, {@link CharacterList},
- * {@link KeybindsDrawer}, {@link ClassPicker}, {@link Preferences}, {@link SizeSlider}); this wires
- * them onto the {@link Sheet} and keeps the panel's transient state — whether the keybinds drawer is
- * open, and which character the class picker is open for.
+ * drawing of each part lives in its own class ({@link HeaderBar}, {@link TeamCard}, {@link ConsoleCard},
+ * {@link KeybindsDrawer}, {@link ClassPicker}, {@link SizeSlider}); this wires them onto the
+ * {@link Sheet} and keeps the panel's transient state — whether the keybinds drawer is open, and which
+ * character the class picker is open for.
+ *
+ * <p><strong>The panel is two halves and one line.</strong> The header names the surface and shows the
+ * key that summons it; the {@code TeamCard} on the left is what the player <em>edits</em>; the
+ * {@code ConsoleCard} on the right is what Minobot has been <em>doing</em>. The team is given a fixed
+ * width and the console takes the rest, so a long character name never moves the console.
  *
  * <p><strong>It must never take the foreground.</strong> There is one screen, and
  * {@code core.FocusManager} is what keeps the features from fighting over it: a panel that stole the
@@ -58,38 +72,35 @@ import java.awt.*;
  */
 public final class SwingOverlay implements OverlayView {
 
-    private static final Logger log = LoggerFactory.getLogger(SwingOverlay.class);
-
     /**
-     * The card, at scale 1. The window is as wide as the game; the card is not.
-     *
-     * <p>The drawer beside it has no width of its own: it takes the one its rows need. A number here
-     * would be a number to keep in step with the longest feature label, and it would lose.
+     * The sheet, at scale 1: the team's fixed width, the console's minimum, the gutter between them and
+     * the padding around them. A number of its own here would be a number to keep in step with three
+     * others, and it would lose.
      */
-    private static final int CARD_WIDTH = 420;
+    private static final int SHEET_WIDTH =
+            TeamCard.WIDTH + Metrics.GUTTER + ConsoleCard.WIDTH + 2 * Metrics.PADDING;
 
-    /** The close cross in the card's corner: the mouse's way out, where the hotkey is the keyboard's. */
-    private static final int CLOSE_SIZE = 24;
+    /** The close cross in the header: the mouse's way out, where the hotkey is the keyboard's. */
+    private static final int CLOSE_SIZE = 28;
 
-    /** Room for about five characters; beyond that the list scrolls rather than the card growing. */
-    private static final int CHARACTER_LIST_HEIGHT = 130;
+    /** Room for eight characters; beyond that the list scrolls rather than the sheet growing. */
+    private static final int CHARACTER_LIST_HEIGHT = 264;
 
     private final OverlayActions actions;
 
     /** Touched on the event dispatch thread only. Built on first show: there may never be one. */
     private JWindow window;
-    private Font baseFont;
 
     // The sections, each drawing one part of the panel. Built once, on first show; asked for a fresh
     // component at each lay, at the scale of the moment.
-    private LogoTile logoTile;
-    private CharacterList characterList;
+    private HeaderBar header;
+    private TeamCard team;
+    private ConsoleCard console;
     private KeybindsDrawer keybindsDrawer;
     private ClassPicker classPicker;
-    private Preferences preferences;
     private SizeSlider sizeSlider;
 
-    private JPanel card;
+    private JPanel sheet;
     private JPanel keybinds;
     private JComponent classPickerComp;
 
@@ -100,7 +111,7 @@ public final class SwingOverlay implements OverlayView {
      */
     private String classPickerFor;
 
-    /** What every size on the cards was computed with. A change to it is a card built again. */
+    /** What every size on the sheet was computed with. A change to it is a sheet built again. */
     private Scale scale;
 
     /**
@@ -172,8 +183,8 @@ public final class SwingOverlay implements OverlayView {
             build();
         }
 
-        // The cards are built again rather than patched: every size on them was computed with the scale
-        // of the moment — the paddings, the fonts, the height of a row — and walking them all to correct
+        // The sheet is built again rather than patched: every size on it was computed with the scale of
+        // the moment — the paddings, the fonts, the height of a row — and walking them all to correct
         // them would be the walk that builds them.
         lay(content, content.scale(), bounds);
 
@@ -190,17 +201,17 @@ public final class SwingOverlay implements OverlayView {
         window.getContentPane().repaint();
     }
 
-    /** The cards, at one scale: built, filled, and shrunk to the room the game leaves them. */
+    /** The sheet, at one scale: built, filled, and shrunk to the room the game leaves it. */
     private void lay(OverlayContent content, double factor, Rect bounds) {
-        this.scale = new Scale(factor, baseFont);
+        this.scale = new Scale(factor);
 
-        card = characterCard(content);
+        sheet = sheet(content);
         keybinds = keybindsDrawer.build(scale, content);
         keybinds.setVisible(keybindsOpen);
         classPickerComp = classPickerFor == null ? null : classPicker.build(scale, classPickerFor, content);
         window.setContentPane(new Sheet());
 
-        characterList.fill(content);
+        team.fill(content);
 
         shrinkListToFit(bounds);
     }
@@ -214,14 +225,12 @@ public final class SwingOverlay implements OverlayView {
 
         translucentIfSupported();
 
-        baseFont = new JLabel().getFont();
-
         final var classIcons = new ClassIcons();
-        logoTile = new LogoTile();
-        characterList = new CharacterList(actions, classIcons, this::openClassPicker);
-        keybindsDrawer = new KeybindsDrawer(actions, this::redraw);
+        header = new HeaderBar();
+        team = new TeamCard(actions, classIcons, this::openClassPicker);
+        console = new ConsoleCard(actions);
+        keybindsDrawer = new KeybindsDrawer(actions, this::redraw, this::closeKeybinds);
         classPicker = new ClassPicker(actions, classIcons, this::dismissClassPicker, this::chooseClass);
-        preferences = new Preferences(actions);
         sizeSlider = new SizeSlider(actions);
     }
 
@@ -237,28 +246,34 @@ public final class SwingOverlay implements OverlayView {
         }
     }
 
-    // ------------------------------------------------------------------ the card
+    // ------------------------------------------------------------------ the sheet
 
-    /** The panel proper: the application, the characters, the combat switches, and the size. */
-    private JPanel characterCard(OverlayContent content) {
-        final var innerWidth = px(CARD_WIDTH - 2 * Metrics.PADDING);
+    /** The panel proper: the header, the team beside the console, and the size at its foot. */
+    private JPanel sheet(OverlayContent content) {
+        final var padding = px(Metrics.PADDING);
 
-        final var card = Card.column(scale, Theme.BACKGROUND);
-        card.setBorder(new EmptyBorder(px(Metrics.PADDING), px(Metrics.PADDING),
-                px(Metrics.PADDING), px(Metrics.PADDING)));
+        final var card = Card.sheet(scale, Theme.BACKGROUND).pinnedTo(px(SHEET_WIDTH));
+        card.setBorder(new EmptyBorder(padding, padding, padding, padding));
 
-        card.add(logoTile.build(scale, innerWidth));
+        card.add(header.build(scale, content, CloseCross.button(scale, this::hide, px(CLOSE_SIZE))));
         card.add(Box.createVerticalStrut(px(Metrics.PADDING)));
-        card.add(new SectionHeader(scale, "Characters", keybindsButton()));
-        card.add(characterList.build(scale, innerWidth));
-        card.add(Box.createVerticalStrut(px(Metrics.GAP)));
-        card.add(characterList.footer(scale));
-
-        preferences.addTo(card, scale, content);
-
+        card.add(body(content));
         card.add(Box.createVerticalStrut(px(Metrics.PADDING)));
         card.add(sizeSlider.build(scale));
         return card;
+    }
+
+    /** The two halves, side by side: the team the player edits, the console it acts through. */
+    private JComponent body(OverlayContent content) {
+        final var row = new JPanel();
+        row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
+        row.setOpaque(false);
+        row.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        row.add(team.build(scale, content));
+        row.add(Box.createHorizontalStrut(px(Metrics.GUTTER)));
+        row.add(console.build(scale, content, keybindsButton()));
+        return row;
     }
 
     /** The drawer's switch. It says which way it will go, which is all a chevron is for. */
@@ -271,6 +286,12 @@ public final class SwingOverlay implements OverlayView {
             redraw();
         });
         return button;
+    }
+
+    /** The drawer's own close cross lands here — the same flip its switch does, from the other side. */
+    private void closeKeybinds() {
+        keybindsOpen = false;
+        redraw();
     }
 
     // ------------------------------------------------------------------ the class picker's open state
@@ -295,19 +316,19 @@ public final class SwingOverlay implements OverlayView {
         actions.assignClass(character, clazz);
     }
 
-    // ------------------------------------------------------------------ where the cards sit
+    // ------------------------------------------------------------------ where the sheet sits
 
     /**
-     * The dim sheet over the game, with the cards resting on it.
+     * The dim over the game, with the sheet resting on it.
      *
      * <p>The window covers the whole client area, so the game is dimmed rather than hidden — the player
-     * has to see the character they are configuring. The card is placed <strong>in the middle of it</strong>:
+     * has to see the character they are configuring. The sheet is placed <strong>in the middle of it</strong>:
      * it is where the player is already looking, and a panel that opens under the eye is a panel that
      * needs no hunting for. The keybinds drawer hangs off its right edge.
      *
-     * <p>The card gives up the middle for one reason only: a drawer that would otherwise open past the
+     * <p>The sheet gives up the middle for one reason only: a drawer that would otherwise open past the
      * right edge of the game. It then slides left by exactly what the drawer is short of, and no more.
-     * A card that stayed centred there would have to be <em>shrunk</em> for the drawer to fit beside it,
+     * A sheet that stayed centred there would have to be <em>shrunk</em> for the drawer to fit beside it,
      * and a panel that changes size when a button is clicked reads as a bug; a panel that shifts by an
      * inch reads as a drawer opening.
      *
@@ -316,43 +337,35 @@ public final class SwingOverlay implements OverlayView {
      */
     private final class Sheet extends JPanel {
 
-        /** Added ahead of the card so it sits on top of the corner it rests in. */
-        private final JButton close = CloseCross.button(scale, SwingOverlay.this::hide);
-
         private Sheet() {
             setLayout(null);
             setOpaque(false);
             // Swing paints index 0 last, so the first added sits on top. The picker, while open, must
-            // cover everything and be the only thing to click — so it goes in first, ahead of the close
-            // cross, which itself goes ahead of the card it rests in the corner of.
+            // cover everything and be the only thing to click — so it goes in first, ahead of the sheet
+            // and the drawer beside it.
             if (classPickerComp != null) {
                 add(classPickerComp);
             }
-            add(close);
-            add(card);
+            add(sheet);
             add(keybinds);
         }
 
         @Override
         public void doLayout() {
-            final var main = card.getPreferredSize();
+            final var main = sheet.getPreferredSize();
             final var drawer = keybinds.getPreferredSize();
 
             final var top = (getHeight() - main.height) / 2;
             var left = (getWidth() - main.width) / 2;
 
             if (keybinds.isVisible()) {
-                final var past = left + main.width + px(Metrics.GAP) + drawer.width
+                final var past = left + main.width + px(Metrics.GUTTER) + drawer.width
                         - (getWidth() - px(Metrics.PADDING));
                 left = Math.max(px(Metrics.PADDING), left - Math.max(0, past));
             }
 
-            card.setBounds(left, top, main.width, main.height);
-            keybinds.setBounds(left + main.width + px(Metrics.GAP), top, drawer.width, drawer.height);
-
-            // Pinned to the card's top-right corner, and it follows when the card slides for the drawer.
-            final var size = px(CLOSE_SIZE);
-            close.setBounds(left + main.width - px(Metrics.GAP) - size, top + px(Metrics.GAP), size, size);
+            sheet.setBounds(left, top, main.width, main.height);
+            keybinds.setBounds(left + main.width + px(Metrics.GUTTER), top, drawer.width, drawer.height);
 
             // The picker covers the whole sheet: it dims what is behind it and catches every click.
             if (classPickerComp != null) {
@@ -372,10 +385,10 @@ public final class SwingOverlay implements OverlayView {
     }
 
     /**
-     * The list of characters gives way first when the cards are taller than the game.
+     * The list of characters gives way first when the sheet is taller than the game.
      *
-     * <p>It is the one part of them that can be short and still be usable, because it scrolls — and it
-     * stands above the controls, which must not be pushed off the bottom of the screen.
+     * <p>It is the one part of the panel that can be short and still be usable, because it scrolls — and
+     * it stands above the size slider, which must not be pushed off the bottom of the screen.
      */
     private void shrinkListToFit(Rect bounds) {
         final var full = px(CHARACTER_LIST_HEIGHT);
@@ -383,21 +396,21 @@ public final class SwingOverlay implements OverlayView {
 
         final var overflow = tallest() - room(bounds).height;
         if (overflow > 0) {
-            listHeight(Math.max(characterList.rowHeight(), full - overflow));
+            listHeight(Math.max(team.rowHeight(), full - overflow));
         }
     }
 
     private void listHeight(int height) {
-        characterList.resizeTo(height);
-        card.revalidate();
+        team.resizeTo(height);
+        sheet.revalidate();
     }
 
     /**
      * The scale the game's window can actually hold — the player's, or less.
      *
-     * <p>The cards are scaled and the window is not: it is the game's, and the game may be a small
-     * window on a large screen. Past a certain size the cards no longer fit in it, and what falls off
-     * the edge is the slider — <strong>the one control that could bring them back</strong>. So the panel
+     * <p>The sheet is scaled and the window is not: it is the game's, and the game may be a small
+     * window on a large screen. Past a certain size the sheet no longer fits in it, and what falls off
+     * the edge is the slider — <strong>the one control that could bring it back</strong>. So the panel
      * never grows past the game it covers, and the slider reads what the player is actually looking at.
      */
     private double scaleThatFits(Rect bounds) {
@@ -412,24 +425,24 @@ public final class SwingOverlay implements OverlayView {
         return Math.max(Config.MIN_OVERLAY_SCALE, scale.factor() * fits);
     }
 
-    /** How tall the panel stands: the card, or the drawer beside it if that one is taller. */
+    /** How tall the panel stands: the sheet, or the drawer beside it if that one is taller. */
     private int tallest() {
-        return Math.max(card.getPreferredSize().height,
+        return Math.max(sheet.getPreferredSize().height,
                 keybinds.isVisible() ? keybinds.getPreferredSize().height : 0);
     }
 
     /**
-     * How wide it stands: the card, and the drawer alongside it when that one is open. The card slides
+     * How wide it stands: the sheet, and the drawer alongside it when that one is open. The sheet slides
      * off-centre to make room rather than the two overlapping, so their widths simply add up.
      */
     private int widest() {
         final var drawer = keybinds.isVisible()
-                ? px(Metrics.GAP) + keybinds.getPreferredSize().width
+                ? px(Metrics.GUTTER) + keybinds.getPreferredSize().width
                 : 0;
-        return card.getPreferredSize().width + drawer;
+        return sheet.getPreferredSize().width + drawer;
     }
 
-    /** What the game leaves the cards, once the sheet has kept its margin around them. */
+    /** What the game leaves the sheet, once the dim has kept its margin around it. */
     private Dimension room(Rect bounds) {
         return new Dimension(bounds.width() - 2 * px(Metrics.PADDING),
                 bounds.height() - 2 * px(Metrics.PADDING));

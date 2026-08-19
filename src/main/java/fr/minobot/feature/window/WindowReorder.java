@@ -1,5 +1,6 @@
 package fr.minobot.feature.window;
 
+import fr.minobot.core.ActivityLog;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.WindowManager;
 import fr.minobot.core.domain.GameWindow;
@@ -35,13 +36,15 @@ public final class WindowReorder {
     private final WindowApi api;
     private final WindowManager windows;
     private final FocusManager focus;
+    private final ActivityLog activity;
 
     private final AtomicBoolean running = new AtomicBoolean();
 
-    public WindowReorder(WindowApi api, WindowManager windows, FocusManager focus) {
+    public WindowReorder(WindowApi api, WindowManager windows, FocusManager focus, ActivityLog activity) {
         this.api = api;
         this.windows = windows;
         this.focus = focus;
+        this.activity = activity;
     }
 
     /** Takes every character off the screen, then brings them back in the configured order. */
@@ -74,6 +77,7 @@ public final class WindowReorder {
             }
 
             log.info("Taskbar reorder complete.");
+            activity.record("Taskbar reordered", characters.size() + " characters");
         } catch (InterruptedException _) {
             Thread.currentThread().interrupt();
             log.warn("The reorder sequence was interrupted; bringing the characters back.");

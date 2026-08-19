@@ -48,15 +48,25 @@ only leaves it keyless (the switch still works) instead of disabling the feature
 to `OverlayController.flipAutoPassTurn`, so a press and the panel's pill land on the same `settings.update`
 and stay in step. The *key combination* is persisted like every other keybind; the on/off *state* is not.
 
-`AutoPassBanner` is the **visible half**: while the switch is on it hangs a standing card at the
-**top-centre** of the foreground game reading *"Auto-pass turns enabled."*, so a feature that otherwise
-shows nothing but turns ending by themselves is unmistakably on. It answers **no toast** — it watches the
-switch through `Settings.onChange` and, like the panel and the whisper stack, **follows** the game window
-on a 30 ms virtual-thread loop. Its card carries a **close cross**, but the cross **only hides** the
-banner (`BannerActions.dismiss`); the turn-passer keeps running — stopping it is the switch's or the
-hotkey's job. Once dismissed it stays hidden until the switch is turned **off then on again**. Its UI is
-cut on the same interface/impl seam as the others (`ui/BannerView`, `ui/BannerContent`, `ui/BannerActions`,
-`ui/banner/SwingBanner`), so all the deciding is tested with no screen (`AutoPassBannerTest`).
+`AutoPassBanner` is the **visible half**: while the switch is on it hangs an ember **pill** at the
+**top-centre** of the foreground game — a live dot, `AUTO-PASS TURNS`, and *every character passes* — so a
+feature that otherwise shows nothing but turns ending by themselves is unmistakably on. It answers **no
+toast**: it watches the switch through `Settings.onChange` and, like the panel and the whisper stack,
+**follows** the game window on a 30 ms virtual-thread loop.
+
+**The banner cannot be dismissed, only obeyed.** Its one button is *Turn off*, and it switches the feature
+off (`BannerActions.turnOff` → `settings.update`, the same `auto_pass_turn` the overlay's pill and the
+hotkey flip); the banner then goes because the switch went, not the other way round. There is deliberately
+**no cross that hides the sign and leaves the turns ending**: a player who has stepped away comes back to
+a game that has been playing itself, and the only thing telling them so is this pill — a version they
+could have waved away an hour earlier would be worse than no banner at all. (It *did* work that way once,
+with a `dismissed` flag and a cross; the flag is gone, and so is the state where the feature ran unsigned.)
+
+Its UI is cut on the same interface/impl seam as the others (`ui/BannerView`, `ui/BannerContent`,
+`ui/BannerActions`, `ui/banner/SwingBanner`), so all the deciding is tested with no screen
+(`AutoPassBannerTest`). `BannerContent` carries **two** strings — the heading names the feature in caps for
+the glance, the message spells out the consequence for the player who stops — because neither sentence
+does both jobs well.
 
 ## Auto-accept trades — no hotkey, the overlay's switch
 
@@ -109,6 +119,13 @@ card **dies of old age**, so there is no timer thread per card. The stack is dra
 the panel's, so it reads at the same size on the same monitor. It is **always active**: a whisper always
 toasts instead of focusing, so there is no `Config` field and no switch — it is a direct replacement, and
 adds nothing to the player's settings.
+
+**The card fades; the whisper does not.** Every whisper it raises is first written to `core.WhisperLog`,
+and the card is raised **under the id the log minted** — so the overlay can list the same message long
+after its ten seconds are up, and a click there is the same jump the card offered. The two lifetimes are
+why the log is not a field of this class: a card is a thing on screen, a whisper is a thing that happened.
+Ten seconds is the right life for a card in the corner of a fight and the wrong one for the line itself,
+which the game gives back only by switching to that character and reading the chat.
 
 ## Notification auto-focus — no hotkey
 

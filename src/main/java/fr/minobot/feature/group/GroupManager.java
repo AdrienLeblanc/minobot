@@ -1,5 +1,6 @@
 package fr.minobot.feature.group;
 
+import fr.minobot.core.ActivityLog;
 import fr.minobot.core.FocusManager;
 import fr.minobot.core.NotificationManager;
 import fr.minobot.core.WindowManager;
@@ -55,6 +56,7 @@ public final class GroupManager {
     private final WindowManager windows;
     private final Input input;
     private final FocusManager focus;
+    private final ActivityLog activity;
 
     private final AtomicBoolean running = new AtomicBoolean();
 
@@ -62,10 +64,11 @@ public final class GroupManager {
     private final AtomicReference<Confirmation> awaited = new AtomicReference<>();
 
     public GroupManager(WindowManager windows, Input input, FocusManager focus,
-                        NotificationManager notifications) {
+                        NotificationManager notifications, ActivityLog activity) {
         this.windows = windows;
         this.input = input;
         this.focus = focus;
+        this.activity = activity;
 
         notifications.register(this::onNotification);
     }
@@ -112,11 +115,15 @@ public final class GroupManager {
             if (!inviteAndAccept(characters.get(step), invitee)) {
                 log.error("The relay stops at '{}'; the characters after it stay out of the group.",
                         invitee.name());
+                // Worth a line of its own: the group is half-formed, and the player is looking at a
+                // window that gives no sign of it. The step it stopped at is where they must look.
+                activity.record("Group invite relay stopped", "at " + invitee.name());
                 return;
             }
         }
 
         log.info("Every character is in the group.");
+        activity.record("Group invite relay completed", characters.size() + " characters");
     }
 
     /** One link of the relay: the inviter sends the command, the invitee accepts what it gets. */
