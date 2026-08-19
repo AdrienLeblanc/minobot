@@ -49,6 +49,19 @@ panel come out invisible.
 button's preferred size comes from its own text through its UI delegate and ignores what was laid out
 inside it — which is why `StatePill` is a `JPanel`.
 
+**A `JPanel` you size by hand needs its *minimum* set, not just its preferred.** A bare `JPanel` keeps
+Swing's default `FlowLayout`, whose minimum is its two gaps — **ten pixels**, with no children and a
+preferred size of one. A `BoxLayout` that cannot fit the sum of its children's minimums stops shrinking
+and lets the row run past the container instead, and what falls off the end is clipped. That is how
+`Divider.vertical` — a one-pixel hairline — took ten pixels between the console's two columns and pushed
+the whispers' `Clear` off the edge of its card.
+
+**Add widths up after scaling, never before.** `Scale.px` rounds, so `px(a + b)` is not always
+`px(a) + px(b)`. A card pinned to `px(total)` comes out a pixel short of the parts laid out inside it,
+and a part that is itself pinned cannot give that pixel back — so the one at the right edge is pushed
+out and clipped. `ConsoleCard.width(scale)` and `SwingOverlay.sheetWidth()` are both sums of *scaled*
+parts for this reason; neither is a constant.
+
 The buttons are **named for their emphasis, not their colour** — the same split the labels get. The
 abstract `FlatButton` holds the shape (a rounded fill that lights on hover, with an optional hairline)
 once; `PrimaryButton` (the ember — the chosen, the *stop this*) and `SecondaryButton` (a raised tile with

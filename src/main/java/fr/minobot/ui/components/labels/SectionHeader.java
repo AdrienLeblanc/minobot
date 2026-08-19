@@ -26,7 +26,7 @@ public final class SectionHeader extends JPanel {
 
     /**
      * @param note    a word of context beside the heading — {@code 4 online of 8}; {@code null} for none
-     * @param control what the section is acted on by — a reload, a switch; {@code null} for none
+     * @param control what the section is acted on by — a switch, a drawer; {@code null} for none
      */
     public SectionHeader(Scale scale, String text, String note, Component control) {
         super(new BorderLayout());

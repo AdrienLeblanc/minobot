@@ -158,14 +158,18 @@ droite **la console**, vos deux interrupteurs et, sous un trait, ce que Minobot 
 
 Minobot **trouve tout seul vos fenêtres de jeu** et les affiche en liste, numérotées. **Glissez une ligne
 pour changer l'ordre** : c'est ce même ordre qui sert au défilement (`X2`) et au rangement de la barre des
-tâches (`F9`). Vous n'avez rien à écrire nulle part. Le bouton **`Reload`** relit les fenêtres tout de
-suite, si vous venez d'en ouvrir ou d'en fermer une.
+tâches (`F9`). Vous n'avez rien à écrire nulle part, et **rien à recharger** : la liste est relue à
+l'ouverture du panneau, puis toutes les deux secondes tant qu'il est ouvert — un perso qui se connecte ou
+se déconnecte apparaît ou s'éteint tout seul.
 
 ### La classe et le sexe de chaque personnage
 
 Cliquez sur **« Pick a class »** en face d'un personnage : une grille des **douze classes** de Dofus
 Retro s'ouvre, avec une bascule **Male / Female** en haut. Choisissez, et l'icône de la classe s'affiche
 à côté du nom — de quoi repérer vos persos d'un coup d'œil.
+
+Trompé de classe ou de sexe ? **Double-cliquez sur la ligne** du personnage : la même grille se rouvre, et
+votre nouveau choix remplace l'ancien.
 
 ### Connecté, déconnecté, et « oublier » un personnage
 

@@ -27,12 +27,19 @@ import java.awt.Component;
 public final class ConsoleCard {
 
     /**
-     * The card's own width, at scale 1: its two columns, the rule between them and the padding around
-     * them. A number of its own here would be a number to keep in step with four others, and it would
-     * lose.
+     * The card's own width: its two columns, the rule between them and the padding around them. A number
+     * of its own here would be a number to keep in step with four others, and it would lose.
+     *
+     * <p><strong>Summed after scaling, never before.</strong> {@code px()} rounds, so
+     * {@code px(a + b)} is not always {@code px(a) + px(b)} — and a card pinned to the scaled total comes
+     * out a pixel short of the parts laid out inside it. A pinned column cannot give that pixel back, so
+     * the one at the right edge is pushed past the card and clipped there. It costs whatever sits last
+     * on that edge, which here is the whispers' {@code Clear}.
      */
-    public static final int WIDTH = ActivityList.WIDTH + 2 * Metrics.GUTTER + 1
-            + WhisperList.WIDTH + 2 * Metrics.PADDING;
+    public static int width(Scale scale) {
+        return scale.px(ActivityList.WIDTH) + 2 * scale.px(Metrics.GUTTER) + scale.px(1)
+                + scale.px(WhisperList.WIDTH) + 2 * scale.px(Metrics.PADDING);
+    }
 
     private final Switches switches;
     private final ActivityList activity = new ActivityList();
@@ -47,7 +54,7 @@ public final class ConsoleCard {
     public JPanel build(Scale scale, OverlayContent content, JComponent keybinds) {
         final var padding = scale.px(Metrics.PADDING);
 
-        final var card = Card.column(scale, Theme.SURFACE).pinnedTo(scale.px(WIDTH));
+        final var card = Card.column(scale, Theme.SURFACE).pinnedTo(width(scale));
         card.setBorder(new EmptyBorder(padding, padding, padding, padding));
 
         card.add(switches.build(scale, content, keybinds));

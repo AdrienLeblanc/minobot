@@ -39,9 +39,13 @@ public final class SmartTable<T> extends JScrollPane {
     /**
      * A plain click — not a drag — landed on a row. The {@link JList} and the row's {@code index} are
      * handed along so the caller can measure the click against the cell it drew.
+     *
+     * @param clicks how many clicks in a row this one is: {@code 1} for a single, {@code 2} for the
+     *               second of a double. The first of a double still arrives as a click of its own, so a
+     *               caller acting on both must make the single one harmless to repeat.
      */
     public interface RowClick<T> {
-        void onClick(JList<T> list, int index, Point point);
+        void onClick(JList<T> list, int index, Point point, int clicks);
     }
 
     /** The card's content width, so a shrunk list keeps its width while it gives up height. */
@@ -87,6 +91,29 @@ public final class SmartTable<T> extends JScrollPane {
     /** The natural row height, in pixels, so the orchestrator can floor a shrunk list at one row. */
     public int rowHeight() {
         return rowHeight;
+    }
+
+    /**
+     * How far down the list is scrolled, in pixels.
+     *
+     * <p>The surfaces this table lives on are <strong>rebuilt, never patched</strong> — every size on them
+     * was computed with the scale of the moment — so a new table, and a new scroll bar sitting at zero,
+     * is what every redraw produces. Read this before the rebuild and hand it back to {@link #scrollTo}
+     * after, or a player who edits a row near the foot of a long list is answered by being thrown back to
+     * the top of it.
+     */
+    public int scrollOffset() {
+        return getVerticalScrollBar().getValue();
+    }
+
+    /**
+     * Puts the list back where it was being read.
+     *
+     * <p><strong>After the layout, not before:</strong> a scroll bar whose extent is not settled yet
+     * clamps every value to zero, and the offset would be silently lost.
+     */
+    public void scrollTo(int offset) {
+        getVerticalScrollBar().setValue(offset);
     }
 
     /** Sets the list's height as the orchestrator shrinks it to the room the game leaves the cards. */
@@ -153,7 +180,7 @@ public final class SmartTable<T> extends JScrollPane {
                 return;
             }
 
-            onClick.onClick(list, index, event.getPoint());
+            onClick.onClick(list, index, event.getPoint(), event.getClickCount());
         }
     }
 }

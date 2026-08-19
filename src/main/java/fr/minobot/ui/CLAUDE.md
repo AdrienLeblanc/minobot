@@ -33,6 +33,15 @@ the size a hint or a key chip is drawn, that smear is what the letters read as. 
 `Scale.font(face, size)`, which derives the size and nothing else. A face that cannot be read falls back
 to the desktop's own, the way the logo falls back to its wordmark.
 
+## `clip`, never `setClip`, inside a cell renderer
+
+`Graphics2D.setClip(shape)` **replaces** the clip; `Graphics2D.clip(shape)` narrows it. A row is a rubber
+stamp — it is painted with its scroll pane's clip already in force — so a `setClip` inside one throws that
+clip away and lets the shape paint anywhere on the panel. That is how the half-row at the foot of a
+scrolled character list came to draw its ember stripe past the bottom of the viewport and across the hint
+below: the stripe was the only part of the row drawn under a clip of its own, and so the only part that
+escaped. Narrow with `clip(...)`, restore with `setClip(saved)`.
+
 **Only draw characters the shipped faces have.** Barlow's latin cut covers `U+2000`–`U+206F`, so `…`,
 `“ ”` and `›` are safe and `→` (`U+2192`) is not — Swing draws the missing-glyph box for it, which is how
 the whisper list came to say *sender ▯ receiver* before it was caught.

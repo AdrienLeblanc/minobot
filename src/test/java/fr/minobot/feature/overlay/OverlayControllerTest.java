@@ -278,6 +278,78 @@ class OverlayControllerTest {
     }
 
     @Nested
+    @DisplayName("keeping its list true")
+    class Refreshing {
+
+        /** The roster is polled every two seconds; this is room for a turn of it, and no more. */
+        private void settle() throws InterruptedException {
+            Thread.sleep(2_500);
+        }
+
+        @Test
+        @DisplayName("opening the panel re-reads the desktop, rather than trusting the last sweep")
+        void refreshesTheRosterWhenItOpens() {
+            final var windows = new WindowManager(api, settings, activity);
+            windows.refresh(); // the sweep runs while only the three characters are up
+
+            // A fourth account is launched, and the sweep will not run again for 30 seconds.
+            api.withForeground(1).withWindow(4, "Delta - Dofus Retro");
+
+            controller(windows).toggle();
+
+            assertThat(shownNames())
+                    .as("the panel opens on the desktop as it is, not as the sweep left it")
+                    .containsExactly("Alpha", "Bravo", "Charlie", "Delta");
+        }
+
+        @Test
+        @DisplayName("a character who logs in while it is up lands on the list, with nothing pressed")
+        void picksUpACharacterLoggedInWhileItIsOpen() throws InterruptedException {
+            api.withForeground(1);
+            controller().toggle();
+            assertThat(shownNames()).containsExactly("Alpha", "Bravo", "Charlie");
+
+            api.withWindow(4, "Delta - Dofus Retro");
+            settle();
+
+            assertThat(shownNames())
+                    .as("this is what the panel has instead of a Reload button")
+                    .containsExactly("Alpha", "Bravo", "Charlie", "Delta");
+        }
+
+        @Test
+        @DisplayName("a poll that finds nothing new draws nothing: the panel is rebuilt, never patched")
+        void doesNotRedrawWhenTheDesktopIsUnchanged() throws InterruptedException {
+            api.withForeground(1);
+            controller().toggle();
+            final var drawn = view.timesDrawn();
+
+            settle();
+
+            assertThat(view.timesDrawn())
+                    .as("a sheet rebuilt every two seconds would drop the row under the player's hand")
+                    .isEqualTo(drawn);
+        }
+
+        @Test
+        @DisplayName("the poll stops with the panel, rather than enumerating the desktop forever")
+        void stopsPollingOnceThePanelIsDown() throws InterruptedException {
+            api.withForeground(1);
+            final var controller = controller();
+            controller.toggle();
+            controller.toggle();
+            final var drawn = view.timesDrawn();
+
+            api.withWindow(4, "Delta - Dofus Retro");
+            settle();
+
+            assertThat(view.timesDrawn())
+                    .as("a character logged in, but nothing is up to notice")
+                    .isEqualTo(drawn);
+        }
+    }
+
+    @Nested
     @DisplayName("what an edit changes")
     class Editing {
 
@@ -297,23 +369,6 @@ class OverlayControllerTest {
             assertThat(view.bounds())
                     .as("and it has not moved off its character")
                     .contains(new Rect(8, 30, 792, 592));
-        }
-
-        @Test
-        @DisplayName("reload re-reads the desktop: a character opened since the panel went up is picked up")
-        void reloadsTheCharacterList() {
-            api.withForeground(1);
-            final var controller = controller();
-            controller.toggle();
-            assertThat(shownNames())
-                    .containsExactly("Alpha", "Bravo", "Charlie");
-
-            api.withWindow(4, "Delta - Dofus Retro"); // a fourth account, opened after the panel went up
-            controller.reload();
-
-            assertThat(shownNames())
-                    .as("the panel shows the new character without waiting for the 30s sweep")
-                    .containsExactly("Alpha", "Bravo", "Charlie", "Delta");
         }
 
         @Test

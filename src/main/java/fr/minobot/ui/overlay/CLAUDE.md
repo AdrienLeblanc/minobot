@@ -16,7 +16,9 @@ The panel says three things, and they are laid out in the order a player needs t
   logo used to have a 300-pixel band of its own, which announced the application's name to somebody who
   had already opened the application. The room went to what the panel is for.
 - **`TeamCard`** (left, fixed width) is what the player **edits** — the roster, the cycle order, the
-  classes. It is pinned to its width so a long character name never moves the console beside it.
+  classes. It is pinned to its width so a long character name never moves the console beside it. It has
+  no button of its own: the list keeps itself true, and the two things a player does to it (drag a row,
+  open the picker) are both done to the rows.
 - **`ConsoleCard`** (right) is what Minobot has been **doing** — the two switches above a rule, and below
   it the activity and the whispers. The switches and the record share one card because they are the same
   question asked twice: *is auto-pass on?* and *did it just pass a turn?*
@@ -37,6 +39,13 @@ with that scale, so walking the tree to correct it would be the walk that builds
 returns a fresh component. So a section can safely capture its `Scale` at build time; the scale never
 changes under a component that is already on screen.
 
+**What the rebuild throws away, `draw()` carries across by hand.** So far that is one thing: **how far the
+character list is scrolled**. A new table comes back with a new scroll bar at zero, and a player who drags
+two rows into place at the foot of a long list would be answered by being thrown to the top of it — which
+reads as the panel undoing what they just did. `draw()` reads `team.scrollOffset()` before laying out and
+hands it back after, **inside an `invokeLater`**: the restore must sit behind the layout that `revalidate()`
+queued, because a scroll bar whose extent is not settled yet clamps every value to zero.
+
 ## The orchestrator owns the transient state; sections call back
 
 Two pieces of state are the panel's, not the player's — there is nothing on disk for them:
@@ -51,15 +60,17 @@ Two pieces of state are the panel's, not the player's — there is nothing on di
 Sections never hold this state and never redraw themselves for it — they hand the decision back to the
 orchestrator, which is the only place the two flags live.
 
-## Two things must leave the EDT
+## One thing must leave the EDT
 
 Swing lives on the event dispatch thread, and `SwingOverlay`'s public methods hand their work to it. But
-two waits must **not** run on it, or they freeze the very panel the player is looking at:
+`KeybindsDrawer.capture()` waits *seconds* for a human to press a key, and a wait like that on the EDT
+freezes the very panel the player is looking at — so it runs on a virtual thread (`overlay-capture`) and
+hands its result back with `invokeLater`.
 
-- `KeybindsDrawer.capture()` — waits seconds for a human to press a key (`overlay-capture`).
-- `TeamCard`'s reload button — enumerates every window and reads each title (`overlay-reload`).
-
-Both run on a virtual thread and hand their result back to the EDT with `invokeLater`.
+**Nothing here asks the desktop to be re-read.** The card used to carry a `Reload` button, which was the
+other thing that had to leave the EDT; the panel now re-reads the desktop when it opens and every couple
+of seconds while it is up — see `feature/overlay/CLAUDE.md` — from a thread that was never the EDT to
+begin with.
 
 ## The `Sheet` is a hand-written layout
 
@@ -69,7 +80,20 @@ clicked reads as a bug); and the whole panel is capped to the scale the game win
 the character list gives way first, because it scrolls. That logic stays in the orchestrator, because it
 reasons about the sheet and the drawer together.
 
-## A row's state is its stripe
+## The rows
+
+### Where a click on a row lands
+
+`CharacterList.onRowClick` reads a click off the cell it landed in, and there is an order to it. The
+**status** cell is settled first and ends the routing whatever it decides — it is the only cell that can
+*remove* the row under the pointer, and a second click there must not be taken for a double-click on
+whichever row moved up into its place. Everywhere else a click asks for the class picker: on the **class**
+cell, or **anywhere on the row twice**. The double-click is the way *back* — once a class is pinned, its
+cell is a quiet grey word with no invitation left to aim at, and a player who picked the wrong one needs a
+target that does not depend on the row still looking unconfigured. Opening the picker changes nothing on
+its own, which is what makes the single click that precedes a double one harmless.
+
+### A row's state is its stripe
 
 `CharacterRow` says *on screen* or *not* before a word of it is read: the ember down the left edge, and
 the fill, the name, the portrait and the index all stepping back a shade with it. The green dot only

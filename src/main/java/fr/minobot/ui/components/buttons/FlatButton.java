@@ -13,7 +13,7 @@ import java.awt.Graphics;
 
 /**
  * A flat button: a rounded fill that lights on hover, its label the only thing above it. The panel's
- * everyday control — reload, turn off, a sex, the drawer's switch.
+ * everyday control — turn off, clear, a sex, the drawer's switch.
  *
  * <p>It is drawn, not bordered, and it is <strong>not focusable</strong>: the surfaces it lives on never
  * take the foreground, so a focus ring would be a lie the panel cannot honour.

@@ -1,6 +1,7 @@
 package fr.minobot.win32;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,14 +19,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public final class FakeWindowApi implements WindowApi {
 
-    private final Map<Long, String> titles = new LinkedHashMap<>();
-    private final Map<Long, String> executables = new LinkedHashMap<>();
+    /**
+     * The desktop itself, and it is read from another thread than the one that writes it: the overlay's
+     * follower polls the window list and each window's area while the test opens, moves and closes them.
+     * Synchronized rather than concurrent so the enumeration order — which several tests read as the
+     * order Windows would have given — is still the order they were added in.
+     */
+    private final Map<Long, String> titles = Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<Long, String> executables = Collections.synchronizedMap(new LinkedHashMap<>());
+    private final Map<Long, Rect> bounds = Collections.synchronizedMap(new LinkedHashMap<>());
+
     private final Set<Long> minimized = ConcurrentHashMap.newKeySet();
     private final Set<Long> maximized = ConcurrentHashMap.newKeySet();
     private final Set<Long> hidden = ConcurrentHashMap.newKeySet();
     private final Map<Long, Long> monitors = new LinkedHashMap<>();
     private final Map<Long, Long> parents = new LinkedHashMap<>();
-    private final Map<Long, Rect> bounds = new LinkedHashMap<>();
     private final Set<Integer> keysDown = ConcurrentHashMap.newKeySet();
     private final List<PostedMessage> posted = new CopyOnWriteArrayList<>();
     private final List<Long> shown = new CopyOnWriteArrayList<>();
@@ -97,7 +105,11 @@ public final class FakeWindowApi implements WindowApi {
 
     @Override
     public List<Long> topLevelWindows() {
-        return new ArrayList<>(titles.keySet());
+        // A synchronized map guards each call, never an iteration: the lock is the map itself, and this
+        // is the one place the fake walks it while another thread may be adding a window.
+        synchronized (titles) {
+            return new ArrayList<>(titles.keySet());
+        }
     }
 
     @Override

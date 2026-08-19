@@ -27,13 +27,26 @@ public final class Divider {
         return rule(new Dimension(scale.px(1), Integer.MAX_VALUE), scale.px(1));
     }
 
+    /**
+     * A rule is a hairline in the direction it is thin, and takes what it is given in the other.
+     *
+     * <p><strong>Its minimum is set, and that is not a formality.</strong> A bare {@link JPanel} keeps
+     * Swing's default {@code FlowLayout}, whose minimum size is its two gaps — <em>ten pixels</em>, even
+     * with no children and a preferred size of one. A {@code BoxLayout} that cannot fit the sum of its
+     * children's minimums stops shrinking and lets the row overflow instead: the rule took its ten
+     * pixels, and the column to its right was pushed past the edge of the card and clipped there. That
+     * is how the whispers' {@code Clear} came to read {@code Clea}.
+     */
     private static JComponent rule(Dimension maximum, int thickness) {
         final var line = new JPanel();
         line.setBackground(Theme.RULE);
-        line.setMaximumSize(maximum);
-        line.setPreferredSize(new Dimension(
+
+        final var hairline = new Dimension(
                 maximum.width == Integer.MAX_VALUE ? thickness : maximum.width,
-                maximum.height == Integer.MAX_VALUE ? thickness : maximum.height));
+                maximum.height == Integer.MAX_VALUE ? thickness : maximum.height);
+        line.setMaximumSize(maximum);
+        line.setPreferredSize(hairline);
+        line.setMinimumSize(hairline);
         line.setAlignmentX(Component.LEFT_ALIGNMENT);
         return line;
     }

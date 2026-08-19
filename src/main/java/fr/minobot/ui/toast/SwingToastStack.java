@@ -55,7 +55,7 @@ import java.util.Objects;
 public final class SwingToastStack implements ToastView {
 
     /** One card, at scale 1: wide enough for a line of chat, tall enough for the three it carries. */
-    private static final int CARD_WIDTH = 246;
+    private static final int CARD_WIDTH = 225;
     private static final int CARD_HEIGHT = 70;
 
     /** The breathing room the window keeps around the stack, so a card's rounded corner is not clipped. */

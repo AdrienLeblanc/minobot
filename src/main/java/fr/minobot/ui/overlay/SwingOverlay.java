@@ -72,14 +72,6 @@ import java.awt.GraphicsEnvironment;
  */
 public final class SwingOverlay implements OverlayView {
 
-    /**
-     * The sheet, at scale 1: the team's fixed width, the console's minimum, the gutter between them and
-     * the padding around them. A number of its own here would be a number to keep in step with three
-     * others, and it would lose.
-     */
-    private static final int SHEET_WIDTH =
-            TeamCard.WIDTH + Metrics.GUTTER + ConsoleCard.WIDTH + 2 * Metrics.PADDING;
-
     /** The close cross in the header: the mouse's way out, where the hotkey is the keyboard's. */
     private static final int CLOSE_SIZE = 28;
 
@@ -183,6 +175,12 @@ public final class SwingOverlay implements OverlayView {
             build();
         }
 
+        // Where the player had the character list scrolled to. Everything below rebuilds the sheet, so
+        // the list comes back a new component with a new scroll bar at zero — and a drag that reorders
+        // two rows at the foot of a long list would be answered by throwing the player back to the top
+        // of it, which reads as the panel undoing what they just did.
+        final var scrolled = team.scrollOffset();
+
         // The sheet is built again rather than patched: every size on it was computed with the scale of
         // the moment — the paddings, the fonts, the height of a row — and walking them all to correct
         // them would be the walk that builds them.
@@ -199,6 +197,10 @@ public final class SwingOverlay implements OverlayView {
         window.setVisible(true);
         window.getContentPane().revalidate();
         window.getContentPane().repaint();
+
+        // Behind the layout that revalidate() has just queued, never in front of it: a scroll bar whose
+        // extent is not settled clamps any value to zero, and the offset would be quietly lost.
+        SwingUtilities.invokeLater(() -> team.scrollTo(scrolled));
     }
 
     /** The sheet, at one scale: built, filled, and shrunk to the room the game leaves it. */
@@ -252,7 +254,7 @@ public final class SwingOverlay implements OverlayView {
     private JPanel sheet(OverlayContent content) {
         final var padding = px(Metrics.PADDING);
 
-        final var card = Card.sheet(scale, Theme.BACKGROUND).pinnedTo(px(SHEET_WIDTH));
+        final var card = Card.sheet(scale, Theme.BACKGROUND).pinnedTo(sheetWidth());
         card.setBorder(new EmptyBorder(padding, padding, padding, padding));
 
         card.add(header.build(scale, content, CloseCross.button(scale, this::hide, px(CLOSE_SIZE))));
@@ -452,6 +454,21 @@ public final class SwingOverlay implements OverlayView {
         if (lastContent != null && lastBounds != null) {
             draw(lastContent, lastBounds);
         }
+    }
+
+    /**
+     * How wide the sheet stands: the team's fixed width, the console beside it, the gutter between them
+     * and the padding around them. Computed from its parts rather than written down — a literal here
+     * would be a number to keep in step with three others, and it would lose.
+     *
+     * <p><strong>Its parts are added up after scaling, never before.</strong> {@link Scale#px} rounds, so
+     * {@code px(a + b)} is not always {@code px(a) + px(b)}: a sheet pinned to the scaled total comes out
+     * a pixel short of the cards laid out on it, and a card pinned to a width cannot give that pixel
+     * back — so the one at the right edge is pushed past the sheet and clipped there.
+     */
+    private int sheetWidth() {
+        return px(TeamCard.WIDTH) + px(Metrics.GUTTER) + ConsoleCard.width(scale)
+                + 2 * px(Metrics.PADDING);
     }
 
     /** A natural length, at the size the player asked for — the orchestrator's own shorthand for its layout. */

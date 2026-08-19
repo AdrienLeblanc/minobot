@@ -48,6 +48,11 @@ import java.util.function.Function;
  * "shown somewhere by default": outside the game there is no character for it to belong to, and a panel
  * that appears over a window the player was not looking at is a panel they did not ask for.
  *
+ * <p><strong>It never has to be told to look again.</strong> The desktop is re-read when the panel opens
+ * and every couple of seconds while it is up, and the panel is redrawn only when what came back differs
+ * from what is on the screen. That is why there is no {@code Reload} button: the one thing it did, the
+ * panel now does at the two moments the player would have thought to press it.
+ *
  * <p>Once up it <em>stays</em> up, whatever takes the foreground next: a toast pulling the focus to
  * another character, the player clicking into another application. The panel is always-on-top, and
  * always-on-top owes nothing to the focus. The hotkey is the only switch — except that a character who
@@ -72,6 +77,16 @@ public final class OverlayController implements OverlayActions {
      */
     private static final Duration FOLLOW_INTERVAL = Duration.ofMillis(30);
 
+    /**
+     * How often the panel goes back to the desktop for the roster while it is up.
+     *
+     * <p>Far slower than the follow above, because it is a far heavier question: where a window sits is
+     * one native call, while the roster is the whole desktop enumerated and every title read. Slow enough
+     * that it costs nothing next to the game it is drawn over, quick enough that a character who has just
+     * finished loading is on the list before the player thinks to look for them.
+     */
+    private static final Duration ROSTER_INTERVAL = Duration.ofSeconds(2);
+
     private final WindowApi api;
     private final WindowManager windows;
     private final Settings settings;
@@ -83,6 +98,12 @@ public final class OverlayController implements OverlayActions {
 
     /** Where the panel last was, so an edit can redraw it without asking Windows again. */
     private final AtomicReference<Rect> bounds = new AtomicReference<>();
+
+    /**
+     * What the panel was last handed to draw, so the roster poll can tell a change from a redraw for
+     * nothing. Written by the drawing thread, read by the follower.
+     */
+    private final AtomicReference<OverlayContent> shown = new AtomicReference<>();
 
     /**
      * @param viewFactory hands the view its way back in, so neither has to be built before the other
@@ -121,22 +142,31 @@ public final class OverlayController implements OverlayActions {
             return;
         }
 
+        // The desktop as it is now, not as the thirty-second sweep last left it. The player is opening a
+        // list they are about to read, and a character who logged in a moment ago belongs on it: this is
+        // the refresh the Reload button used to ask for, spent where nobody has to press anything.
+        windows.refresh();
+
         log.info("Showing the overlay on '{}'.", character.get().name());
         bounds.set(area.get());
-        view.show(content(), area.get());
+        draw(content(), area.get());
 
         follow(character.get());
     }
 
     /**
-     * Keeps the panel on its character while the player drags or resizes the window.
+     * Keeps the panel on its character — and its list on the desktop — while it is up.
      *
      * <p>A thread of its own, because there is nothing to react to: Windows will not tell us a window
      * moved unless we hook its messages, and hooking them would mean a message pump and a native
-     * callback for something one poll answers. It lives exactly as long as the panel does.
+     * callback for something one poll answers. It lives exactly as long as the panel does, and it asks
+     * two questions at two rhythms — where the window is, thirty times a second, and who is logged in,
+     * every couple of seconds.
      */
     private void follow(GameWindow character) {
         Thread.ofVirtual().name("overlay-follow").start(() -> {
+            var lastRoster = System.nanoTime();
+
             while (view.isVisible()) {
                 final var area = api.clientArea(character.hwnd());
 
@@ -153,11 +183,35 @@ public final class OverlayController implements OverlayActions {
                     view.moveTo(area.get());
                 }
 
+                if (System.nanoTime() - lastRoster >= ROSTER_INTERVAL.toNanos()) {
+                    lastRoster = System.nanoTime();
+                    refreshRoster();
+                }
+
                 if (!sleep()) {
                     return;
                 }
             }
         });
+    }
+
+    /**
+     * Goes back to the desktop for the roster, and redraws only if it came back different.
+     *
+     * <p>This is what the panel has instead of a Reload button: a character who logs in or out while it is
+     * open takes their place, or greys out, on their own — and so does a line the console has just gained.
+     * The comparison is the whole point. The panel is <em>rebuilt</em> at every draw, not patched, so a
+     * poll that redrew unconditionally would drop the row the player has under the pointer twice a second.
+     */
+    private void refreshRoster() {
+        windows.refresh();
+
+        final var fresh = content();
+        final var placed = bounds.get();
+        if (placed != null && !fresh.equals(shown.get())) {
+            log.debug("The desktop changed under the overlay: redrawing it.");
+            draw(fresh, placed);
+        }
     }
 
     /** @return whether the follower may go on; {@code false} means the thread was interrupted */
@@ -180,13 +234,6 @@ public final class OverlayController implements OverlayActions {
                 .toList();
         log.info("New character order: {}", named);
         settings.update(config -> config.withCharacterOrder(named));
-        redraw();
-    }
-
-    @Override
-    public void reload() {
-        log.info("Reloading the character list on the player's request.");
-        windows.refresh();
         redraw();
     }
 
@@ -381,6 +428,15 @@ public final class OverlayController implements OverlayActions {
         if (!view.isVisible() || placed == null) {
             return;
         }
-        view.show(content(), placed);
+        draw(content(), placed);
+    }
+
+    /**
+     * Hands the panel what to show, and remembers it — the one way to {@link OverlayView#show}, so the
+     * roster poll always compares against what is actually on the screen.
+     */
+    private void draw(OverlayContent content, Rect where) {
+        shown.set(content);
+        view.show(content, where);
     }
 }

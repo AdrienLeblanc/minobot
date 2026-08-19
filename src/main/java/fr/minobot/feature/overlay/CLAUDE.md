@@ -21,6 +21,15 @@ whatever takes the foreground next — it is always-on-top, and always-on-top ow
 land on `OverlayView.hide()`, the one path down, so the follow thread stops and `shift+space` reopens it clean. A
 character who leaves also takes their panel with them: minimized or closed, and it goes.
 
+**It never has to be told to look again, and that is why it has no `Reload` button.** The desktop is
+re-enumerated when the panel opens — the list the player is about to read is the desktop as it *is*, not
+as the thirty-second sweep last left it — and again every two seconds while it is up, on the follow thread
+below. The two rhythms are two different questions: where a window sits is one native call, the roster is
+the whole desktop enumerated and every title read. **The poll redraws only when what came back differs
+from what is on the screen** (`OverlayContent` compared whole, so a new activity line counts too). That
+comparison is not an optimization: the panel is *rebuilt* at every draw and never patched, so a poll that
+redrew unconditionally would drop the row the player has under the pointer twice a second.
+
 It covers the **client area**, which is the game and nothing else: `WindowApi.clientArea` is
 `GetClientRect` followed by `ClientToScreen`, and the client origin sits *below* the title bar — which
 is what keeps the panel off the minimize, maximize and close buttons. And it **follows**: a virtual
@@ -107,7 +116,11 @@ Each character row also carries its **class and sex** (`DofusClass`, the twelve 
 frame where the icon will go — the only ember on an otherwise finished row, which is what makes an
 unconfigured character findable in a list of eight, and the reason the frame is kept rather than left
 blank: the rows do not gain a ragged column the day one character is configured and another is not. A
-click on it opens a **modal picker** — the twelve **six to a row**, so they make two lines and the picker
+click on it opens a **modal picker** — and so does a **double-click anywhere on the row**, which is the
+way back: once a class is pinned that cell is a quiet grey word, and a player who picked the wrong class
+would otherwise have no invitation left to aim at. (The status cell is the exception, because it can
+delete the row under the pointer — see `ui/overlay/CLAUDE.md` for the routing.) The picker is the twelve
+**six to a row**, so they make two lines and the picker
 stays wider than it is tall, drawn over a scrim that dims the panel and catches every click, so a
 mis-click closes the picker and touches nothing else. At the picker's head a **Male/Female segmented
 control** sets the sex: picking a sex records it at once and leaves the picker open, so the class tiles

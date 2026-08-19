@@ -109,8 +109,14 @@ public final class CharacterRow extends DefaultListCellRenderer {
         canvas.drawRoundRect(0, inset, getWidth() - 1, height - 1, radius, radius);
 
         // The stripe, clipped to the tile's rounded left edge so it does not square the corner off.
+        //
+        // `clip` and not `setClip`: a row is a rubber stamp, painted with the scroll pane's own clip
+        // already in force, and `setClip` would *replace* that one instead of narrowing it. The half-row
+        // at the foot of a scrolled list then painted its stripe past the bottom of the viewport, over
+        // the hint below the list — the one part of the row that escaped, because it is the only one
+        // drawn under a clip of its own.
         final var clip = canvas.getClip();
-        canvas.setClip(new RoundRectangle2D.Float(0, inset, getWidth(), height, radius, radius));
+        canvas.clip(new RoundRectangle2D.Float(0, inset, getWidth(), height, radius, radius));
         canvas.setColor(connected ? Theme.ACCENT : Theme.EDGE);
         canvas.fillRect(0, inset, scale.px(STRIPE), height);
         canvas.setClip(clip);

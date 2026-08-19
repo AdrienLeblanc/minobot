@@ -19,10 +19,10 @@ import java.util.function.Consumer;
  * model and decides what a click on a row means; the scrollable, reorderable shell it lives in — and
  * the raw mouse handling that shell needs — is a reusable {@link SmartTable}.
  *
- * <p>Every click is routed by hand — a drag reorders, a click on the class cell opens the picker, a click
- * on a disconnected row's forget cross drops it — because the window this list lives on never takes the
- * focus, and Swing's own drag-and-drop and selection machinery expects a window that does. The
- * {@link SmartTable} does the routing; this class supplies the meaning.
+ * <p>Every click is routed by hand — a drag reorders, a click on the class cell or a double-click anywhere
+ * on the row opens the picker, a click on a disconnected row's forget cross drops it — because the window
+ * this list lives on never takes the focus, and Swing's own drag-and-drop and selection machinery expects
+ * a window that does. The {@link SmartTable} does the routing; this class supplies the meaning.
  */
 public final class CharacterList {
 
@@ -70,6 +70,18 @@ public final class CharacterList {
         return table.rowHeight();
     }
 
+    /** How far down the list is scrolled — zero before the first build, when there is no table yet. */
+    public int scrollOffset() {
+        return table == null ? 0 : table.scrollOffset();
+    }
+
+    /** Puts the list back where it was being read, after a rebuild has laid the new table out. */
+    public void scrollTo(int offset) {
+        if (table != null) {
+            table.scrollTo(offset);
+        }
+    }
+
     /** Sets the list's height as the orchestrator shrinks it to the room the game leaves the cards. */
     public void resizeTo(int height) {
         table.resizeTo(height);
@@ -81,49 +93,46 @@ public final class CharacterList {
     }
 
     /**
-     * A plain click is not a reorder. The forget cross is tested first — it sits at the far right of a
-     * disconnected row, where a connected one carries only its status dot — then the class cell: a click
-     * there is a request to choose that character's class. Anywhere else, the list has already selected
-     * the row.
+     * A plain click is not a reorder, and what it means is read off the cell it landed in.
+     *
+     * <p>The <strong>status</strong> cell is settled first and ends the routing whatever it decides: it
+     * is the only cell that can <em>remove</em> the row under the pointer, and a second click there must
+     * not be taken for a double-click on whichever row moved up into its place.
+     *
+     * <p>Everywhere else, a click asks for the picker — on the <strong>class</strong> cell, which says
+     * {@code Pick a class} until one is chosen, or <strong>anywhere on the row twice</strong>. The
+     * double-click is the way back: once a class is pinned its cell is a quiet grey word, and a player
+     * who mis-clicked a class has no invitation left to aim at. Opening the picker changes nothing on its
+     * own, so the single click that opens it before the double one lands is harmless to repeat.
      */
-    private void onRowClick(JList<CharacterEntry> list, int index, Point point) {
-        if (!maybeForget(list, index, point)) {
-            maybeOpenClassPicker(list, index, point);
-        }
-    }
-
-    /** Forgets the character when the click landed on the cross drawn in a disconnected row's status cell. */
-    private boolean maybeForget(JList<CharacterEntry> list, int index, Point point) {
-        if (index < 0 || index >= model.size()) {
-            return false;
-        }
-        final var entry = model.get(index);
-        // The cross is drawn on disconnected characters only, and never on the login placeholder.
-        if (entry.connected() || entry.character().name().equals(OverlayContent.LOGGING_IN)) {
-            return false;
-        }
-
-        final var cell = list.getCellBounds(index, index);
-        if (cell != null && new RowColumns(scale, cell.width).inStatus(point.x - cell.x)) {
-            actions.forget(entry.character().name());
-            return true;
-        }
-        return false;
-    }
-
-    /** Opens the picker when the click landed in the row's class column, on a real character. */
-    private void maybeOpenClassPicker(JList<CharacterEntry> list, int index, Point point) {
+    private void onRowClick(JList<CharacterEntry> list, int index, Point point, int clicks) {
         if (index < 0 || index >= model.size()) {
             return;
         }
-        final var character = model.get(index).character();
-        if (character.name().equals(OverlayContent.LOGGING_IN)) {
-            return; // a not-yet-logged-in window has no character to give a class to
+        final var entry = model.get(index);
+        if (entry.character().name().equals(OverlayContent.LOGGING_IN)) {
+            return; // a not-yet-logged-in window has no character to forget or to give a class to
         }
 
         final var cell = list.getCellBounds(index, index);
-        if (cell != null && new RowColumns(scale, cell.width).inClass(point.x - cell.x)) {
-            openPicker.accept(character.name());
+        if (cell == null) {
+            return;
+        }
+
+        final var columns = new RowColumns(scale, cell.width);
+        final var x = point.x - cell.x;
+
+        if (columns.inStatus(x)) {
+            // The cross is drawn on disconnected characters only; a connected row carries a dot there,
+            // which is a state and not a control.
+            if (!entry.connected()) {
+                actions.forget(entry.character().name());
+            }
+            return;
+        }
+
+        if (clicks > 1 || columns.inClass(x)) {
+            openPicker.accept(entry.character().name());
         }
     }
 }
