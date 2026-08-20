@@ -85,6 +85,12 @@ public final class MultiWindowClicker {
      * @param cursor where the cursor was when the hotkey went down
      */
     public void clickEveryCharacter(Point cursor) {
+        // The desktop as it is now, not as the thirty-second sweep last left it. A character who
+        // logged in a moment ago is exactly the one the sweep has not caught yet — and, having no
+        // place in the configured order, the one that sorts last. Left to the sweep, the click would
+        // skip them without a word, and the player would read it as the last window being unreachable.
+        windows.refresh();
+
         final var characters = windows.orderedWindows();
         if (characters.isEmpty()) {
             log.warn("No character to click.");
@@ -125,22 +131,32 @@ public final class MultiWindowClicker {
         flash.watch(clicked);
     }
 
-    /** @return whether every click finished; {@code false} means this thread was interrupted waiting */
+    /**
+     * Waits for every click to be posted.
+     *
+     * <p>The wait is <strong>unbounded on purpose</strong>. A timeout here does not cancel anything —
+     * the click still lands — it only returns before the slow ones have added themselves to
+     * {@code clicked}, and a window missing from that list is a window {@link FlashSuppressor} never
+     * sweeps: it stays orange for good, and the panel counts one character short. The characters that
+     * take the retry path below always finish after a short deadline, so a short deadline drops exactly
+     * the same windows every time.
+     *
+     * <p>It costs no more than the slowest click, not the sum of them: the threads run at once, and
+     * joining them one after another simply waits for whichever ends last. That click is itself bounded
+     * by {@link #CLICK_ATTEMPTS} attempts spaced by {@link #RETRY_MILLIS}.
+     *
+     * @return whether every click finished; {@code false} means this thread was interrupted waiting
+     */
     private static boolean joinAll(List<Thread> clicks) {
-        return clicks.stream()
-                .parallel()
-                .map(thread ->{
-                    try {
-                        thread.join(RETRY_MILLIS);
-                        return true;
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return false;
-                    }
-                })
-                .filter(it -> it.equals(false))
-                .findFirst()
-                .orElse(true);
+        for (final var click : clicks) {
+            try {
+                click.join();
+            } catch (InterruptedException _) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

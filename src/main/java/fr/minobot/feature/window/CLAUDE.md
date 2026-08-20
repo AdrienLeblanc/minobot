@@ -15,6 +15,13 @@ The click is **posted** (`PostMessage`), not simulated, so the windows never tak
 position travels through the **client** area, not the screen: the same client coordinates land on the
 same in-game spot in every window, wherever they sit on the desktop.
 
+(3) is why the click **sweeps the desktop itself** instead of reading the thirty-second one, and why it
+**waits for every posted click** before recording anything. Both look like a cost against (1) and are
+not: the sweep is the one the panel already pays twice a second, and the wait costs the slowest click,
+not the sum. What they buy is a character who logged in a moment ago — unranked, therefore *last* in the
+order — and a window whose first post was refused: dropped from the click and from `FlashSuppressor`'s
+list respectively, either one reads to the player as *the last window is never clicked*.
+
 A clicked background window flashes orange in the taskbar — and **it is the game that lights it up,
 not us**: it asks for the foreground when it drains the click, Windows refuses (the same rule the ALT
 trick works around), and a flashing taskbar button is the consolation prize Windows hands a refused

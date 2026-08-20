@@ -206,8 +206,24 @@ public final class FakeWindowApi implements WindowApi {
         return foreground;
     }
 
+    /** The windows that will turn down the next message posted to them, once each. */
+    private final Set<Long> refuseNextPost = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Makes a window refuse the next message posted to it — what a busy one does on the real desktop,
+     * and the case the multi-clicker's retry exists for. Nothing is recorded for a refused post: it
+     * leaves no message in any queue.
+     */
+    public FakeWindowApi refusingTheNextPostTo(long hwnd) {
+        refuseNextPost.add(hwnd);
+        return this;
+    }
+
     @Override
     public boolean postMessage(long hwnd, int message, long wparam, long lparam) {
+        if (refuseNextPost.remove(hwnd)) {
+            return false;
+        }
         posted.add(new PostedMessage(hwnd, message, wparam, lparam));
         return isWindow(hwnd);
     }

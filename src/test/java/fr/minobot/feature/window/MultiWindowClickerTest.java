@@ -151,6 +151,21 @@ class MultiWindowClickerTest {
         }
 
         @Test
+        @DisplayName("a character who logged in since the last click is clicked too")
+        void clicksAWindowOpenedSinceTheLastSweep() {
+            final var api = desktop().withForeground(1).withWindowUnderCursor(1);
+            final var clicker = new Features(api, Map.of()).clicker();
+            clicker.clickEveryCharacter(CURSOR); // the sweep now holds Alpha, Bravo and Delta
+
+            api.withWindow(4, "Echo - Dofus"); // logs in, well inside the thirty-second interval
+            clicker.clickEveryCharacter(CURSOR);
+
+            // Echo is in no configured order, so it sorts last: the character a stale sweep drops is
+            // exactly the one the player would report as the window the click never reaches.
+            assertThat(messagesTo(api, 4)).containsExactlyElementsOf(leftClickOn(4, 90, 90));
+        }
+
+        @Test
         @DisplayName("the player's window keeps the focus: no window is ever raised")
         void neverStealsTheFocus() {
             final var api = desktop().withForeground(1).withWindowUnderCursor(1);
@@ -178,6 +193,22 @@ class MultiWindowClickerTest {
             Thread.sleep(300);
 
             assertThat(api.flashStopsFor(2)).isGreaterThan(atClickTime);
+        }
+
+        @Test
+        @DisplayName("a window that refused the first click is swept like the others")
+        void clearsTheOrangeOfAWindowThatNeededTheRetry() throws InterruptedException {
+            final var api = desktop().withForeground(1).withWindowUnderCursor(1)
+                    .refusingTheNextPostTo(3);
+
+            new Features(api, Map.of()).clicker().clickEveryCharacter(CURSOR);
+            Thread.sleep(300);
+
+            // Delta turned the first post down and was clicked on the retry, a beat after the others.
+            // A wait that gave up before that beat would leave it out of the swept list — clicked, and
+            // orange for good, which is the one window a player notices.
+            assertThat(messagesTo(api, 3)).containsExactlyElementsOf(leftClickOn(3, 90, 90));
+            assertThat(api.flashStopsFor(3)).isPositive();
         }
 
         @Test
